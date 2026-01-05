@@ -1,0 +1,15 @@
+{
+  "name": "neuro-assistant-monorepo",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.1",
+    "typescript": "^5.4.5",
+    "tsx": "^4.7.0"
+  }
+}

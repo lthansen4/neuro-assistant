@@ -1,0 +1,14 @@
+{
+  "name": "@neuro/db",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "devDependencies": {
+    "drizzle-kit": "^0.24.0",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.31.2",
+    "pg": "^8.11.3"
+  }
+}
