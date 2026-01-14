@@ -120,7 +120,7 @@ export async function scanAndQueueNudges(
           // Check if this class ended within our scan window
           const classEndUTC = classEndTime.toJSDate();
           if (classEndUTC >= windowStart && classEndUTC <= windowEnd) {
-            console.log(`[NudgeScheduler] Found ended class: ${item.courseName} (${item.courseCode}) at ${classEndTime.toISO()}`);
+            console.log(`[NudgeScheduler] Found ended class: ${item.courseName} at ${classEndTime.toISO()}`);
 
             // Check if nudge already exists for this course today
             const existingNudge = await db
@@ -155,13 +155,8 @@ export async function scanAndQueueNudges(
 
             if (muteSettings.length > 0) {
               const settings = muteSettings[0];
-              if (settings.muteUntil && settings.muteUntil > new Date()) {
-                console.log(`[NudgeScheduler] Course ${item.courseName} is muted until ${settings.muteUntil}, skipping`);
-                result.skipped++;
-                continue;
-              }
-              if (settings.autoCooldownUntil && settings.autoCooldownUntil > new Date()) {
-                console.log(`[NudgeScheduler] Course ${item.courseName} is in cooldown until ${settings.autoCooldownUntil}, skipping`);
+              if (settings.muted) {
+                console.log(`[NudgeScheduler] Course ${item.courseName} is muted, skipping`);
                 result.skipped++;
                 continue;
               }

@@ -324,7 +324,7 @@ export class RebalancingService {
                     : new Date(move.targetEndAt);
                   
                   // Get event metadata from the move if available
-                  const metadata = move.metadata || {};
+                  const metadata = (move.metadata || {}) as any;
                   
                   await tx.insert(calendarEventsNew).values({
                     userId,
@@ -406,7 +406,7 @@ export class RebalancingService {
                 ? move.targetEndAt 
                 : new Date(move.targetEndAt);
               
-              const metadata = move.metadata || {};
+              const metadata = (move.metadata || {}) as any;
               await tx.insert(calendarEventsNew).values({
                 userId,
                 title: metadata.title_hint || 'Study Session',
@@ -443,7 +443,7 @@ export class RebalancingService {
       // 5. Determine final status
       // CRITICAL: If no moves were applied, throw an error instead of marking as 'applied'
       if (appliedCount === 0) {
-        throw new Error(`STALE_PROPOSAL: All ${movesToApply.length} moves were skipped (conflicts or events no longer exist). The proposal is out of date. Please generate a new proposal.`);
+        throw new Error(`STALE_PROPOSAL: All ${moves.length} moves were skipped (conflicts or events no longer exist). The proposal is out of date. Please generate a new proposal.`);
       }
       
       let finalStatus: 'applied' | 'partially_applied' = 'applied';
@@ -573,7 +573,7 @@ export class RebalancingService {
         await tx.update(rebalancingProposals)
           .set({ 
             status: 'cancelled',
-            cancelledAt: new Date()
+            rejectedAt: new Date()
           })
           .where(eq(rebalancingProposals.id, proposalId));
         
@@ -588,7 +588,7 @@ export class RebalancingService {
         await tx.update(rebalancingProposals)
           .set({ 
             status: 'cancelled',
-            cancelledAt: new Date()
+            rejectedAt: new Date()
           })
           .where(eq(rebalancingProposals.id, proposalId));
         
@@ -606,6 +606,7 @@ export class RebalancingService {
       // 3. Restore all events from the snapshot payload
       const snapshotData = snapshot.payload as Array<{
         eventId: string;
+        title?: string | null;
         startAt: string; // ISO string from JSONB
         endAt: string; // ISO string from JSONB
         metadata?: Record<string, any> | null;
@@ -786,7 +787,6 @@ export class RebalancingService {
         .update(rebalancingProposals)
         .set({
           status: 'cancelled',
-          cancelledAt: new Date(),
           undoneAt: new Date()
         })
         .where(eq(rebalancingProposals.id, proposalId));

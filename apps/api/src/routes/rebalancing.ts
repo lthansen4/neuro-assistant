@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { HeuristicEngine } from '../lib/heuristic-engine';
 import { db } from '../lib/db';
-import { rebalancingProposals, proposalMoves, calendarEventsNew, users } from '../../../../packages/db/src/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { rebalancingProposals, proposalMoves, calendarEventsNew, users, churnLedger } from '../../../../packages/db/src/schema';
+import { eq, and, sql, gte } from 'drizzle-orm';
 
 /**
  * Rebalancing Routes
@@ -287,11 +287,11 @@ rebalancingRoute.get('/proposal/:id', async (c) => {
     // Categorize moves
     const categorized = {
       conflicts: moves.filter(m => m.category === 'conflict_resolution'),
-      cramming: moves.filter(m => m.reasonCodes.some(r => r.includes('CRAMMING'))),
-      energy: moves.filter(m => m.reasonCodes.some(r => r.includes('ENERGY'))),
-      balance: moves.filter(m => m.reasonCodes.some(r => r.includes('WORKLOAD'))),
+      cramming: moves.filter(m => (m.reasonCodes as any)?.some((r: string) => r.includes('CRAMMING'))),
+      energy: moves.filter(m => (m.reasonCodes as any)?.some((r: string) => r.includes('ENERGY'))),
+      balance: moves.filter(m => (m.reasonCodes as any)?.some((r: string) => r.includes('WORKLOAD'))),
       other: moves.filter(m => 
-        !m.reasonCodes.some(r => 
+        !(m.reasonCodes as any)?.some((r: string) => 
           r.includes('CRAMMING') || r.includes('ENERGY') || r.includes('WORKLOAD') || r.includes('CONFLICT')
         )
       )
@@ -368,14 +368,15 @@ rebalancingRoute.post('/proposal/:id/accept', async (c) => {
       try {
         if (move.moveType === 'insert' && move.targetStartAt && move.targetEndAt) {
           // Create new event
+          const metadata = move.metadata as any;
           await db.insert(calendarEventsNew).values({
             userId,
-            title: move.metadata?.eventTitle || move.metadata?.title || 'Focus Session',
+            title: metadata?.eventTitle || metadata?.title || 'Focus Session',
             eventType: 'Focus',
             startAt: move.targetStartAt,
             endAt: move.targetEndAt,
             isMovable: true,
-            linkedAssignmentId: move.metadata?.assignmentId || null,
+            linkedAssignmentId: metadata?.assignmentId || null,
             metadata: move.metadata || null
           });
           appliedCount++;
@@ -543,34 +544,41 @@ rebalancingRoute.post('/proposal/:id/undo', async (c) => {
               )
             );
           undoneCount++;
-        } else if (move.moveType === 'move' && move.sourceEventId && move.metadata?.originalStartAt && move.metadata?.originalEndAt) {
+        } else if (move.moveType === 'move' && move.sourceEventId) {
           // Revert moved event to original time
-          await db
-            .update(calendarEventsNew)
-            .set({
-              startAt: new Date(move.metadata.originalStartAt),
-              endAt: new Date(move.metadata.originalEndAt),
-              updatedAt: new Date()
-            })
-            .where(
-              and(
-                eq(calendarEventsNew.id, move.sourceEventId),
-                eq(calendarEventsNew.userId, userId)
-              )
-            );
-          undoneCount++;
-        } else if (move.moveType === 'delete' && move.sourceEventId && move.metadata?.originalStartAt && move.metadata?.originalEndAt) {
+          const metadata = move.metadata as any;
+          if (metadata?.originalStartAt && metadata?.originalEndAt) {
+            await db
+              .update(calendarEventsNew)
+              .set({
+                startAt: new Date(metadata.originalStartAt),
+                endAt: new Date(metadata.originalEndAt),
+                updatedAt: new Date()
+              })
+              .where(
+                and(
+                  eq(calendarEventsNew.id, move.sourceEventId),
+                  eq(calendarEventsNew.userId, userId)
+                )
+              );
+            undoneCount++;
+          }
+        } else if (move.moveType === 'delete' && move.sourceEventId) {
           // Restore deleted event
-          await db.insert(calendarEventsNew).values({
-            id: move.sourceEventId,
-            userId,
-            title: move.metadata.eventTitle || move.metadata.title || 'Restored Event',
-            eventType: move.metadata.eventType || 'Focus',
-            startAt: new Date(move.metadata.originalStartAt),
-            endAt: new Date(move.metadata.originalEndAt),
-            isMovable: true,
-            metadata: move.metadata
-          });
+          const metadata = move.metadata as any;
+          if (metadata?.originalStartAt && metadata?.originalEndAt) {
+            await db.insert(calendarEventsNew).values({
+              id: move.sourceEventId,
+              userId,
+              title: metadata.eventTitle || metadata.title || 'Restored Event',
+              eventType: metadata.eventType || 'Focus',
+              startAt: new Date(metadata.originalStartAt),
+              endAt: new Date(metadata.originalEndAt),
+              isMovable: true,
+              metadata: move.metadata
+            });
+            undoneCount++;
+          }
           undoneCount++;
         }
       } catch (moveError) {
@@ -620,15 +628,16 @@ rebalancingRoute.get('/limits', async (c) => {
     const todayStart = new Date(now);
     todayStart.setUTCHours(0, 0, 0, 0);
 
-    const todayChurn = await db.query.churnLedger.findMany({
+    const todayDate = todayStart.toISOString().split('T')[0]; // YYYY-MM-DD
+    const todayChurn = await db.query.churnLedger.findFirst({
       where: and(
         eq(churnLedger.userId, userId),
-        gte(churnLedger.actionAt, todayStart)
+        eq(churnLedger.day, todayDate)
       )
     });
 
-    const usedMoves = todayChurn.length;
-    const usedMinutes = todayChurn.reduce((sum, entry) => sum + (entry.deltaMinutes || 0), 0);
+    const usedMoves = todayChurn?.movesCount || 0;
+    const usedMinutes = todayChurn?.minutesMoved || 0;
 
     const dailyMaxMoves = 5;
     const dailyMaxMinutes = 180;

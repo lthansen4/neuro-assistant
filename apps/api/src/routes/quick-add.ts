@@ -215,7 +215,7 @@ function parseNaturalDate(hint: string, timezone: string): { date: DateTime | nu
   for (let i = 0; i < weekdays.length; i++) {
     if (hintLower.includes(weekdays[i])) {
       const targetDay = i + 1; // Luxon uses 1=Monday, 7=Sunday
-      let targetDate = now.set({ weekday: targetDay });
+      let targetDate = now.set({ weekday: targetDay as 1 | 2 | 3 | 4 | 5 | 6 | 7 });
       
       // If target day is today or past, move to next week
       if (targetDate <= now) {

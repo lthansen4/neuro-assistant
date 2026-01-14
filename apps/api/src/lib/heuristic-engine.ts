@@ -721,7 +721,7 @@ export class HeuristicEngine {
       orderBy: [sql`start_at ASC`]
     });
     
-    return chunks.filter(c => c.metadata?.chunkIndex !== undefined);
+    return chunks.filter(c => (c.metadata as any)?.chunkIndex !== undefined);
   }
 
   /**

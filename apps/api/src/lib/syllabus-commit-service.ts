@@ -433,6 +433,8 @@ export class SyllabusCommitService {
       console.log(`[Commit] Schedule items: ${classItems.length}, Office hours: ${officeItems.length}`);
 
       let templatesCreated = 0;
+      let classCreated = 0;
+      let officeCreated = 0;
 
       // Check if calendar_event_templates exists (migration 0008)
       const templatesTableExists = await this.checkTableExists(tx, 'calendar_event_templates');
@@ -569,9 +571,6 @@ export class SyllabusCommitService {
         });
 
         console.log(`[Commit] Generated ${classEvents.length} class events, ${officeEvents.length} office hour events`);
-
-        let classCreated = 0;
-        let officeCreated = 0;
 
         // Check if calendarEventsNew exists (migration 0008)
         const useNewTable = await this.checkTableExists(tx, 'calendar_events_new');

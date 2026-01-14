@@ -51,6 +51,8 @@ dashboardRoute.get("/summary", async (c) => {
     // Last 7 days productivity for charts
     const last7 = new Date(today);
     last7.setUTCDate(last7.getUTCDate() - 6);
+    const last7Str = last7.toISOString().split('T')[0]; // YYYY-MM-DD
+    const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
     const daily = await db
       .select()
@@ -58,20 +60,22 @@ dashboardRoute.get("/summary", async (c) => {
       .where(
         and(
           eq(schema.userDailyProductivity.userId, userId),
-          between(schema.userDailyProductivity.day, last7, today)
+          between(schema.userDailyProductivity.day, last7Str, todayStr)
         )
       )
       .orderBy(schema.userDailyProductivity.day);
 
     // Weekly current summary
+    const startOfWeekStr = startOfWeek.toISOString().split('T')[0]; // YYYY-MM-DD
+    const endOfWeekStr = endOfWeek.toISOString().split('T')[0]; // YYYY-MM-DD
     const weekly = await db
       .select()
       .from(schema.userWeeklyProductivity)
       .where(
         and(
           eq(schema.userWeeklyProductivity.userId, userId),
-          gte(schema.userWeeklyProductivity.startDate, startOfWeek),
-          lte(schema.userWeeklyProductivity.endDate, endOfWeek)
+          gte(schema.userWeeklyProductivity.startDate, startOfWeekStr),
+          lte(schema.userWeeklyProductivity.endDate, endOfWeekStr)
         )
       )
       .orderBy(desc(schema.userWeeklyProductivity.startDate));
@@ -277,14 +281,14 @@ dashboardRoute.get("/assignments", async (c) => {
 
     // Apply ordering based on status
     if (statusFilter === "Inbox") {
-      baseQuery = baseQuery.orderBy(sql`${schema.assignments.dueDate} ASC NULLS LAST`);
+      baseQuery = baseQuery.orderBy(sql`${schema.assignments.dueDate} ASC NULLS LAST`) as typeof baseQuery;
     } else if (statusFilter === "Scheduled") {
-      baseQuery = baseQuery.orderBy(schema.assignments.dueDate);
+      baseQuery = baseQuery.orderBy(schema.assignments.dueDate) as typeof baseQuery;
     } else if (statusFilter === "Completed") {
-      baseQuery = baseQuery.orderBy(desc(schema.assignments.submittedAt), desc(schema.assignments.createdAt));
+      baseQuery = baseQuery.orderBy(desc(schema.assignments.submittedAt), desc(schema.assignments.createdAt)) as typeof baseQuery;
     } else {
       // Default: order by due_date ASC NULLS LAST
-      baseQuery = baseQuery.orderBy(sql`${schema.assignments.dueDate} ASC NULLS LAST`);
+      baseQuery = baseQuery.orderBy(sql`${schema.assignments.dueDate} ASC NULLS LAST`) as typeof baseQuery;
     }
 
     // Apply limit

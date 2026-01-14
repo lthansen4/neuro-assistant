@@ -46,7 +46,7 @@ app.get('/stuck-assignments', async (c) => {
       stuck: stuckAssignments.map(a => ({
         id: a.id,
         title: a.title,
-        course: a.course?.name,
+        course: (a as any).course?.name,
         deferralCount: a.deferralCount,
         lastDeferredAt: a.lastDeferredAt,
         interventionShown: a.stuckInterventionShown
