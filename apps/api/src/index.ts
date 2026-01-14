@@ -48,4 +48,7 @@ app.route('/api/energy', energyRoute);
 app.route('/api/nudges', nudgesRoute);
 app.route('/api/adhd', adhdFeaturesRoute); // Priority 2 ADHD features
 
+// Simple health check
+app.get('/health', (c) => c.text('ok'));
+
 export default app;
