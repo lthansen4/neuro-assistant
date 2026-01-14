@@ -53,7 +53,6 @@ export function AssignmentSuccessBanner() {
           </div>
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => setVisible(false)}
             className="h-6 w-6 p-0 text-gray-400 hover:text-white"
           >
