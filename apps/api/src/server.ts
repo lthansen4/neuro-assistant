@@ -23,5 +23,6 @@ console.log('[API] ENV check:', {
   hasSupabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
 });
 
-serve({ fetch: app.fetch, port });
-console.log(`[API] Server ready at http://localhost:${port}`);
+// Must bind to 0.0.0.0 for Railway to route external traffic
+serve({ fetch: app.fetch, port, hostname: '0.0.0.0' });
+console.log(`[API] Server ready at http://0.0.0.0:${port}`);
