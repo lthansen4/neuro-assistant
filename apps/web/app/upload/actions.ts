@@ -121,9 +121,9 @@ export async function uploadSyllabus(formData: FormData) {
 
     // 3. Call API parse endpoint to extract and stage items
     // The API route's getUserId() function will look up the database user from Clerk ID
-    const apiBase = (process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787").replace(/\/$/, ""); // Remove trailing slash
+    const apiBase = (process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://neuroapi-production.up.railway.app").replace(/\/$/, ""); // Remove trailing slash
     const parseUrl = `${apiBase}/api/upload/parse`;
-    console.log("[Upload Action] Calling parse API:", parseUrl);
+    console.log("[Upload Action] API Base from env:", process.env.NEXT_PUBLIC_API_BASE, "| Final URL:", parseUrl);
     const parseResponse = await fetch(parseUrl, {
       method: "POST",
       headers: {
