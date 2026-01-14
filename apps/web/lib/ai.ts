@@ -37,11 +37,8 @@ const SyllabusSchema = z.object({
 export type ParsedSyllabus = z.infer<typeof SyllabusSchema>;
 
 export async function parseSyllabusText(input: string, timezone: string): Promise<ParsedSyllabus> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not set");
-  
   const { object } = await generateObject({
-    model: openai("gpt-4o-mini", { apiKey }),
+    model: openai("gpt-4o-mini"),
     schema: SyllabusSchema,
     prompt: [
       "You are extracting structured syllabus data for a college course.",
