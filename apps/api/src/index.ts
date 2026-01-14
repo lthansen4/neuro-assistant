@@ -15,13 +15,16 @@ import adhdFeaturesRoute from './routes/adhd-features';
 const app = new Hono();
 
 // Configure CORS for production and development
+// Explicitly type the origins to allow RegExp (TS would infer string[])
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://neuroweb-production.up.railway.app',
+  // Allow any Railway domain as they can change
+  /\.up\.railway\.app$/
+] as (string | RegExp)[];
+
 app.use('*', cors({
-  origin: [
-    'http://localhost:3000',
-    'https://neuroweb-production.up.railway.app',
-    // Allow any Railway domain as they can change
-    /\.up\.railway\.app$/
-  ],
+  origin: allowedOrigins,
   allowHeaders: ['Content-Type', 'Authorization', 'x-clerk-user-id'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
