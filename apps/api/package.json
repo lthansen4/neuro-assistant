@@ -19,10 +19,10 @@
     "openai": "^6.16.0",
     "pdf-parse": "^1.1.1",
     "pg": "^8.11.3",
+    "tsx": "^4.7.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "tsx": "^4.7.0",
     "typescript": "^5.4.5"
   }
 }
