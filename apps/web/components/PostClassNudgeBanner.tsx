@@ -163,7 +163,6 @@ export function PostClassNudgeBanner({ userId }: { userId: string }) {
           </div>
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => handleAction(nudge.id, 'DISMISSED')}
             disabled={loading}
             className="h-6 w-6 p-0 text-gray-400 hover:text-white"
@@ -211,7 +210,6 @@ export function PostClassNudgeBanner({ userId }: { userId: string }) {
               onClick={() => handleFocusClick(25)}
               disabled={loading}
               variant="outline"
-              size="sm"
               className="flex-1 bg-gray-800 hover:bg-gray-700 text-white border-gray-600"
             >
               <BookOpen className="h-4 w-4 mr-1" />
@@ -221,7 +219,6 @@ export function PostClassNudgeBanner({ userId }: { userId: string }) {
               onClick={() => handleFocusClick(50)}
               disabled={loading}
               variant="outline"
-              size="sm"
               className="flex-1 bg-gray-800 hover:bg-gray-700 text-white border-gray-600"
             >
               <BookOpen className="h-4 w-4 mr-1" />
@@ -231,7 +228,6 @@ export function PostClassNudgeBanner({ userId }: { userId: string }) {
               onClick={() => handleFocusClick(90)}
               disabled={loading}
               variant="outline"
-              size="sm"
               className="flex-1 bg-gray-800 hover:bg-gray-700 text-white border-gray-600"
             >
               <BookOpen className="h-4 w-4 mr-1" />
@@ -275,7 +271,6 @@ export function PostClassNudgeBanner({ userId }: { userId: string }) {
               <Button
                 onClick={handleFocusSubmit}
                 disabled={!focusDescription.trim()}
-                size="sm"
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 Schedule
@@ -285,7 +280,6 @@ export function PostClassNudgeBanner({ userId }: { userId: string }) {
                   setShowFocusInput(false);
                   setFocusDescription("");
                 }}
-                size="sm"
                 variant="outline"
                 className="flex-1 bg-gray-800 hover:bg-gray-700 text-white border-gray-600"
               >
