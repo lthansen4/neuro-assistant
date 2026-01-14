@@ -13,7 +13,19 @@ import { nudgesRoute } from './routes/nudges';
 import adhdFeaturesRoute from './routes/adhd-features';
 
 const app = new Hono();
-app.use('*', cors());
+
+// Configure CORS for production and development
+app.use('*', cors({
+  origin: [
+    'http://localhost:3000',
+    'https://neuroweb-production.up.railway.app',
+    // Allow any Railway domain as they can change
+    /\.up\.railway\.app$/
+  ],
+  allowHeaders: ['Content-Type', 'Authorization', 'x-clerk-user-id'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+}));
 
 app.route('/api/courses', coursesRoute);
 app.route('/api/assignments', assignmentsRoute);
