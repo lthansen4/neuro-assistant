@@ -135,8 +135,16 @@ export async function uploadSyllabus(formData: FormData) {
     });
 
     if (!parseResponse.ok) {
-      const errorData = await parseResponse.json().catch(() => ({ error: "Unknown error" }));
-      const errorMsg = `Parsing failed: ${errorData.error || "Unknown error"}`;
+      const errorText = await parseResponse.text().catch(() => "Could not read error response");
+      console.error("[Parse API] Failed with status:", parseResponse.status, "Body:", errorText);
+      
+      let errorMsg = `Parsing failed: ${parseResponse.status}`;
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMsg = `Parsing failed: ${errorData.error || "Unknown error"}`;
+      } catch (e) {
+        errorMsg = `Parsing failed (Non-JSON response): ${errorText.slice(0, 100)}`;
+      }
       
       // Update parse run status
       await updateParseRunStatus(syllFile.id, errorMsg);

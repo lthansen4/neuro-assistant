@@ -6,7 +6,7 @@ import * as schema from "../../../../packages/db/src/schema";
 
 // Load environment variables if not already loaded
 if (!process.env.DATABASE_URL) {
-  config({ path: "/Users/lindsayhansen/Desktop/App Builds/college-exec-functioning/neuro-assistant/.env" });
+  config();
 }
 
 if (!process.env.DATABASE_URL) {
