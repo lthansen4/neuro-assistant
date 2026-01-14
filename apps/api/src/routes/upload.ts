@@ -78,23 +78,52 @@ uploadRoute.post('/extract-pdf', async (c) => {
 // Parses a syllabus PDF using SyllabusParser service
 // body: { fileId: string, timezone?: string }
 uploadRoute.post('/parse', async (c) => {
+  console.log('[Parse API] Received parse request');
+  
   try {
+    // Check environment variables early
+    const envCheck = {
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasSupabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      hasOpenAI: !!process.env.OPENAI_API_KEY,
+      hasDatabase: !!process.env.DATABASE_URL,
+    };
+    console.log('[Parse API] Environment check:', envCheck);
+    
+    if (!envCheck.hasSupabaseUrl || !envCheck.hasSupabaseKey) {
+      return c.json({ error: 'Server misconfigured: Missing Supabase credentials', ok: false }, 500);
+    }
+    if (!envCheck.hasOpenAI) {
+      return c.json({ error: 'Server misconfigured: Missing OPENAI_API_KEY', ok: false }, 500);
+    }
+    if (!envCheck.hasDatabase) {
+      return c.json({ error: 'Server misconfigured: Missing DATABASE_URL', ok: false }, 500);
+    }
+    
+    console.log('[Parse API] Getting user ID...');
     const userId = await getUserId(c);
+    console.log('[Parse API] User ID:', userId);
+    
     const body = await c.req.json<{
       fileId: string;
       timezone?: string;
     }>();
+    console.log('[Parse API] Request body:', body);
 
     if (!body?.fileId) {
       return c.json({ error: 'fileId is required' }, 400);
     }
 
+    console.log('[Parse API] Creating SyllabusParser...');
     const parser = new SyllabusParser();
+    
+    console.log('[Parse API] Starting parse...');
     const result = await parser.parseSyllabus(
       body.fileId,
       userId,
       body.timezone || 'UTC'
     );
+    console.log('[Parse API] Parse complete:', result);
 
     return c.json({
       ok: true,
@@ -102,7 +131,8 @@ uploadRoute.post('/parse', async (c) => {
       itemsCount: result.itemsCount
     });
   } catch (err: any) {
-    console.error('Parse error:', err);
+    console.error('[Parse API] Error:', err.message);
+    console.error('[Parse API] Stack:', err.stack);
     return c.json({ 
       error: err.message || 'Failed to parse syllabus',
       ok: false 
