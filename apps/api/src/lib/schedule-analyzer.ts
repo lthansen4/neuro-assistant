@@ -734,7 +734,7 @@ export class ScheduleAnalyzer {
       if (!assignment.dueDate) continue;
 
       const daysUntilDue = (assignment.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-      const totalMinutesNeeded = assignment.estimatedDuration || 60;
+      const totalMinutesNeeded = assignment.effortEstimateMinutes || 60;
 
       // Sum up scheduled Focus blocks for this assignment
       const linkedFocus = focusEvents.filter(e => e.linkedAssignmentId === assignment.id);

@@ -259,15 +259,20 @@ export async function calculateGradeRescueBoost(
   assignmentId: string
 ): Promise<{ boost: number; reason: string }> {
   const assignment = await db.query.assignments.findFirst({
-    where: eq(schema.assignments.id, assignmentId),
-    with: { course: true }
+    where: eq(schema.assignments.id, assignmentId)
   });
   
-  if (!assignment?.course) {
+  if (!assignment?.courseId) {
     return { boost: 1.0, reason: 'No course associated' };
   }
   
-  const course = assignment.course;
+  const course = await db.query.courses.findFirst({
+    where: eq(schema.courses.id, assignment.courseId)
+  });
+  
+  if (!course) {
+    return { boost: 1.0, reason: 'Course not found' };
+  }
   let boost = 1.0;
   let reasons: string[] = [];
   

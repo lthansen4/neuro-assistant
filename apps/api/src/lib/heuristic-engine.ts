@@ -474,20 +474,21 @@ export class HeuristicEngine {
       
       for (const event of focusEvents) {
         // PHASE 2.5: Check if this Focus block is part of a chunked sequence
-        const isChunked = event.metadata?.chunkIndex !== undefined;
+        const metadata = event.metadata as Record<string, any> | null | undefined;
+        const isChunked = metadata?.chunkIndex !== undefined;
         
-        if (isChunked) {
+        if (isChunked && metadata) {
           // CHUNKED FOCUS: More conservative moves
           // Only move if there's a CRITICAL conflict or sleep window violation
           const hasConflict = this.hasScheduleConflict(event, schedule);
           const inSleep = this.isInSleepWindow(event.startAt) || this.isInSleepWindow(event.endAt);
           
           if (!hasConflict && !inSleep) {
-            console.log(`[HeuristicEngine] Protecting chunked Focus block ${event.metadata.chunkIndex + 1}/${event.metadata.totalChunks}: ${event.title}`);
+            console.log(`[HeuristicEngine] Protecting chunked Focus block ${metadata.chunkIndex + 1}/${metadata.totalChunks}: ${event.title}`);
             continue; // Don't move unless necessary
           }
           
-          console.log(`[HeuristicEngine] CRITICAL: Moving chunked Focus block ${event.metadata.chunkIndex + 1}/${event.metadata.totalChunks} due to conflict or sleep violation`);
+          console.log(`[HeuristicEngine] CRITICAL: Moving chunked Focus block ${metadata.chunkIndex + 1}/${metadata.totalChunks} due to conflict or sleep violation`);
           
           // If we must move, maintain the 8-hour gap from adjacent chunks
           const adjacentChunks = await this.getAdjacentChunks(event, trigger.userId);
@@ -526,9 +527,9 @@ export class HeuristicEngine {
               originalEndAt: event.endAt.toISOString(),
               title: event.title || 'Focus Session',
               eventTitle: event.title || 'Focus Session',
-              chunkIndex: event.metadata.chunkIndex,
-              totalChunks: event.metadata.totalChunks,
-              chunkType: event.metadata.chunkType,
+              chunkIndex: metadata.chunkIndex,
+              totalChunks: metadata.totalChunks,
+              chunkType: metadata.chunkType,
               ...(trigger.targetAssignmentId && { assignmentId: trigger.targetAssignmentId })
             }
           });
@@ -1092,9 +1093,9 @@ export class HeuristicEngine {
   }
 
   /**
-   * Check if event has a schedule conflict (used by chunking logic)
+   * Check if event has a schedule conflict with immovable events (used by chunking logic)
    */
-  private hasScheduleConflict(event: any, schedule: any[]): boolean {
+  private hasImmovableConflict(event: any, schedule: any[]): boolean {
     const immovableEvents = schedule.filter(e => !e.isMovable && e.id !== event.id);
     
     for (const otherEvent of immovableEvents) {

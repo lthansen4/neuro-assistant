@@ -40,8 +40,8 @@ userRoute.get('/courses', async (c) => {
       ok: true,
       courses: userCourses.map(course => ({
         id: course.id,
-        code: course.code,
         name: course.name,
+        professor: course.professor,
       }))
     });
 
