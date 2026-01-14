@@ -3,6 +3,11 @@
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
+  "scripts": {
+    "db:push": "drizzle-kit push --config ../../drizzle.config.ts",
+    "db:generate": "drizzle-kit generate --config ../../drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config ../../drizzle.config.ts"
+  },
   "devDependencies": {
     "drizzle-kit": "^0.24.0",
     "typescript": "^5.4.5"

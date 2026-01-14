@@ -1,0 +1,374 @@
+// apps/api/src/routes/dashboard.ts
+import { Hono } from "hono";
+import { db, schema } from "../lib/db";
+import { and, between, desc, eq, gte, lte, sql, inArray } from "drizzle-orm";
+
+export const dashboardRoute = new Hono();
+
+// Helper to get userId from header or query
+// Supports both database UUID and Clerk user ID (looks up DB user if Clerk ID provided)
+export async function getUserId(c: any): Promise<string> {
+  const uid = c.req.header("x-user-id") || c.req.header("x-clerk-user-id") || c.req.query("userId") || c.req.query("clerkUserId");
+  if (!uid) throw new Error("Missing userId (header x-user-id or x-clerk-user-id, or query ?userId=...)");
+  
+  // If it looks like a Clerk user ID (starts with user_ or is not a UUID format), look up the database user
+  // UUIDs are 36 characters with dashes, Clerk IDs are typically longer and start with "user_"
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
+  if (!isUUID || uid.startsWith("user_")) {
+    const dbUser = await db.query.users.findFirst({
+      where: eq(schema.users.clerkUserId, uid),
+    });
+    if (!dbUser) {
+      throw new Error(`No database user found for Clerk ID: ${uid}. Make sure the user exists in the database.`);
+    }
+    return dbUser.id;
+  }
+  
+  return uid;
+}
+
+// GET /api/dashboard/summary?range=week|day
+dashboardRoute.get("/summary", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const range = (c.req.query("range") || "week") as "day" | "week";
+
+    // Preferences
+    const pref = await db.query.dashboardPreferences.findFirst({
+      where: eq(schema.dashboardPreferences.userId, userId),
+    });
+
+    // Today and this week boundaries (UTC)
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const startOfWeek = new Date(today);
+    const day = startOfWeek.getUTCDay(); // 0=Sun
+    const diff = (day + 6) % 7; // ISO week start (Mon)
+    startOfWeek.setUTCDate(startOfWeek.getUTCDate() - diff);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setUTCDate(endOfWeek.getUTCDate() + 6);
+
+    // Last 7 days productivity for charts
+    const last7 = new Date(today);
+    last7.setUTCDate(last7.getUTCDate() - 6);
+
+    const daily = await db
+      .select()
+      .from(schema.userDailyProductivity)
+      .where(
+        and(
+          eq(schema.userDailyProductivity.userId, userId),
+          between(schema.userDailyProductivity.day, last7, today)
+        )
+      )
+      .orderBy(schema.userDailyProductivity.day);
+
+    // Weekly current summary
+    const weekly = await db
+      .select()
+      .from(schema.userWeeklyProductivity)
+      .where(
+        and(
+          eq(schema.userWeeklyProductivity.userId, userId),
+          gte(schema.userWeeklyProductivity.startDate, startOfWeek),
+          lte(schema.userWeeklyProductivity.endDate, endOfWeek)
+        )
+      )
+      .orderBy(desc(schema.userWeeklyProductivity.startDate));
+
+    // Streak (productivity streak)
+    const streak = await db.query.userStreaks.findFirst({
+      where: and(
+        eq(schema.userStreaks.userId, userId),
+        eq(schema.userStreaks.streakType, "productivity")
+      ),
+    });
+
+    // Forecasts
+    const forecasts = await db
+      .select({
+        courseId: schema.courseGradeForecasts.courseId,
+        currentScore: schema.courseGradeForecasts.currentScore,
+        projectedScore: schema.courseGradeForecasts.projectedScore,
+        updatedAt: schema.courseGradeForecasts.updatedAt,
+        courseName: schema.courses.name,
+      })
+      .from(schema.courseGradeForecasts)
+      .leftJoin(schema.courses, eq(schema.courses.id, schema.courseGradeForecasts.courseId))
+      .where(eq(schema.courseGradeForecasts.userId, userId));
+
+    // Assignments by status - using optimized index idx_assignments_user_status_due_date
+    // Query Inbox items (including those without due dates)
+    const inboxAssignments = await db
+      .select({
+        id: schema.assignments.id,
+        title: schema.assignments.title,
+        dueDate: schema.assignments.dueDate,
+        category: schema.assignments.category,
+        status: schema.assignments.status,
+        effortEstimateMinutes: schema.assignments.effortEstimateMinutes,
+        courseId: schema.assignments.courseId,
+        courseName: schema.courses.name,
+        createdAt: schema.assignments.createdAt,
+      })
+      .from(schema.assignments)
+      .leftJoin(schema.courses, eq(schema.courses.id, schema.assignments.courseId))
+      .where(
+        and(
+          eq(schema.assignments.userId, userId),
+          eq(schema.assignments.status, "Inbox")
+        )
+      )
+      .orderBy(sql`${schema.assignments.dueDate} ASC NULLS LAST`); // NULLS LAST for Inbox items without due dates
+
+    // Query Scheduled items
+    const scheduledAssignments = await db
+      .select({
+        id: schema.assignments.id,
+        title: schema.assignments.title,
+        dueDate: schema.assignments.dueDate,
+        category: schema.assignments.category,
+        status: schema.assignments.status,
+        effortEstimateMinutes: schema.assignments.effortEstimateMinutes,
+        courseId: schema.assignments.courseId,
+        courseName: schema.courses.name,
+        createdAt: schema.assignments.createdAt,
+      })
+      .from(schema.assignments)
+      .leftJoin(schema.courses, eq(schema.courses.id, schema.assignments.courseId))
+      .where(
+        and(
+          eq(schema.assignments.userId, userId),
+          eq(schema.assignments.status, "Scheduled")
+        )
+      )
+      .orderBy(schema.assignments.dueDate); // Scheduled items should have due dates
+
+    // Query Completed items (limit to recent ones)
+    const completedAssignments = await db
+      .select({
+        id: schema.assignments.id,
+        title: schema.assignments.title,
+        dueDate: schema.assignments.dueDate,
+        category: schema.assignments.category,
+        status: schema.assignments.status,
+        effortEstimateMinutes: schema.assignments.effortEstimateMinutes,
+        courseId: schema.assignments.courseId,
+        courseName: schema.courses.name,
+        submittedAt: schema.assignments.submittedAt,
+        createdAt: schema.assignments.createdAt,
+      })
+      .from(schema.assignments)
+      .leftJoin(schema.courses, eq(schema.courses.id, schema.assignments.courseId))
+      .where(
+        and(
+          eq(schema.assignments.userId, userId),
+          eq(schema.assignments.status, "Completed")
+        )
+      )
+      .orderBy(desc(schema.assignments.submittedAt), desc(schema.assignments.createdAt))
+      .limit(10); // Limit to 10 most recent completed
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard.ts:summary:ASSIGNMENTS_FETCHED',message:'Dashboard assignments by status',data:{scheduledCount:scheduledAssignments.length,scheduledTitles:scheduledAssignments.map(a=>a.title),completedCount:completedAssignments.length,completedTitles:completedAssignments.map(a=>a.title)},timestamp:Date.now(),sessionId:'debug-session',runId:'dashboard-check',hypothesisId:'K'})}).catch(()=>{});
+    // #endregion
+
+    return c.json({
+      preferences: pref,
+      range,
+      daily,
+      weekly: weekly[0] || null,
+      streak: streak || null,
+      forecasts,
+      assignments: {
+        inbox: inboxAssignments,
+        scheduled: scheduledAssignments,
+        completed: completedAssignments,
+      },
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// Preferences
+dashboardRoute.get("/preferences", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const pref = await db.query.dashboardPreferences.findFirst({
+      where: eq(schema.dashboardPreferences.userId, userId),
+    });
+    return c.json(pref || null);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+dashboardRoute.put("/preferences", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const body = await c.req.json<{ defaultRange?: "day" | "week"; showGradeForecast?: boolean; showChillBank?: boolean }>();
+
+    const existing = await db.query.dashboardPreferences.findFirst({
+      where: eq(schema.dashboardPreferences.userId, userId),
+    });
+
+    if (existing) {
+      await db
+        .update(schema.dashboardPreferences)
+        .set({
+          defaultRange: body.defaultRange ?? existing.defaultRange,
+          showGradeForecast: body.showGradeForecast ?? existing.showGradeForecast,
+          showChillBank: body.showChillBank ?? existing.showChillBank,
+        })
+        .where(eq(schema.dashboardPreferences.userId, userId));
+    } else {
+      await db.insert(schema.dashboardPreferences).values({
+        userId,
+        defaultRange: body.defaultRange ?? "week",
+        showGradeForecast: body.showGradeForecast ?? true,
+        showChillBank: body.showChillBank ?? true,
+      });
+    }
+
+    const pref = await db.query.dashboardPreferences.findFirst({
+      where: eq(schema.dashboardPreferences.userId, userId),
+    });
+    return c.json(pref);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// GET /api/dashboard/assignments?status=Inbox|Scheduled|Completed|Locked_In&limit=20
+// Standalone endpoint for assignments with optional status filter
+dashboardRoute.get("/assignments", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const statusFilter = c.req.query("status") as "Inbox" | "Scheduled" | "Completed" | "Locked_In" | undefined;
+    const limit = parseInt(c.req.query("limit") || "50", 10);
+
+    // Build where clause
+    const whereClause = statusFilter
+      ? and(
+          eq(schema.assignments.userId, userId),
+          eq(schema.assignments.status, statusFilter)
+        )
+      : eq(schema.assignments.userId, userId);
+
+    // Build base query
+    let baseQuery = db
+      .select({
+        id: schema.assignments.id,
+        title: schema.assignments.title,
+        dueDate: schema.assignments.dueDate,
+        category: schema.assignments.category,
+        status: schema.assignments.status,
+        effortEstimateMinutes: schema.assignments.effortEstimateMinutes,
+        priorityScore: schema.assignments.priorityScore,
+        courseId: schema.assignments.courseId,
+        courseName: schema.courses.name,
+        createdAt: schema.assignments.createdAt,
+        submittedAt: schema.assignments.submittedAt,
+      })
+      .from(schema.assignments)
+      .leftJoin(schema.courses, eq(schema.courses.id, schema.assignments.courseId))
+      .where(whereClause);
+
+    // Apply ordering based on status
+    if (statusFilter === "Inbox") {
+      baseQuery = baseQuery.orderBy(sql`${schema.assignments.dueDate} ASC NULLS LAST`);
+    } else if (statusFilter === "Scheduled") {
+      baseQuery = baseQuery.orderBy(schema.assignments.dueDate);
+    } else if (statusFilter === "Completed") {
+      baseQuery = baseQuery.orderBy(desc(schema.assignments.submittedAt), desc(schema.assignments.createdAt));
+    } else {
+      // Default: order by due_date ASC NULLS LAST
+      baseQuery = baseQuery.orderBy(sql`${schema.assignments.dueDate} ASC NULLS LAST`);
+    }
+
+    // Apply limit
+    const assignments = await baseQuery.limit(limit);
+
+    return c.json({
+      assignments,
+      count: assignments.length,
+      status: statusFilter || "all",
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// Optional: recompute aggregates for a date range
+dashboardRoute.post("/recompute", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const { start, end } = await c.req.json<{ start: string; end: string }>();
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+      const ds = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      await db.execute(sql`select recompute_daily_productivity(${userId}::uuid, ${ds}::date);`);
+      await db.execute(sql`select recompute_weekly_productivity(${userId}::uuid, ${ds}::date);`);
+    }
+    return c.json({ ok: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// POST /api/dashboard/cleanup-orphaned
+// Clean up assignments that have no calendar events (orphaned assignments)
+dashboardRoute.post("/cleanup-orphaned", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    
+    console.log(`[Dashboard Cleanup] Starting orphan cleanup for user ${userId}`);
+    
+    // Get all assignments for user
+    const allAssignments = await db.query.assignments.findMany({
+      where: eq(schema.assignments.userId, userId)
+    });
+    
+    // Get all calendar events for user
+    const allEvents = await db.query.calendarEventsNew.findMany({
+      where: eq(schema.calendarEventsNew.userId, userId)
+    });
+    
+    // Find assignment IDs that are linked to calendar events
+    const linkedAssignmentIds = new Set<string>();
+    for (const event of allEvents) {
+      const metadata = event.metadata as any;
+      if (metadata?.linkedAssignmentId) {
+        linkedAssignmentIds.add(metadata.linkedAssignmentId);
+      }
+    }
+    
+    // Find orphaned assignments (not completed, not linked to any event)
+    const orphanedAssignments = allAssignments.filter(assignment => {
+      return assignment.status !== 'Completed' && !linkedAssignmentIds.has(assignment.id);
+    });
+    
+    console.log(`[Dashboard Cleanup] Found ${orphanedAssignments.length} orphaned assignment(s)`);
+    
+    // Delete orphaned assignments
+    let deletedCount = 0;
+    for (const orphan of orphanedAssignments) {
+      await db.delete(schema.assignments)
+        .where(eq(schema.assignments.id, orphan.id));
+      console.log(`[Dashboard Cleanup] Deleted orphaned assignment: "${orphan.title}"`);
+      deletedCount++;
+    }
+    
+    return c.json({ 
+      ok: true, 
+      deletedCount,
+      orphanedAssignments: orphanedAssignments.map(a => ({ id: a.id, title: a.title }))
+    });
+  } catch (e: any) {
+    console.error('[Dashboard Cleanup] Error:', e);
+    return c.json({ error: e.message }, 400);
+  }
+});
+

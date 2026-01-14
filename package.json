@@ -1,15 +1,22 @@
 {
   "name": "neuro-assistant-monorepo",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "seed": "tsx scripts/seed.ts"
   },
   "devDependencies": {
+    "@types/luxon": "^3.7.1",
+    "@types/pg": "^8.11.0",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.7.0",
     "turbo": "^2.1.1",
-    "typescript": "^5.4.5",
-    "tsx": "^4.7.0"
+    "typescript": "^5.4.5"
   }
 }

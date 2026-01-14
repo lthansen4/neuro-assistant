@@ -1,0 +1,1286 @@
+// apps/api/src/routes/quickAdd.ts
+import { Hono } from "hono";
+import { db, schema } from "../lib/db";
+import { and, eq, ilike, sql } from "drizzle-orm";
+import { createHash } from "crypto";
+import { openai } from "@ai-sdk/openai";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { DateTime } from "luxon";
+
+// Helper: get userId (UUID) from header or query - supports Clerk user ID lookup
+async function getUserId(c: any): Promise<string> {
+  const uid = c.req.header("x-user-id") || c.req.header("x-clerk-user-id") || c.req.query("userId") || c.req.query("clerkUserId");
+  if (!uid) throw new Error("Missing userId (header x-user-id or x-clerk-user-id, or query ?userId=...)");
+  
+  // If it looks like a Clerk user ID (starts with user_ or is not a UUID format), look up the database user
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
+  if (!isUUID || uid.startsWith("user_")) {
+    const dbUser = await db.query.users.findFirst({
+      where: eq(schema.users.clerkUserId, uid),
+    });
+    if (!dbUser) {
+      throw new Error(`No database user found for Clerk ID: ${uid}. Make sure the user exists in the database.`);
+    }
+    return dbUser.id;
+  }
+  
+  return uid;
+}
+
+// Very light heuristic parser (stub) — replace with Vercel AI SDK later
+function heuristicParse(input: string) {
+  const text = input.trim();
+  const lower = text.toLowerCase();
+
+  // Extract course hint (first word before space, e.g., "Math test Friday")
+  const courseHint = text.split(" ")[0];
+
+  // Very naive category inference
+  let category = "Task";
+  if (lower.includes("exam") || lower.includes("test") || lower.includes("midterm") || lower.includes("final")) category = "Exam";
+  else if (lower.includes("homework") || lower.includes("hw")) category = "Homework";
+  else if (lower.includes("reading")) category = "Reading";
+
+  // Very naive due detection placeholders (expect FE to allow editing)
+  // In a real integration, the LLM will return ISO dates
+  const dueDateISO = undefined;
+
+  // Title defaults to input (will be editable on FE)
+  const title = text;
+
+  // Confidence is low here by design; LLM will set higher
+  const confidence = 0.35;
+
+  return {
+    courseHint,
+    title,
+    category,
+    dueDateISO,
+    effortMinutes: undefined as number | undefined,
+    confidence,
+  };
+}
+
+// Dedupe hash: stable hash of normalized input
+function dedupeHash(raw: string) {
+  const norm = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  return createHash("sha256").update(norm).digest("hex").slice(0, 16);
+}
+
+// Simple priority score heuristic
+function calcPriorityScore(category?: string) {
+  if (!category) return 10;
+  const c = category.toLowerCase();
+  if (c.includes("exam") || c.includes("test") || c.includes("midterm") || c.includes("final")) return 90;
+  if (c.includes("project")) return 70;
+  if (c.includes("homework") || c.includes("hw")) return 40;
+  if (c.includes("reading")) return 25;
+  return 20;
+}
+
+export const quickAddRoute = new Hono();
+
+// POST /api/quick-add/parse
+// body: { text: string, user_tz?: string, now?: string }
+// returns: { parse_id, assignment_draft, focus_block_draft, confidences, suggestions, dedupe, smart_questions }
+quickAddRoute.post("/parse", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const body = await c.req.json<{ text: string; user_tz?: string; now?: string }>();
+    if (!body?.text) return c.json({ error: "text is required" }, 400);
+
+    const userTz = body.user_tz || "America/Chicago";
+    const now = body.now ? DateTime.fromISO(body.now, { zone: userTz }) : DateTime.now().setZone(userTz);
+
+    // Fetch user's courses for context
+    const courses = await db.query.courses.findMany({
+      where: eq(schema.courses.userId, userId),
+      columns: { id: true, name: true },
+    });
+
+    // Fetch upcoming events/deadlines for next 7 days (for context-aware questions)
+    const weekFromNow = now.plus({ days: 7 }).toJSDate();
+    const nowDate = now.toJSDate();
+    
+    // Simplified: Just get basic event info without complex queries for now
+    const upcomingEvents: Array<{ title: string; category: string; startAt: Date; endAt: Date }> = [];
+    const pendingAssignments: Array<{ title: string; category: string | null; dueAt: Date | null; estimatedDuration: number | null }> = [];
+
+    // Use OpenAI to parse natural language
+    const { object } = await generateObject({
+      model: openai("gpt-4o-mini"),
+      schema: z.object({
+        title: z.string().describe("Assignment title (normalized). If preliminary work mentioned (e.g., 'choose topic'), include it as part of the main task title, e.g., 'Research Paper (Topic Selection + Writing)'"),
+        course_hint: z.string().nullable().describe("Course code or name extracted from text (e.g., 'cs', 'math')"),
+        category: z.enum(["Homework", "Exam", "Reading", "Study Session"]).describe("Type of assignment"),
+        due_date: z.string().nullable().describe("Due date in ISO format (YYYY-MM-DD) or null if not mentioned"),
+        due_time: z.string().nullable().describe("Due time in 24h format (HH:MM) or null if not mentioned"),
+        estimated_duration: z.number().describe("Estimated time needed in minutes"),
+        has_study_intent: z.boolean().describe("True if user wants to schedule study/work time"),
+        preferred_work_time: z.string().nullable().describe("If user specified WHEN to work on it (e.g., 'today at 3pm', 'tomorrow morning'), extract the time. Null if they only mentioned due date."),
+        requires_chunking: z.boolean().describe("True if this is a long-form task requiring multiple work sessions (paper, large project, thesis)"),
+      }),
+      prompt: `Parse this assignment input: "${body.text}"
+      
+Current date/time: ${now.toISO()} (which is a ${now.weekdayLong}, ${now.toFormat('MMMM d, yyyy')})
+Available courses: ${courses.map(c => c.name).join(", ")}
+
+Extract:
+- Title (clean, normalized)
+- Course hint (if mentioned, e.g., "cs" from "cs homework")
+- Category (Homework, Exam, Reading, or Study Session)
+- Due date (parse relative dates like "today", "tomorrow", "monday", "next friday")
+  IMPORTANT RULES:
+  * "today" = the current date shown above (${now.toFormat('yyyy-MM-dd')})
+  * "tomorrow" = ${now.plus({ days: 1 }).toFormat('yyyy-MM-dd')}
+  * "next [day]" means the NEXT occurrence of that day, not this week if we're already past it
+  * For example, if today is Thursday and user says "next Friday", that's TOMORROW. If today is Thursday and user says "next Monday", that's 4 days from now.
+- Due time (default to 17:00 if not specified, unless user says "today" then default to 23:59)
+- Estimated duration in minutes
+- Preferred work time: If user says WHEN they want to work on it (e.g., "work on math today at 3pm", "do homework tomorrow morning"), extract that. 
+  Examples: "today at 3pm" → "today at 15:00", "tomorrow morning" → "tomorrow morning", "friday afternoon" → "friday afternoon"
+  If they ONLY mention due date (e.g., "math homework due friday"), set to null
+
+Consider if this needs chunking (requires_chunking):
+- Papers/essays: Usually 300-600 min (5-10 hrs) → requires_chunking = true
+- Large projects: Usually > 240 min (4+ hrs) → requires_chunking = true  
+- Regular homework: Usually < 180 min (3 hrs) → requires_chunking = false
+- Exams/tests: Don't chunk these, they're single events → requires_chunking = false
+
+IMPORTANT: If user mentions preliminary work (like "choose a topic", "decide on topic", "select a research area"), 
+treat this as PART OF the paper/project, not a separate task. Include this time in the total estimate.
+For example: "choose a topic for my research paper" = a paper that needs topic selection (add 30-60 min to base estimate).
+
+Be realistic about duration estimates:
+- Simple homework (5-10 problems): 30-60 min
+- Medium homework (readings + problems): 60-120 min
+- Papers (3-5 pages): 300-480 min (5-8 hours)
+- Large papers (10+ pages): 480-600 min (8-10 hours)
+- Projects (coding, research): 240-600 min (4-10 hours)
+- Topic selection for papers: Add 30-60 min to base paper estimate
+
+- Whether user wants to schedule study time (detect words like "study", "work on", "prepare")`,
+    });
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:parse:aiResult',message:'AI parsed input',data:{inputText:body.text,preferred_work_time:object.preferred_work_time,due_date:object.due_date,has_study_intent:object.has_study_intent},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B1'})}).catch(()=>{});
+    // #endregion
+    
+    console.log('[QuickAdd Parse] AI parsed result:', JSON.stringify(object, null, 2));
+    console.log('[QuickAdd Parse] Preferred work time:', object.preferred_work_time);
+
+    // Fuzzy match course FIRST (before using it)
+    let matchedCourseId: string | null = null;
+    let courseConfidence: "high" | "medium" | "low" = "low";
+    const courseSuggestions: Array<{ id: string; name: string }> = [];
+
+    if (object.course_hint && typeof object.course_hint === 'string') {
+      const hint = object.course_hint.toLowerCase();
+      for (const course of courses) {
+        const nameLower = (course.name || '').toLowerCase();
+        if (nameLower.includes(hint)) {
+          if (!matchedCourseId) {
+            matchedCourseId = course.id;
+            courseConfidence = nameLower === hint ? "high" : "medium";
+          }
+          courseSuggestions.push(course);
+        }
+      }
+    }
+
+    // Parse due date and intelligently set time based on course schedule
+    let dueAt: string | null = null;
+    if (object.due_date) {
+      let dueTime = object.due_time || "17:00"; // Default to 5 PM
+      
+      // If we have a matched course, try to find the class time on the due date
+      if (matchedCourseId && object.due_date) {
+        const dueDate = DateTime.fromISO(object.due_date, { zone: userTz });
+        const dayOfWeek = dueDate.weekdayLong; // "Monday", "Tuesday", etc.
+        
+        // Find class event for this course on this day of week
+        let classEvent = null;
+        if (dayOfWeek) {
+          try {
+            // Query calendar_event_templates for Class events
+            const result: any = await db.execute(
+              sql`SELECT id, start_time_local, day_of_week FROM calendar_event_templates 
+                  WHERE user_id = ${userId} 
+                  AND course_id = ${matchedCourseId} 
+                  AND event_type = 'Class'`
+            );
+            
+            const rows = result.rows || [];
+            
+            // Map day name to number: Monday=1, Tuesday=2, etc. (0=Sunday)
+            const dayMap: Record<string, number> = {
+              'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+              'Thursday': 4, 'Friday': 5, 'Saturday': 6
+            };
+            const targetDayNum = dayMap[dayOfWeek];
+            
+            // Filter for the day of week (by number)
+            classEvent = rows.find((e: any) => e.day_of_week === targetDayNum) || null;
+          } catch (err: any) {
+            // Continue without class time if query fails
+            console.error('[QuickAdd] Failed to fetch class time:', err.message);
+          }
+        }
+        
+        if (classEvent && classEvent.start_time_local) {
+          // Use the class time as the due time
+          dueTime = classEvent.start_time_local; // Already in HH:MM format
+        }
+      }
+      
+      const [hours, minutes] = dueTime.split(":").map(Number);
+      const dueDateTime = DateTime.fromISO(object.due_date, { zone: userTz }).set({ hour: hours, minute: minutes });
+      dueAt = dueDateTime.toUTC().toISO();
+    }
+
+    // Generate parse ID
+    const parseId = createHash("sha256").update(`${userId}-${Date.now()}-${body.text}`).digest("hex").slice(0, 16);
+
+    // Check for duplicates
+    const dedupeHash = createHash("sha256").update(`${matchedCourseId || "none"}-${object.title}-${dueAt || "none"}`).digest("hex").slice(0, 16);
+    const existingAssignment = await db.query.assignments.findFirst({
+      where: and(
+        eq(schema.assignments.userId, userId),
+        eq(schema.assignments.title, object.title),
+        matchedCourseId ? eq(schema.assignments.courseId, matchedCourseId) : sql`course_id IS NULL`
+      ),
+    });
+
+    // Build assignment draft
+    const assignmentDraft = {
+      title: object.title,
+      course_id: matchedCourseId,
+      due_at: dueAt,
+      category: object.category,
+      estimated_duration: object.estimated_duration,
+      description: null, // User can add this in the UI
+      requires_chunking: object.requires_chunking, // NEW: AI-detected chunking flag
+    };
+
+    // Generate context-aware smart questions using AI
+    let smartQuestions: any[] = [];
+    try {
+      const eventsText = upcomingEvents && upcomingEvents.length > 0
+        ? upcomingEvents.map(e => {
+            try {
+              return `- ${e.category || 'Event'}: ${e.title || 'Untitled'} on ${DateTime.fromJSDate(e.startAt).setZone(userTz).toFormat('EEE MMM d, h:mm a')}`;
+            } catch {
+              return `- ${e.category || 'Event'}: ${e.title || 'Untitled'}`;
+            }
+          }).join('\n')
+        : '- No upcoming events';
+
+      const assignmentsText = pendingAssignments && pendingAssignments.length > 0
+        ? pendingAssignments.map(a => {
+            try {
+              return `- ${a.title || 'Untitled'} (${a.category || 'Assignment'}) due ${a.dueAt ? DateTime.fromJSDate(a.dueAt).setZone(userTz).toFormat('EEE MMM d') : 'TBD'} - ${a.estimatedDuration || 60}min`;
+            } catch {
+              return `- ${a.title || 'Untitled'} (${a.category || 'Assignment'})`;
+            }
+          }).join('\n')
+        : '- No pending assignments';
+
+      const contextSummary = `
+Upcoming Events (next 7 days):
+${eventsText}
+
+Pending Assignments (next 7 days):
+${assignmentsText}
+
+Current Assignment:
+- Title: ${object.title}
+- Category: ${object.category}
+- Due: ${dueAt ? DateTime.fromISO(dueAt).setZone(userTz).toFormat('EEE MMM d, h:mm a') : 'Not specified'}
+- Estimated: ${object.estimated_duration} minutes
+`;
+
+      const { object: questions } = await generateObject({
+        model: openai("gpt-4o-mini"),
+        schema: z.object({
+          questions: z.array(z.object({
+            id: z.string(),
+            text: z.string().describe("Question to ask user"),
+            type: z.enum(["text", "number", "select", "boolean"]),
+            options: z.array(z.string()).describe("2-4 suggested answer options (ALWAYS provide these, user can also choose 'Other')"),
+            reasoning: z.string().describe("Why this question helps scheduling"),
+          })),
+        }),
+        prompt: `You're a smart scheduling assistant for an ADHD student. Based on their context, generate 2-3 highly relevant questions that will help you schedule this assignment optimally.
+
+${contextSummary}
+
+IMPORTANT: For EVERY question, provide 2-4 suggested answer options. The UI will show these in a dropdown with "Other" as the last option.
+
+Generate questions that are:
+1. SPECIFIC to their context (reference specific events/deadlines you see)
+2. ACTIONABLE (answers directly improve scheduling)
+3. BRIEF (one sentence max)
+4. Include 2-4 helpful answer options for each
+
+Examples of GOOD context-aware questions:
+
+Q: "You have a Bio exam Tuesday - should we finish this before then?"
+Options: ["Yes, before the exam", "No, after the exam", "During exam prep (multitask)"]
+
+Q: "How difficult is this compared to your Math homework due Thursday?"
+Options: ["Much easier", "About the same", "Harder", "Much harder"]
+
+Q: "You're free Wednesday afternoon - is that a good time to work on this?"
+Options: ["Yes, perfect", "No, prefer morning", "No, prefer evening"]
+
+Q: "How many problems/pages/questions is this?"
+Options: ["1-5", "6-10", "11-20", "20+"]
+
+Examples of BAD questions:
+- No options provided (always provide options!)
+- Too vague: "How much work is this?"
+- Defeats purpose: "When do you want to do this?"
+
+Generate 2-3 questions with OPTIONS that USE THE CONTEXT you see above.`,
+      });
+
+      smartQuestions = questions.questions;
+      console.log(`[QuickAdd] Generated ${smartQuestions.length} smart questions`);
+    } catch (e) {
+      console.error("[QuickAdd] Failed to generate smart questions:", e);
+      // Continue without questions if AI fails
+    }
+
+    // Always build focus block draft to help complete the assignment
+    let focusBlockDraft = null;
+    let chunks: Chunk[] | null = null;
+    
+    if (dueAt) {
+      // Check if this needs chunking
+      const shouldChunk = object.estimated_duration >= 240 && object.requires_chunking; // 4+ hours
+      
+      if (shouldChunk) {
+        // Calculate chunks and include them in the response
+        chunks = calculateChunks(object.estimated_duration, dueAt, userTz);
+        console.log(`[QuickAdd Parse] Calculated ${chunks.length} chunks for long-form assignment`);
+        
+        focusBlockDraft = {
+          title: `Work on: ${object.title}`,
+          start_at: chunks[0].startAt.toISOString(),
+          duration_minutes: chunks[0].durationMinutes,
+          category: "Focus",
+          chunked: true,
+          chunks: chunks.map(chunk => ({
+            label: chunk.label,
+            type: chunk.type,
+            startAt: chunk.startAt.toISOString(),
+            endAt: chunk.endAt.toISOString(),
+            durationMinutes: chunk.durationMinutes
+          }))
+        };
+      } else {
+        // Single Focus block
+        const dueDateTime = DateTime.fromISO(dueAt, { zone: "utc" }).setZone(userTz);
+        const nowInUserTz = DateTime.now().setZone(userTz);
+        
+        let focusStart: DateTime;
+        
+        // Check if user specified a preferred work time
+        if (object.preferred_work_time) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:scheduling:userSpecified',message:'User specified work time',data:{preferred_work_time:object.preferred_work_time},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B2'})}).catch(()=>{});
+          // #endregion
+          
+          console.log(`[QuickAdd] User specified work time: "${object.preferred_work_time}"`);
+          
+          // Parse user's preferred time (e.g., "today at 3pm", "tomorrow morning")
+          const timeStr = object.preferred_work_time.toLowerCase();
+          
+          if (timeStr.includes('today')) {
+            focusStart = nowInUserTz.set({ hour: 14, minute: 0 }); // Default 2pm
+            if (timeStr.includes('morning')) focusStart = nowInUserTz.set({ hour: 9, minute: 0 });
+            if (timeStr.includes('afternoon')) focusStart = nowInUserTz.set({ hour: 14, minute: 0 });
+            if (timeStr.includes('evening')) focusStart = nowInUserTz.set({ hour: 18, minute: 0 });
+            // Extract specific time like "3pm" or "15:00"
+            const timeMatch = timeStr.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/);
+            if (timeMatch) {
+              let hour = parseInt(timeMatch[1]);
+              const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+              const isPM = timeMatch[3] === 'pm';
+              if (isPM && hour < 12) hour += 12;
+              if (!isPM && timeMatch[3] === 'am' && hour === 12) hour = 0;
+              focusStart = nowInUserTz.set({ hour, minute });
+            }
+          } else if (timeStr.includes('tomorrow')) {
+            focusStart = nowInUserTz.plus({ days: 1 }).set({ hour: 14, minute: 0 });
+            if (timeStr.includes('morning')) focusStart = focusStart.set({ hour: 9, minute: 0 });
+            if (timeStr.includes('afternoon')) focusStart = focusStart.set({ hour: 14, minute: 0 });
+            if (timeStr.includes('evening')) focusStart = focusStart.set({ hour: 18, minute: 0 });
+          } else {
+            // Generic time on due date
+            focusStart = dueDateTime.minus({ days: 1 }).set({ hour: 14, minute: 0 });
+          }
+          
+          console.log(`[QuickAdd] Using user-specified time: ${focusStart.toFormat('EEE MMM dd h:mma')}`);
+        } else {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:scheduling:smartScheduling',message:'No preferred time - using smart scheduling',data:{preferred_work_time:object.preferred_work_time,has_study_intent:object.has_study_intent},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B3'})}).catch(()=>{});
+          // #endregion
+          
+          // No preferred time - use smart scheduling to find first available slot
+          console.log(`[QuickAdd] No preferred time specified, finding first available slot...`);
+          
+          let searchStart = nowInUserTz.plus({ hours: 1 });
+          if (searchStart.hour >= 20) {
+            searchStart = nowInUserTz.plus({ days: 1 }).set({ hour: 9, minute: 0 });
+          }
+          
+          focusStart = await findFirstAvailableSlot(
+            userId,
+            searchStart,
+            object.estimated_duration,
+            dueDateTime,
+            userTz
+          );
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:scheduling:smartSchedulingResult',message:'Smart scheduling found slot',data:{foundSlot:focusStart.toISO(),searchStarted:searchStart.toISO()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B4'})}).catch(()=>{});
+          // #endregion
+        }
+        
+        focusBlockDraft = {
+          title: `Work on: ${object.title}`,
+          start_at: focusStart.toUTC().toISO(),
+          duration_minutes: object.estimated_duration,
+          category: "Focus",
+          chunked: false,
+          chunks: null
+        };
+      }
+    }
+
+    return c.json({
+      parse_id: parseId,
+      assignment_draft: assignmentDraft,
+      focus_block_draft: focusBlockDraft,
+      confidences: {
+        title: "high",
+        course_id: courseConfidence,
+        due_at: dueAt ? "high" : "low",
+        category: "high",
+        estimated_duration: "medium",
+      },
+      suggestions: {
+        courses: courseSuggestions,
+      },
+      dedupe: {
+        hash: dedupeHash,
+        exists: !!existingAssignment,
+        message: existingAssignment ? `Similar assignment already exists: ${existingAssignment.title}` : null,
+      },
+      smart_questions: smartQuestions, // NEW: Context-aware questions for user
+    });
+  } catch (e: any) {
+    console.error("[QuickAdd Parse Error]", e);
+    return c.json({ error: e.message || "Failed to parse input" }, 400);
+  }
+});
+
+// POST /api/quick-add/commit
+// body: {
+//   rawInput: string,
+//   dedupeHash: string,
+//   parsed: { courseId?: string; title: string; category?: string; dueDateISO?: string; effortMinutes?: number;
+//             createFocusSession?: boolean; sessionStartISO?: string; sessionEndISO?: string },
+//   saveAlias?: { alias: string; courseId: string } | null
+// }
+quickAddRoute.post("/commit", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const body = await c.req.json<{
+      rawInput: string;
+      dedupeHash: string;
+      parsed: {
+        courseId?: string;
+        title: string;
+        category?: string;
+        dueDateISO?: string;
+        effortMinutes?: number;
+        createFocusSession?: boolean;
+        sessionStartISO?: string;
+        sessionEndISO?: string;
+        confidence?: number;
+      };
+      saveAlias?: { alias: string; courseId: string } | null;
+    }>();
+
+    if (!body?.rawInput || !body?.dedupeHash || !body?.parsed?.title) {
+      return c.json({ error: "rawInput, dedupeHash and parsed.title are required" }, 400);
+    }
+
+    // Optional dedupe: if we already created an item with same hash very recently, short-circuit
+    const existing = await db
+      .select()
+      .from(schema.quickAddLogs)
+      .where(and(eq(schema.quickAddLogs.userId, userId), eq(schema.quickAddLogs.dedupeHash, body.dedupeHash)))
+      .limit(1);
+
+    if (existing.length && (existing[0] as any).createdAssignmentId) {
+      return c.json({
+        deduped: true,
+        createdAssignmentId: (existing[0] as any).createdAssignmentId,
+        createdEventId: (existing[0] as any).createdEventId ?? null,
+      });
+    }
+
+    const now = new Date();
+
+    // Transaction: create assignment, optional event, upsert alias, log
+    const result = await db.transaction(async (tx) => {
+      // Create assignment
+      const due = body.parsed.dueDateISO ? new Date(body.parsed.dueDateISO) : null;
+      const [assignment] = await tx
+        .insert(schema.assignments)
+        .values({
+          userId,
+          courseId: body.parsed.courseId ?? null,
+          title: body.parsed.title,
+          category: body.parsed.category ?? null,
+          dueDate: due,
+          effortEstimateMinutes: body.parsed.effortMinutes ?? null,
+          priorityScore: calcPriorityScore(body.parsed.category),
+          status: "Inbox",
+        } as any)
+        .returning();
+
+      // Optional focus session event
+      let createdEventId: string | null = null;
+      if (body.parsed.createFocusSession && body.parsed.sessionStartISO && body.parsed.sessionEndISO) {
+        const start = new Date(body.parsed.sessionStartISO);
+        const end = new Date(body.parsed.sessionEndISO);
+        const [evt] = await tx
+          .insert(schema.calendarEvents)
+          .values({
+            userId,
+            courseId: body.parsed.courseId ?? null,
+            assignmentId: assignment.id,
+            type: "Focus",
+            title: `Focus: ${body.parsed.title}`,
+            startTime: start,
+            endTime: end,
+            isMovable: true,
+          } as any)
+          .returning();
+        createdEventId = (evt as any).id;
+      }
+
+      // Save alias if requested
+      if (body.saveAlias?.alias && body.saveAlias?.courseId) {
+        // Uses CI unique index on (user_id, lower(alias)) created by migration
+        try {
+          await tx.insert(schema.userCourseAliases).values({
+            userId,
+            alias: body.saveAlias.alias,
+            courseId: body.saveAlias.courseId,
+            confidence: "0.900",
+            usageCount: 1,
+          } as any);
+        } catch {
+          // On conflict, update usage_count and courseId if changed
+          await tx.execute(sql`
+            update user_course_aliases
+            set usage_count = usage_count + 1, course_id = ${body.saveAlias.courseId}::uuid, updated_at = now()
+            where user_id = ${userId}::uuid and lower(alias) = lower(${body.saveAlias.alias});
+          `);
+        }
+      }
+
+      // Log the quick add
+      await tx.insert(schema.quickAddLogs).values({
+        userId,
+        rawInput: body.rawInput,
+        parsedPayload: body.parsed as any,
+        confidence: body.parsed.confidence ?? 0.35,
+        dedupeHash: body.dedupeHash,
+        createdAssignmentId: assignment.id,
+        createdEventId,
+      } as any);
+
+      return { assignmentId: assignment.id as string, eventId: createdEventId };
+    });
+
+    return c.json({
+      ok: true,
+      createdAssignmentId: result.assignmentId,
+      createdEventId: result.eventId,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// GET /api/quick-add/aliases
+quickAddRoute.get("/aliases", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const rows = await db
+      .select({
+        id: schema.userCourseAliases.id,
+        alias: schema.userCourseAliases.alias,
+        courseId: schema.userCourseAliases.courseId,
+        confidence: schema.userCourseAliases.confidence,
+        usageCount: schema.userCourseAliases.usageCount,
+      })
+      .from(schema.userCourseAliases)
+      .where(eq(schema.userCourseAliases.userId, userId));
+    return c.json(rows);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// POST /api/quick-add/confirm
+// body: { parse_id, assignment_draft, focus_block_draft?, on_duplicate }
+quickAddRoute.post("/confirm", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const body = await c.req.json<{
+      parse_id: string;
+      assignment_draft: {
+        title: string;
+        course_id?: string | null;
+        due_at?: string | null;
+        category?: string;
+        estimated_duration?: number;
+        description?: string | null;
+      };
+      focus_block_draft?: {
+        title: string;
+        start_at: string;
+        duration_minutes: number;
+        category: string;
+      } | null;
+      on_duplicate?: "skip" | "create";
+      user_tz?: string;
+      smart_answers?: Record<string, any>;
+    }>();
+
+
+    if (!body.assignment_draft?.title) {
+      return c.json({ error: "assignment_draft.title is required" }, 400);
+    }
+
+    const draft = body.assignment_draft;
+    const userTz = body.user_tz || "America/Chicago";
+    
+    
+    // If user provided description/answers and we have a due date, use AI to optimize the Focus block
+    let optimizedFocusBlock = body.focus_block_draft;
+    if (draft.due_at && optimizedFocusBlock && (draft.description || body.smart_answers)) {
+      try {
+        const smartAnswersText = body.smart_answers 
+          ? Object.entries(body.smart_answers)
+              .map(([k, v]) => `- ${k}: ${v}`)
+              .join('\n')
+          : 'No smart answers provided';
+
+        const { object: aiAdvice } = await generateObject({
+          model: openai("gpt-4o-mini"),
+          schema: z.object({
+            adjusted_duration: z.number().describe("Recommended duration in minutes based on context"),
+            days_before_due: z.number().describe("How many days before due date to schedule (1-7)"),
+            preferred_time: z.string().describe("Best time of day in 24h format (e.g., '14:00' for 2 PM, '09:00' for morning)"),
+            needs_multiple_sessions: z.boolean().describe("True if task needs multiple work sessions"),
+            reasoning: z.string().describe("Brief explanation of scheduling decision"),
+          }),
+          prompt: `Analyze this assignment and provide smart scheduling based on user's context and answers:
+
+Assignment: ${draft.title}
+Category: ${draft.category}
+Due: ${draft.due_at}
+Estimated Duration: ${draft.estimated_duration} minutes
+Description: ${draft.description || 'Not provided'}
+
+User's Answers to Context Questions:
+${smartAnswersText}
+
+Consider:
+- Their specific answers (e.g., if they said "before exam", schedule before exam date)
+- Reading tasks: need sustained focus, morning/afternoon best
+- Coding/technical: afternoon when energy is high, may need multiple sessions
+- Writing/creative: varies, respect user's context
+- Group work: schedule before meeting date
+- Large tasks (>2 hours): break into multiple sessions
+- If they mentioned conflicts/deadlines, work around them
+
+Use their specific context to make the BEST scheduling decision.`,
+        });
+
+        // Apply AI recommendations
+        const dueDateTime = DateTime.fromISO(draft.due_at, { zone: "utc" }).setZone(userTz);
+        const [hours, minutes] = aiAdvice.preferred_time.split(":").map(Number);
+        let focusStart = dueDateTime.minus({ days: aiAdvice.days_before_due }).set({ hour: hours, minute: minutes });
+        
+        // Ensure Focus block is always in the future (at least 1 hour from now)
+        const nowInUserTz = DateTime.now().setZone(userTz);
+        const minStartTime = nowInUserTz.plus({ hours: 1 });
+        if (focusStart < minStartTime) {
+          // If calculated time is in the past, schedule for tomorrow at the same time
+          focusStart = nowInUserTz.plus({ days: 1 }).set({ hour: hours, minute: minutes });
+          // If that's still too close or past the due date, schedule for later today
+          if (focusStart >= dueDateTime) {
+            focusStart = nowInUserTz.plus({ hours: 2 }).set({ minute: 0 });
+          }
+        }
+        
+        optimizedFocusBlock = {
+          ...optimizedFocusBlock,
+          start_at: focusStart.toUTC().toISO()!,
+          duration_minutes: aiAdvice.adjusted_duration,
+          title: aiAdvice.needs_multiple_sessions 
+            ? `Work on: ${draft.title} (Session 1)` 
+            : `Work on: ${draft.title}`,
+        };
+
+        console.log(`[QuickAdd AI] ${aiAdvice.reasoning}`);
+      } catch (aiError: any) {
+        console.error("[QuickAdd AI] Failed to optimize Focus block:", aiError);
+        // Continue with original Focus block if AI fails
+      }
+    }
+
+
+    // Check for duplicates
+    if (body.on_duplicate === "skip") {
+      const existing = await db.query.assignments.findFirst({
+        where: and(
+          eq(schema.assignments.userId, userId),
+          eq(schema.assignments.title, draft.title),
+          draft.course_id ? eq(schema.assignments.courseId, draft.course_id) : sql`course_id IS NULL`
+        ),
+      });
+      if (existing) {
+        return c.json({ ok: true, skipped: true, message: "Duplicate assignment skipped" });
+      }
+    }
+
+    
+    // PRIORITY 2: Check Recovery Forcing (4hr deep work limit)
+    // Check if any of the scheduled dates would exceed the 4-hour limit
+    let recoveryForcedWarning: string | null = null;
+    try {
+      const ADHDGuardian = await import('../lib/adhd-guardian');
+      
+      // For now, check today only (in full implementation, check all scheduled dates)
+      const today = new Date();
+      const exceeded = await ADHDGuardian.default.hasExceededDeepWorkLimit(userId, today);
+      
+      if (exceeded && draft.due_at && new Date(draft.due_at) <= new Date(Date.now() + 86400000)) {
+        // Assignment is due within 24 hours and user has exceeded limit
+        recoveryForcedWarning = "⚠️ Recovery forced today (4+ hours deep work). Scheduling for tomorrow instead.";
+        console.log(`[Recovery Forcing] ${recoveryForcedWarning}`);
+      }
+    } catch (checkError) {
+      console.error('[Recovery Forcing] Failed to check deep work limit:', checkError);
+    }
+    
+    // Calculate chunks if this is a long-form assignment
+    const shouldChunk = draft.estimated_duration && draft.estimated_duration >= 240 && draft.due_at; // 4+ hours
+    const chunks = shouldChunk && draft.estimated_duration && draft.due_at ? calculateChunks(draft.estimated_duration, draft.due_at, userTz) : null;
+    
+    console.log(`[QuickAdd Confirm] Should chunk: ${shouldChunk}, Chunks: ${chunks?.length || 0}`);
+    
+    // Create assignment
+    const [assignment] = await db
+      .insert(schema.assignments)
+      .values({
+        userId,
+        courseId: draft.course_id || null,
+        title: draft.title,
+        category: draft.category || "Homework",
+        dueDate: draft.due_at ? new Date(draft.due_at) : null,
+        effortEstimateMinutes: draft.estimated_duration || 60,
+        status: "Scheduled", // Auto-schedule, not Inbox!
+        priorityScore: calcPriorityScore(draft.category),
+        requiresChunking: !!chunks, // NEW: Set chunking flag
+        createdAt: new Date(),
+      })
+      .returning();
+      
+
+    // Create a "due date marker" event on the calendar at the assignment's due time
+    let dueDateEvent = null;
+    if (draft.due_at) {
+      const dueDate = new Date(draft.due_at);
+      // Create a 15-minute marker event at the due time
+      const dueEndTime = new Date(dueDate.getTime() + 15 * 60 * 1000);
+      
+      
+      const [dueDateEvt] = await db
+        .insert(schema.calendarEventsNew)
+        .values({
+          userId,
+          title: `📌 DUE: ${draft.title}`,
+          eventType: "Other", // Use "Other" type for deadline markers
+          startAt: dueDate,
+          endAt: dueEndTime,
+          isMovable: false, // Due dates shouldn't move
+          linkedAssignmentId: assignment.id,
+        })
+        .returning();
+      dueDateEvent = dueDateEvt;
+      
+    }
+
+    // Create focus block(s) - either multiple chunks or single block
+    let focusEvents = [];
+    if (chunks && chunks.length > 0) {
+      // Create multiple Focus blocks for chunked assignments
+      console.log(`[QuickAdd Confirm] Creating ${chunks.length} chunked Focus blocks with TRANSITION TAX buffers`);
+      
+      // TRANSITION TAX: Create Focus blocks + 15m decompression buffers
+      // This prevents context switching fatigue and schedule cramming
+      const eventsToCreate = [];
+      
+      for (let idx = 0; idx < chunks.length; idx++) {
+        const chunk = chunks[idx];
+        
+        // Add the Focus block
+        eventsToCreate.push({
+          userId,
+          title: `${draft.title} - ${chunk.label}`, // e.g., "Paper - Research/Outline"
+          eventType: 'Focus' as const,
+          startAt: chunk.startAt,
+          endAt: chunk.endAt,
+          isMovable: true,
+          linkedAssignmentId: assignment.id,
+          metadata: { 
+            chunkIndex: idx, 
+            totalChunks: chunks.length, 
+            chunkType: chunk.type,
+            durationMinutes: chunk.durationMinutes,
+            dueDate: assignment.dueDate?.toISOString(), // PRIORITY 2: For due date validation
+          }
+        });
+        
+        // TRANSITION TAX: Add 15m buffer AFTER each Focus block (except the last one)
+        if (idx < chunks.length - 1 || chunks.length === 1) {
+          const bufferStart = new Date(chunk.endAt);
+          const bufferEnd = new Date(bufferStart.getTime() + 15 * 60 * 1000); // +15 minutes
+          
+          eventsToCreate.push({
+            userId,
+            title: "Transition Buffer",
+            eventType: 'Chill' as const, // Low-cog recovery time
+            startAt: bufferStart,
+            endAt: bufferEnd,
+            isMovable: true, // User can delete if needed
+            linkedAssignmentId: assignment.id,
+            metadata: { 
+              transitionTax: true,
+              afterChunkIndex: idx,
+              purpose: 'Context switching recovery - prevents mental fatigue'
+            }
+          });
+          
+          console.log(`[QuickAdd] Added 15m transition buffer after ${chunk.label}`);
+        }
+      }
+      
+      focusEvents = await db
+        .insert(schema.calendarEventsNew)
+        .values(eventsToCreate)
+        .returning();
+      
+      console.log(`[QuickAdd Confirm] Created ${focusEvents.length} events (chunks + transition buffers)`);
+      
+      // PRIORITY 2: Automatic Deep Work Tracking (Recovery Forcing)
+      try {
+        const ADHDGuardian = await import('../lib/adhd-guardian');
+        
+        for (const event of focusEvents) {
+          if (event.eventType === 'Focus') {
+            const durationMinutes = Math.floor((new Date(event.endAt).getTime() - new Date(event.startAt).getTime()) / (1000 * 60));
+            await ADHDGuardian.default.trackDeepWork(userId, new Date(event.startAt), durationMinutes);
+            console.log(`[Recovery Forcing] Tracked ${durationMinutes}min deep work for ${new Date(event.startAt).toLocaleDateString()}`);
+          }
+        }
+      } catch (trackError) {
+        console.error('[Recovery Forcing] Failed to track deep work:', trackError);
+        // Don't fail the whole request if tracking fails
+      }
+      
+      // COMPREHENSIVE OPTIMIZATION: Trigger after Quick Add
+      try {
+        const { HeuristicEngine } = await import('../lib/heuristic-engine');
+        const engine = new HeuristicEngine(userId);
+        console.log(`[QuickAdd] Triggering comprehensive optimization for user ${userId}`);
+        
+        // Run optimization in background (don't wait for it)
+        engine.generateComprehensiveProposal({
+          userId,
+          energyLevel: 5, // Default energy for Quick Add
+          type: 'quick_add',
+          targetAssignmentId: assignment.id,
+          lookaheadDays: 14
+        }).then((result) => {
+          console.log(`[QuickAdd] Comprehensive optimization complete: ${result.moves.length} moves proposed`);
+        }).catch((error) => {
+          console.error(`[QuickAdd] Comprehensive optimization failed:`, error);
+        });
+      } catch (optError) {
+        console.error(`[QuickAdd] Failed to trigger optimization:`, optError);
+        // Don't fail the request if optimization fails
+      }
+      
+      return c.json({
+        ok: true,
+        assignment,
+        due_date_event: dueDateEvent,
+        focus_events: focusEvents,
+        chunked: true,
+        recovery_forced_warning: recoveryForcedWarning,
+      });
+    } else if (optimizedFocusBlock) {
+      // Create single Focus block (original logic)
+      const focusDraft = optimizedFocusBlock;
+      const startAt = new Date(focusDraft.start_at);
+      const endAt = new Date(startAt.getTime() + focusDraft.duration_minutes * 60 * 1000);
+
+      const [evt] = await db
+        .insert(schema.calendarEventsNew)
+        .values({
+          userId,
+          title: focusDraft.title,
+          eventType: focusDraft.category as any,
+          startAt,
+          endAt,
+          isMovable: true,
+          linkedAssignmentId: assignment.id,
+          metadata: {
+            dueDate: assignment.dueDate?.toISOString(), // PRIORITY 2: For due date validation
+          }
+        })
+        .returning();
+      focusEvents = [evt];
+      
+      // ADHD TRANSITION TAX: Add 15-minute buffer after non-class events
+      console.log('[QuickAdd] Adding 15-min transition buffer after Focus event');
+      const bufferStart = endAt;
+      const bufferEnd = new Date(bufferStart.getTime() + 15 * 60 * 1000);
+      
+      const [bufferEvent] = await db
+        .insert(schema.calendarEventsNew)
+        .values({
+          userId,
+          title: 'Transition Buffer',
+          eventType: 'Chill', // Low-cog recovery time
+          startAt: bufferStart,
+          endAt: bufferEnd,
+          isMovable: true, // User can move/delete it if needed
+          linkedAssignmentId: assignment.id,
+          metadata: {
+            transitionTax: true,
+            linkedToEvent: evt.id,
+            purpose: 'Context switching recovery - prevents mental fatigue'
+          }
+        })
+        .returning();
+      
+      focusEvents.push(bufferEvent);
+      console.log(`[QuickAdd] Created transition buffer: ${bufferStart.toISOString()} - ${bufferEnd.toISOString()}`);
+      
+      // PRIORITY 2: Automatic Deep Work Tracking (Recovery Forcing)
+      try {
+        const ADHDGuardian = await import('../lib/adhd-guardian');
+        const durationMinutes = focusDraft.duration_minutes;
+        await ADHDGuardian.default.trackDeepWork(userId, startAt, durationMinutes);
+        console.log(`[Recovery Forcing] Tracked ${durationMinutes}min deep work for ${startAt.toLocaleDateString()}`);
+      } catch (trackError) {
+        console.error('[Recovery Forcing] Failed to track deep work:', trackError);
+        // Don't fail the whole request if tracking fails
+      }
+      
+      // COMPREHENSIVE OPTIMIZATION: Trigger after Quick Add
+      try {
+        const { HeuristicEngine } = await import('../lib/heuristic-engine');
+        const engine = new HeuristicEngine(userId);
+        console.log(`[QuickAdd] Triggering comprehensive optimization for user ${userId}`);
+        
+        // Run optimization in background (don't wait for it)
+        engine.generateComprehensiveProposal({
+          userId,
+          energyLevel: 5, // Default energy for Quick Add
+          type: 'quick_add',
+          targetAssignmentId: assignment.id,
+          lookaheadDays: 14
+        }).then((result) => {
+          console.log(`[QuickAdd] Comprehensive optimization complete: ${result.moves.length} moves proposed`);
+        }).catch((error) => {
+          console.error(`[QuickAdd] Comprehensive optimization failed:`, error);
+        });
+      } catch (optError) {
+        console.error(`[QuickAdd] Failed to trigger optimization:`, optError);
+        // Don't fail the request if optimization fails
+      }
+      
+      return c.json({
+        ok: true,
+        assignment,
+        due_date_event: dueDateEvent,
+        focus_event: evt,
+        chunked: false,
+        recovery_forced_warning: recoveryForcedWarning,
+      });
+    }
+
+    // No focus blocks created
+    return c.json({
+      ok: true,
+      assignment,
+      due_date_event: dueDateEvent,
+      focus_event: null,
+      chunked: false,
+    });
+  } catch (e: any) {
+    console.error("[QuickAdd Confirm Error]", e);
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// POST /api/quick-add/aliases (create/update)
+quickAddRoute.post("/aliases", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const body = await c.req.json<{ alias: string; courseId: string; confidence?: number }>();
+    if (!body?.alias || !body?.courseId) return c.json({ error: "alias and courseId are required" }, 400);
+
+    // Upsert via CI unique index (user_id, lower(alias))
+    try {
+      await db.insert(schema.userCourseAliases).values({
+        userId,
+        alias: body.alias,
+        courseId: body.courseId,
+        confidence: (body.confidence ?? 0.9).toFixed(3),
+        usageCount: 1,
+      } as any);
+    } catch {
+      await db.execute(sql`
+        update user_course_aliases
+        set course_id = ${body.courseId}::uuid,
+            confidence = ${((body.confidence ?? 0.9).toFixed(3))}::numeric,
+            usage_count = usage_count + 1,
+            updated_at = now()
+        where user_id = ${userId}::uuid and lower(alias) = lower(${body.alias});
+      `);
+    }
+
+    return c.json({ ok: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// Helper: Calculate chunks for long-form assignments
+interface Chunk {
+  label: string;
+  type: 'initial' | 'consistency' | 'acceleration' | 'final' | 'buffer';
+  startAt: Date;
+  endAt: Date;
+  durationMinutes: number;
+}
+
+interface ChunkOptions {
+  difficulty?: 'low' | 'medium' | 'high';
+  interest?: 'low' | 'medium' | 'high';
+  category?: string;
+}
+
+// Helper function to find the first available time slot (avoids conflicts)
+async function findFirstAvailableSlot(
+  userId: string,
+  startSearchFrom: DateTime,
+  durationMinutes: number,
+  dueDate: DateTime,
+  userTz: string
+): Promise<DateTime> {
+  // Fetch all existing events for the user
+  const existingEvents = await db.query.calendarEventsNew.findMany({
+    where: eq(schema.calendarEventsNew.userId, userId)
+  });
+  
+  console.log(`[Scheduling] Finding slot for ${durationMinutes}min task`);
+  console.log(`[Scheduling] Search range: ${startSearchFrom.toFormat('MMM dd h:mma')} to ${dueDate.toFormat('MMM dd h:mma')}`);
+  console.log(`[Scheduling] Checking against ${existingEvents.length} existing events`);
+  
+  // Define work hours: 8 AM - 10 PM
+  const WORK_START_HOUR = 8;
+  const WORK_END_HOUR = 22;
+  
+  let currentSlot = startSearchFrom.set({ minute: 0, second: 0 });
+  if (currentSlot.hour < WORK_START_HOUR) {
+    currentSlot = currentSlot.set({ hour: WORK_START_HOUR });
+  }
+  
+  // Search for up to 14 days
+  const maxSearchDate = currentSlot.plus({ days: 14 });
+  
+  while (currentSlot < dueDate && currentSlot < maxSearchDate) {
+    // Move to next day if past work hours
+    if (currentSlot.hour >= WORK_END_HOUR) {
+      currentSlot = currentSlot.plus({ days: 1 }).set({ hour: WORK_START_HOUR, minute: 0 });
+      continue;
+    }
+    
+    const slotEnd = currentSlot.plus({ minutes: durationMinutes + 15 }); // +15 for buffer
+    
+    // Check if this slot conflicts with any existing events
+    let hasConflict = false;
+    for (const event of existingEvents) {
+      const eventStart = DateTime.fromJSDate(event.startAt, { zone: userTz });
+      const eventEnd = DateTime.fromJSDate(event.endAt, { zone: userTz });
+      
+      // Skip office hours and other "optional" events - they can be overridden
+      if (event.title?.includes('Office Hours') || event.eventType === 'OfficeHours') {
+        continue;
+      }
+      
+      // Check overlap: events overlap if slot starts before event ends AND slot ends after event starts
+      if (currentSlot < eventEnd && slotEnd > eventStart) {
+        hasConflict = true;
+        console.log(`[Scheduling] ⚠️ Conflict with "${event.title}" at ${eventStart.toFormat('h:mma')}`);
+        // Jump to after this conflicting event + 15min buffer
+        currentSlot = eventEnd.plus({ minutes: 15 });
+        break;
+      }
+    }
+    
+    if (!hasConflict) {
+      // #region agent log
+      const nearbyEvents = existingEvents.filter(e => {
+        const eStart = DateTime.fromJSDate(e.startAt, { zone: userTz });
+        const eEnd = DateTime.fromJSDate(e.endAt, { zone: userTz });
+        return Math.abs(eStart.diff(currentSlot, 'hours').hours) < 3;
+      }).map(e => ({title: e.title, start: DateTime.fromJSDate(e.startAt, { zone: userTz }).toISO(), eventType: e.eventType}));
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:findFirstAvailableSlot:foundSlot',message:'Found free slot',data:{foundSlot:currentSlot.toISO(),slotEnd:slotEnd.toISO(),nearbyEvents,totalEventsChecked:existingEvents.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B4'})}).catch(()=>{});
+      // #endregion
+      
+      console.log(`[Scheduling] ✅ Found free slot: ${currentSlot.toFormat('EEE MMM dd h:mma')}`);
+      return currentSlot;
+    }
+  }
+  
+  // If no slot found, return the original search time (fallback)
+  console.log(`[Scheduling] ⚠️ No free slot found, using fallback time`);
+  return startSearchFrom;
+}
+
+function calculateChunks(
+  totalMinutes: number, 
+  dueAtISO: string, 
+  userTz: string,
+  options: ChunkOptions = {}
+): Chunk[] {
+  // ADHD-FRIENDLY CHUNKING RULES:
+  // 1. Micro-Chunking: Cap at 45m for high-difficulty OR low-interest tasks
+  // 2. Time Blindness Overhead: Add 20% to chunks after first day (re-learning time)
+  // 3. Transition Tax: 15m buffer after each chunk (applied in scheduling, not here)
+  
+  const MAX_CHUNK_MINUTES = 120; // 2-hour limit (standard tasks)
+  const MICRO_CHUNK_MAX = 45; // Pomodoro-style for difficult/boring tasks
+  const MIN_GAP_HOURS = 8; // Brain rest between sessions (from config)
+  
+  // Apply micro-chunking if needed
+  const shouldMicroChunk = options.difficulty === 'high' || options.interest === 'low';
+  const effectiveMaxChunk = shouldMicroChunk ? MICRO_CHUNK_MAX : MAX_CHUNK_MINUTES;
+  
+  if (shouldMicroChunk) {
+    console.log(`[Chunking] Micro-chunking activated (difficulty: ${options.difficulty}, interest: ${options.interest}) - max ${MICRO_CHUNK_MAX}m chunks`);
+  }
+  
+  const dueDate = DateTime.fromISO(dueAtISO, { zone: 'utc' }).setZone(userTz);
+  const now = DateTime.now().setZone(userTz);
+  
+  // Calculate number of chunks needed (using micro-chunk limit if applicable)
+  const numChunks = Math.ceil(totalMinutes / effectiveMaxChunk);
+  const daysNeeded = Math.ceil(numChunks / 2); // Max 2 chunks per day (with 8hr gap)
+  
+  // Work backwards from due date WITH BUFFER
+  // Add 1 day buffer so revision/final work happens BEFORE the due date
+  const chunks: Chunk[] = [];
+  let remainingMinutes = totalMinutes;
+  let currentDay = dueDate.minus({ days: daysNeeded + 1 }); // +1 for buffer day
+  let firstChunkDay: DateTime | null = null; // Track first day for time blindness overhead
+  
+  // Ensure we start in the future
+  if (currentDay < now.plus({ hours: 1 })) {
+    currentDay = now.plus({ hours: 2 }).set({ minute: 0 });
+  }
+  
+  // Phase labels based on paper workflow
+  const phases = ['Research/Outline', 'Drafting', 'Revision', 'Editing', 'Final Polish'];
+  let phaseIdx = 0;
+  
+  while (remainingMinutes > 0 && chunks.length < 10) { // Safety limit
+    // Base chunk duration (use micro-chunk limit if applicable)
+    let chunkDuration = Math.min(remainingMinutes, effectiveMaxChunk);
+    
+    // TIME BLINDNESS OVERHEAD: Add 20% to chunks after the first day
+    // This accounts for re-learning time when resuming work on a different day
+    if (firstChunkDay && !currentDay.hasSame(firstChunkDay, 'day')) {
+      const overhead = Math.ceil(chunkDuration * 0.20); // 20% overhead
+      chunkDuration = Math.min(chunkDuration + overhead, effectiveMaxChunk); // Don't exceed max
+      console.log(`[Chunking] Time blindness overhead: +${overhead}m (20%) for chunk on ${currentDay.toISODate()}`);
+    }
+    
+    // Schedule at 2 PM by default (adjustable by AI later)
+    let chunkStart = currentDay.set({ hour: 14, minute: 0 });
+    
+    // If we already have a chunk today, schedule 8+ hours later
+    const todayChunks = chunks.filter(c => 
+      DateTime.fromJSDate(c.startAt).hasSame(currentDay, 'day')
+    );
+    
+    if (todayChunks.length > 0) {
+      const lastChunk = todayChunks[todayChunks.length - 1];
+      const lastEnd = DateTime.fromJSDate(lastChunk.endAt);
+      chunkStart = lastEnd.plus({ hours: MIN_GAP_HOURS });
+      
+      // If that pushes us to next day, move to next day at 2 PM
+      if (!chunkStart.hasSame(currentDay, 'day')) {
+        currentDay = currentDay.plus({ days: 1 });
+        chunkStart = currentDay.set({ hour: 14, minute: 0 });
+      }
+    }
+    
+    // Track first chunk day for time blindness overhead
+    if (!firstChunkDay) {
+      firstChunkDay = chunkStart;
+    }
+    
+    const chunkEnd = chunkStart.plus({ minutes: chunkDuration });
+    
+    chunks.push({
+      label: phases[Math.min(phaseIdx, phases.length - 1)],
+      type: phaseIdx === 0 ? 'initial' : 
+            phaseIdx === numChunks - 1 ? 'final' : 
+            phaseIdx === numChunks - 2 ? 'buffer' : 'consistency',
+      startAt: chunkStart.toJSDate(),
+      endAt: chunkEnd.toJSDate(),
+      durationMinutes: chunkDuration
+    });
+    
+    remainingMinutes -= chunkDuration;
+    phaseIdx++;
+    
+    // Move to next day if we've maxed out today
+    if (todayChunks.length >= 1) {
+      currentDay = currentDay.plus({ days: 1 });
+    }
+  }
+  
+  return chunks;
+}
+
+

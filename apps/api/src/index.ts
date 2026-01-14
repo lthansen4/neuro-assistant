@@ -3,8 +3,14 @@ import { cors } from 'hono/cors';
 import { coursesRoute } from './routes/courses';
 import { assignmentsRoute } from './routes/assignments';
 import { calendarRoute } from './routes/calendar';
-import { rebalancingRoute } from './routes/rebalancing';
+import rebalancingRoute from './routes/rebalancing';
 import { uploadRoute } from './routes/upload';
+import { dashboardRoute } from './routes/dashboard';
+import { quickAddRoute } from './routes/quickAdd';
+import { userRoute } from './routes/user';
+import energyRoute from './routes/energy';
+import { nudgesRoute } from './routes/nudges';
+import adhdFeaturesRoute from './routes/adhd-features';
 
 const app = new Hono();
 app.use('*', cors());
@@ -14,5 +20,11 @@ app.route('/api/assignments', assignmentsRoute);
 app.route('/api/calendar', calendarRoute);
 app.route('/api/rebalancing', rebalancingRoute);
 app.route('/api/upload', uploadRoute);
+app.route('/api/dashboard', dashboardRoute);
+app.route('/api/quick-add', quickAddRoute);
+app.route('/api/user', userRoute);
+app.route('/api/energy', energyRoute);
+app.route('/api/nudges', nudgesRoute);
+app.route('/api/adhd', adhdFeaturesRoute); // Priority 2 ADHD features
 
 export default app;
