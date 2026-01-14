@@ -16,8 +16,15 @@ export function OneSignalInit() {
   const { user, isLoaded } = useUser();
 
   useEffect(() => {
-    if (!isLoaded || !user || !isOneSignalEnabled()) {
-      console.log('[OneSignal] Skipping initialization:', { isLoaded, hasUser: !!user, enabled: isOneSignalEnabled() });
+    // Only run on localhost - production requires OneSignal dashboard config update
+    const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+    
+    if (!isLoaded || !user || !isOneSignalEnabled() || !isLocalhost) {
+      if (!isLocalhost) {
+        console.log('[OneSignal] Skipping - production domain not configured in OneSignal dashboard yet');
+      } else {
+        console.log('[OneSignal] Skipping initialization:', { isLoaded, hasUser: !!user, enabled: isOneSignalEnabled() });
+      }
       return;
     }
 
