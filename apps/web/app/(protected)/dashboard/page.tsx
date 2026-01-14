@@ -158,117 +158,154 @@ export default function DashboardPage() {
   const usedChill = weekly.chillMinutes || 0;
 
   return (
-    <main className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          {refreshing && (
-            <span className="text-sm text-gray-500 animate-pulse">
-              Refreshing...
-            </span>
+    <div className="min-h-screen bg-slate-50/50">
+      <main className="p-8 max-w-7xl mx-auto space-y-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
+          <div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+              Hello, {user?.firstName || 'Scholar'} 👋
+            </h1>
+            <p className="text-slate-500 font-medium mt-1">
+              {refreshing ? (
+                <span className="flex items-center gap-2 animate-pulse text-indigo-500">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                  Syncing your latest progress...
+                </span>
+              ) : (
+                `You've got ${data.assignments?.scheduled?.length || 0} items on your radar this week.`
+              )}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3 bg-white/50 backdrop-blur-sm p-1.5 rounded-2xl border border-slate-200/60 shadow-sm">
+            <button
+              onClick={() => handleRangeChange("day")}
+              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                range === "day"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              Day
+            </button>
+            <button
+              onClick={() => handleRangeChange("week")}
+              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                range === "week"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              Week
+            </button>
+            <div className="w-px h-4 bg-slate-200 mx-1"></div>
+            <button
+              onClick={() => loadDashboard(false)}
+              disabled={refreshing}
+              className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all disabled:opacity-50"
+              title="Refresh dashboard"
+            >
+              <svg className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ProductivitySummary
+            daily={data.daily || []}
+            weekly={data.weekly}
+            range={range}
+          />
+          <StreakBadge streak={data.streak} />
+          {data.preferences?.showChillBank !== false && (
+            <ChillBank
+              earnedMinutes={earnedChill}
+              usedMinutes={usedChill}
+              targetRatio={2.5}
+            />
           )}
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => loadDashboard(false)}
-            disabled={refreshing}
-            className="px-3 py-1 rounded text-sm bg-green-600 text-white hover:bg-green-700 disabled:bg-green-400 transition-colors"
-            title="Refresh dashboard data"
-          >
-            {refreshing ? '↻' : '↻ Refresh'}
-          </button>
-          <button
-            onClick={() => handleRangeChange("day")}
-            className={`px-3 py-1 rounded text-sm ${
-              range === "day"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-            }`}
-          >
-            Day
-          </button>
-          <button
-            onClick={() => handleRangeChange("week")}
-            className={`px-3 py-1 rounded text-sm ${
-              range === "week"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-            }`}
-          >
-            Week
-          </button>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <ProductivitySummary
-          daily={data.daily || []}
-          weekly={data.weekly}
-          range={range}
-        />
-        <StreakBadge streak={data.streak} />
-        {data.preferences?.showChillBank !== false && (
-          <ChillBank
-            earnedMinutes={earnedChill}
-            usedMinutes={usedChill}
-            targetRatio={2.5}
-          />
-        )}
-      </div>
-
-      {data.preferences?.showGradeForecast !== false && (
-        <div className="mb-6">
+        {data.preferences?.showGradeForecast !== false && (
           <GradeForecast forecasts={data.forecasts || []} />
-        </div>
-      )}
+        )}
 
-      {/* Assignments Section */}
-      {data.assignments && (
-        <div className="mb-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <AssignmentsList
-              assignments={data.assignments.inbox || []}
-              title="Inbox"
-              emptyMessage="No assignments in inbox"
-            />
-            <AssignmentsList
-              assignments={data.assignments.scheduled || []}
-              title="Scheduled"
-              emptyMessage="No scheduled assignments"
-            />
-            <AssignmentsList
-              assignments={data.assignments.completed || []}
-              title="Recently Completed"
-              emptyMessage="No completed assignments"
-            />
+        {/* Assignments Section */}
+        {data.assignments && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1">
+              <AssignmentsList
+                assignments={data.assignments.inbox || []}
+                title="Input Buffer"
+                emptyMessage="Inbox is clear. Nice work! 🕊️"
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <AssignmentsList
+                assignments={data.assignments.scheduled || []}
+                title="Active Focus"
+                emptyMessage="Nothing scheduled yet."
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <AssignmentsList
+                assignments={data.assignments.completed || []}
+                title="Wins"
+                emptyMessage="Complete a task to see it here! 🏆"
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Daily chart placeholder */}
-      {range === "week" && data.daily && data.daily.length > 0 && (
-        <div className="bg-white rounded-lg border p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Last 7 Days</h3>
-          <div className="flex items-end gap-2 h-32">
-            {data.daily.map((day: any, idx: number) => {
-              const maxFocus = Math.max(...data.daily.map((d: any) => d.focusMinutes || 0));
-              const height = maxFocus > 0 ? (day.focusMinutes / maxFocus) * 100 : 0;
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center">
-                  <div
-                    className="w-full bg-blue-500 rounded-t transition-all"
-                    style={{ height: `${height}%` }}
-                  />
-                  <div className="text-xs text-gray-500 mt-1">
-                    {new Date(day.day).toLocaleDateString("en-US", { weekday: "short" })}
+        {/* Daily chart visualization */}
+        {range === "week" && data.daily && data.daily.length > 0 && (
+          <div className="bg-white/70 backdrop-blur-md rounded-3xl border border-slate-100 shadow-xl p-8 transition-all hover:shadow-2xl">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-xl font-black text-slate-800 tracking-tight">Focus Momentum</h3>
+                <p className="text-sm font-medium text-slate-400 mt-1">Your cognitive output over the last 7 days</p>
+              </div>
+              <div className="px-4 py-2 bg-indigo-50 rounded-2xl border border-indigo-100">
+                <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Trend: Stable</span>
+              </div>
+            </div>
+            
+            <div className="flex items-end gap-4 h-48 px-2">
+              {data.daily.map((day: any, idx: number) => {
+                const maxFocus = Math.max(...data.daily.map((d: any) => d.focusMinutes || 0), 1);
+                const height = (day.focusMinutes / maxFocus) * 100;
+                const isToday = new Date(day.day).toDateString() === new Date().toDateString();
+                
+                return (
+                  <div key={idx} className="flex-1 flex flex-col items-center group">
+                    <div className="relative w-full flex flex-col items-center">
+                      {/* Tooltip on hover */}
+                      <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-20 pointer-events-none">
+                        {day.focusMinutes}m
+                      </div>
+                      
+                      <div
+                        className={`w-full max-w-[40px] rounded-2xl transition-all duration-500 ease-out shadow-sm ${
+                          isToday 
+                            ? "bg-gradient-to-t from-indigo-600 to-blue-400 shadow-indigo-200 shadow-lg scale-105" 
+                            : "bg-slate-100 group-hover:bg-indigo-100"
+                        }`}
+                        style={{ height: `${Math.max(8, height)}%` }}
+                      />
+                    </div>
+                    <div className={`text-[10px] font-black uppercase tracking-tighter mt-4 ${isToday ? 'text-indigo-600' : 'text-slate-400'}`}>
+                      {new Date(day.day).toLocaleDateString("en-US", { weekday: "short" })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
-    </main>
+        )}
+      </main>
+    </div>
   );
 }
 
