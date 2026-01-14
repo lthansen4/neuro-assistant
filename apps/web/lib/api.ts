@@ -13,7 +13,7 @@ export async function fetchDashboardSummary(userId: string, range: "day" | "week
     return res.json();
   } catch (err: any) {
     if (err.message.includes("fetch")) {
-      throw new Error(`Cannot connect to API server at ${API_BASE}. Make sure the API server is running on port 8787.`);
+      throw new Error(`Cannot connect to API server at ${API_BASE}. Make sure the API server is running and accessible.`);
     }
     throw err;
   }
