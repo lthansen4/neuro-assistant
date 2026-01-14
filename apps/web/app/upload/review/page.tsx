@@ -52,7 +52,7 @@ export default function ReviewPage() {
       try {
         setLoading(true);
         setError(null);
-        const result = await fetchStagedItems(parseRunId, user.id);
+        const result = await fetchStagedItems(parseRunId!, user.id);
         if (result.success) {
           setData(result);
         } else {
