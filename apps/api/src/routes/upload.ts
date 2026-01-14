@@ -89,22 +89,6 @@ uploadRoute.post('/parse', async (c) => {
       hasDatabase: !!process.env.DATABASE_URL,
     };
     console.log('[Parse API] Environment check:', envCheck);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'parse-run',
-        hypothesisId: 'env-missing',
-        location: 'upload.ts:/parse envCheck',
-        message: 'Env check results',
-        data: envCheck,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     
     if (!envCheck.hasSupabaseUrl || !envCheck.hasSupabaseKey) {
       return c.json({ error: 'Server misconfigured: Missing Supabase credentials', ok: false }, 500);
@@ -119,44 +103,12 @@ uploadRoute.post('/parse', async (c) => {
     console.log('[Parse API] Getting user ID...');
     const userId = await getUserId(c);
     console.log('[Parse API] User ID:', userId);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'parse-run',
-        hypothesisId: 'user-lookup',
-        location: 'upload.ts:/parse user',
-        message: 'User resolved for parse',
-        data: { userId },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     
     const body = await c.req.json<{
       fileId: string;
       timezone?: string;
     }>();
     console.log('[Parse API] Request body:', body);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'parse-run',
-        hypothesisId: 'body-missing',
-        location: 'upload.ts:/parse body',
-        message: 'Body received',
-        data: { fileId: body?.fileId, timezone: body?.timezone },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
 
     if (!body?.fileId) {
       return c.json({ error: 'fileId is required' }, 400);
@@ -166,45 +118,12 @@ uploadRoute.post('/parse', async (c) => {
     const parser = new SyllabusParser();
     
     console.log('[Parse API] Starting parse...');
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'parse-run',
-        hypothesisId: 'parse-start',
-        location: 'upload.ts:/parse start',
-        message: 'Begin parseSyllabus',
-        data: { fileId: body.fileId, timezone: body.timezone || 'UTC', userId },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     const result = await parser.parseSyllabus(
       body.fileId,
       userId,
       body.timezone || 'UTC'
     );
     console.log('[Parse API] Parse complete:', result);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'parse-run',
-        hypothesisId: 'parse-success',
-        location: 'upload.ts:/parse success',
-        message: 'Parse completed',
-        data: { runId: result?.runId, itemsCount: result?.itemsCount },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
 
     return c.json({
       ok: true,
@@ -214,23 +133,6 @@ uploadRoute.post('/parse', async (c) => {
   } catch (err: any) {
     console.error('[Parse API] Error:', err.message);
     console.error('[Parse API] Stack:', err.stack);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'parse-run',
-        hypothesisId: 'parse-failure',
-        location: 'upload.ts:/parse catch',
-        message: 'Parse failed',
-        data: { error: err?.message || String(err) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     return c.json({ 
       error: err.message || 'Failed to parse syllabus',
       ok: false 

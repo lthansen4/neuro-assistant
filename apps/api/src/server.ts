@@ -2,54 +2,26 @@ import { config } from 'dotenv';
 import { serve } from '@hono/node-server';
 import app from './index';
 
-// Load environment variables from .env file
-// Railway and other platforms provide env vars automatically
+// Load environment variables
 config();
 
 const port = Number(process.env.PORT || 8787);
-console.log(`API listening on http://localhost:${port}`);
 
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    sessionId: 'debug-session',
-    runId: 'startup',
-    hypothesisId: 'startup',
-    location: 'server.ts:start',
-    message: 'API starting',
-    data: { port },
-    timestamp: Date.now(),
-  }),
-}).catch(() => {});
-// #endregion
-
-// Capture unexpected errors and log to ingest
-const logFatal = (type: string, err: any) => {
-  const payload = {
-    sessionId: 'debug-session',
-    runId: 'startup',
-    hypothesisId: 'fatal',
-    location: `server.ts:${type}`,
-    message: `${type}`,
-    data: { error: err?.message || String(err) },
-    timestamp: Date.now(),
-  };
-  fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
-};
-
+// Catch fatal errors and log to Railway
 process.on('uncaughtException', (err) => {
-  console.error('uncaughtException', err);
-  logFatal('uncaughtException', err);
+  console.error('[FATAL] uncaughtException:', err);
 });
 process.on('unhandledRejection', (err: any) => {
-  console.error('unhandledRejection', err);
-  logFatal('unhandledRejection', err);
+  console.error('[FATAL] unhandledRejection:', err);
+});
+
+console.log(`[API] Starting on port ${port}...`);
+console.log('[API] ENV check:', {
+  hasDatabase: !!process.env.DATABASE_URL,
+  hasOpenAI: !!process.env.OPENAI_API_KEY,
+  hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+  hasSupabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
 });
 
 serve({ fetch: app.fetch, port });
+console.log(`[API] Server ready at http://localhost:${port}`);
