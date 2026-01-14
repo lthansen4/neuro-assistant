@@ -32,7 +32,7 @@ type CommitSummary = {
   timezone: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://neuroapi-production.up.railway.app";
 const CONF_THRESHOLD = 0.6;
 
 function isHighStakes(category?: string | null) {
@@ -147,7 +147,7 @@ export function SyllabusReview({
 
       const res = await fetch(`${API_BASE}/api/upload/commit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", "x-clerk-user-id": userId },
         body: JSON.stringify(cleaned),
       });
       const data = await res.json();
@@ -173,7 +173,7 @@ export function SyllabusReview({
     try {
       const res = await fetch(`${API_BASE}/api/upload/rollback`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", "x-clerk-user-id": userId },
         body: JSON.stringify({ parseRunId }),
       });
       const data = await res.json();
