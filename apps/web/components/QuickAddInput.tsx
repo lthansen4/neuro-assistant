@@ -1,10 +1,12 @@
+// components/QuickAddInput.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { QuickAddPreviewSheet } from "./QuickAddPreviewSheet";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
+import { cn } from "../lib/utils";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
 
@@ -33,7 +35,6 @@ export function QuickAddInput() {
   useEffect(() => {
     const handleOpenQuickAdd = (e: CustomEvent) => {
       const { courseId, courseName } = e.detail;
-      // Pre-fill with course name and focus input
       if (courseName) {
         setText(`${courseName} `);
         setIsOpen(true);
@@ -52,7 +53,6 @@ export function QuickAddInput() {
     setIsParsing(true);
 
     try {
-      // Call the parse endpoint
       const res = await fetch(`${API_BASE}/api/quick-add/parse`, {
         method: 'POST',
         headers: {
@@ -83,17 +83,10 @@ export function QuickAddInput() {
   };
 
   const handleSuccess = () => {
-    // Clear input and close sheet
     setText("");
     setIsOpen(false);
     setParseResult(null);
-    
-    // Trigger a custom event to notify the calendar to refresh
-    // This avoids a full page reload
     window.dispatchEvent(new CustomEvent('refreshCalendar'));
-    
-    // Show a success message
-    console.log('[QuickAddInput] Assignment created successfully!');
   };
 
   const handleClose = () => {
@@ -103,25 +96,34 @@ export function QuickAddInput() {
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="relative w-full">
+      <form onSubmit={handleSubmit} className="relative w-full group">
         <div className="relative">
-          <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-500 animate-pulse" />
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center">
+            {isParsing ? (
+              <Loader2 className="h-5 w-5 text-brand-green animate-spin" />
+            ) : (
+              <Sparkles className="h-5 w-5 text-brand-green group-focus-within:animate-pulse" />
+            )}
+          </div>
           <Input
             ref={inputRef}
             id="quick-add-input"
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Type anything: 'cs homework due monday' ✨"
+            placeholder="What's on your mind? ✨"
             disabled={isParsing || !isLoaded}
-            className="pl-10 pr-4 py-3 w-full bg-white dark:bg-gray-800 border-2 border-blue-400 dark:border-blue-600 rounded-lg text-base text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-md"
+            className={cn(
+              "pl-12 pr-4 py-7 w-full transition-all duration-500",
+              "bg-slate-50 border-none rounded-[2rem]",
+              "text-lg font-black text-brand-blue placeholder:text-slate-300 placeholder:font-medium",
+              "focus:ring-4 focus:ring-brand-green/10 focus:bg-white focus:shadow-2xl focus:shadow-brand-green/5"
+            )}
           />
-        </div>
-        {isParsing && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2 pointer-events-none opacity-30 group-focus-within:opacity-100 transition-opacity">
+            <kbd className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-400 uppercase tracking-widest shadow-sm">Enter</kbd>
           </div>
-        )}
+        </div>
       </form>
 
       {parseResult && (
@@ -136,4 +138,3 @@ export function QuickAddInput() {
     </>
   );
 }
-

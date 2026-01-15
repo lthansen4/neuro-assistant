@@ -20,7 +20,7 @@ async function getOrCreateUserId(): Promise<{ dbUserId: string; clerkUserId: str
     const [u] = await db.insert(schema.users).values({
       clerkUserId,
       timezone: "UTC",
-      targetStudyRatio: "2.50",
+      targetStudyRatio: "3.00",
     }).returning();
     dbUserId = u.id;
   }

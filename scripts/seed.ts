@@ -17,7 +17,7 @@ async function main() {
   if (!user) {
     [user] = await db
       .insert(schema.users)
-      .values({ clerkUserId, timezone: "America/New_York", targetStudyRatio: "2.50" })
+      .values({ clerkUserId, timezone: "America/New_York", targetStudyRatio: "3.00" })
       .returning();
   }
 

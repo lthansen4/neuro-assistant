@@ -1,4 +1,7 @@
+// components/AssignmentsList.tsx
 "use client";
+
+import { cn } from "../lib/utils";
 
 interface Assignment {
   id: string;
@@ -43,19 +46,15 @@ function formatDate(dateString: string | null): string {
   }
 }
 
-function getStatusColor(status: Assignment["status"]): string {
-  switch (status) {
-    case "Inbox":
-      return "bg-gray-100 text-gray-700 border-gray-300";
-    case "Scheduled":
-      return "bg-blue-50 text-blue-700 border-blue-300";
-    case "Locked_In":
-      return "bg-orange-50 text-orange-700 border-orange-300";
-    case "Completed":
-      return "bg-green-50 text-green-700 border-green-300";
-    default:
-      return "bg-gray-100 text-gray-700 border-gray-300";
-  }
+function getCategoryColor(category: string | null): string {
+  if (!category) return "bg-slate-100 text-slate-500";
+  const cat = category.toLowerCase();
+  if (cat.includes("read")) return "bg-rainbow-reading text-orange-800";
+  if (cat.includes("homework") || cat.includes("assignment")) return "bg-rainbow-homework text-brand-green";
+  if (cat.includes("test") || cat.includes("exam") || cat.includes("quiz")) return "bg-rainbow-tests text-blue-800";
+  if (cat.includes("chill")) return "bg-rainbow-chill text-purple-800";
+  if (cat.includes("note")) return "bg-rainbow-notes text-yellow-800";
+  return "bg-slate-100 text-slate-500";
 }
 
 function formatEffort(minutes: number | null): string {
@@ -69,22 +68,23 @@ function formatEffort(minutes: number | null): string {
 export function AssignmentsList({ assignments, title, emptyMessage = "No assignments" }: AssignmentsListProps) {
   if (assignments.length === 0) {
     return (
-      <div className="bg-white rounded-lg border p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">{title}</h3>
-        <p className="text-sm text-gray-500">{emptyMessage}</p>
+      <div className="bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 p-12 text-center">
+        <h3 className="text-sm font-black text-slate-300 uppercase tracking-[0.2em] mb-2">{title}</h3>
+        <p className="text-slate-400 font-medium italic">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-gray-100 shadow-xl overflow-hidden transition-all duration-300 hover:shadow-2xl">
-      <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50/50 to-blue-50/50">
-        <h3 className="text-lg font-bold text-gray-800 tracking-tight">{title}</h3>
-        <p className="text-xs font-medium text-indigo-600/70 mt-0.5 uppercase tracking-wider">
-          {assignments.length} {assignments.length === 1 ? "Task" : "Tasks"}
-        </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between px-2">
+        <h3 className="text-xs font-black text-slate-300 uppercase tracking-[0.3em]">{title}</h3>
+        <span className="text-[10px] font-black text-brand-green/50 bg-brand-green/5 px-2 py-0.5 rounded-full uppercase tracking-widest">
+          {assignments.length} {assignments.length === 1 ? "Item" : "Items"}
+        </span>
       </div>
-      <div className="divide-y divide-gray-50">
+      
+      <div className="grid grid-cols-1 gap-4">
         {assignments.map((assignment) => {
           const dueDateFormatted = formatDate(assignment.dueDate);
           const effortFormatted = formatEffort(assignment.effortEstimateMinutes);
@@ -93,40 +93,70 @@ export function AssignmentsList({ assignments, title, emptyMessage = "No assignm
           return (
             <div 
               key={assignment.id} 
-              className="group p-5 hover:bg-indigo-50/30 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+              className={cn(
+                "group relative p-6 rounded-3xl transition-all duration-500 cursor-pointer active:scale-[0.98]",
+                "bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200",
+                isOverdue && "border-rose-100 bg-rose-50/10"
+              )}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center flex-wrap gap-2 mb-2">
-                    <h4 className="text-base font-semibold text-gray-900 leading-tight group-hover:text-indigo-700 transition-colors">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      {assignment.category && (
+                        <span className={cn(
+                          "text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest leading-none",
+                          getCategoryColor(assignment.category)
+                        )}>
+                          {assignment.category}
+                        </span>
+                      )}
+                      {assignment.courseName && (
+                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">
+                          {assignment.courseName}
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-xl font-serif font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors">
                       {assignment.title}
                     </h4>
-                    {assignment.category && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 uppercase tracking-tighter">
-                        {assignment.category}
-                      </span>
-                    )}
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-gray-500 font-medium">
-                    {assignment.courseName && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                        {assignment.courseName}
-                      </div>
-                    )}
-                    <span className={`flex items-center gap-1 ${isOverdue ? "text-rose-600 font-bold" : "text-gray-400"}`}>
-                      {isOverdue && "⚠️ "}{dueDateFormatted}
-                    </span>
-                    {effortFormatted && (
-                      <span className="text-gray-400 font-normal opacity-70">
-                        • {effortFormatted}
-                      </span>
+                  
+                  <div className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center border transition-all duration-500 shadow-inner",
+                    assignment.status === "Completed" 
+                      ? "bg-brand-green/10 border-brand-green/20 text-brand-green" 
+                      : "bg-slate-50 border-slate-100 text-slate-300 group-hover:bg-brand-green/5 group-hover:border-brand-green/10"
+                  )}>
+                    {assignment.status === "Completed" ? (
+                      <CheckIcon size={20} strokeWidth={3} />
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-current"></div>
                     )}
                   </div>
                 </div>
-                <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full shadow-sm border ${getStatusColor(assignment.status)} whitespace-nowrap uppercase tracking-wide`}>
-                  {assignment.status.replace("_", " ")}
-                </span>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-50/50">
+                  <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
+                    <span className={cn(
+                      "flex items-center gap-1.5",
+                      isOverdue ? "text-rose-500" : "text-slate-400"
+                    )}>
+                      <CalendarIcon size={12} strokeWidth={3} />
+                      {dueDateFormatted}
+                    </span>
+                    {effortFormatted && (
+                      <span className="text-slate-300 flex items-center gap-1.5">
+                        <ClockIcon size={12} strokeWidth={3} />
+                        {effortFormatted}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                    View Details →
+                  </div>
+                </div>
               </div>
             </div>
           );
@@ -136,3 +166,24 @@ export function AssignmentsList({ assignments, title, emptyMessage = "No assignm
   );
 }
 
+const CheckIcon = ({ size, strokeWidth }: { size: number, strokeWidth: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
+const CalendarIcon = ({ size, strokeWidth }: { size: number, strokeWidth: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+
+const ClockIcon = ({ size, strokeWidth }: { size: number, strokeWidth: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);

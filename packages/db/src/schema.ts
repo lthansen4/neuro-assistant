@@ -28,7 +28,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   clerkUserId: text("clerk_user_id").notNull().unique(),
   timezone: text("timezone").notNull().default("UTC"),
-  targetStudyRatio: numeric("target_study_ratio", { precision: 4, scale: 2 }).notNull().default("2.50"),
+  targetStudyRatio: numeric("target_study_ratio", { precision: 4, scale: 2 }).notNull().default("3.00"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 }, (t) => ({
   idx_clerk: index("idx_users_clerk").on(t.clerkUserId)

@@ -11,7 +11,7 @@ A single dashboard surface showing: (1) weekly Focus minutes and earned Chill mi
 
 ### Chill Bank
 - Display this week's Focus minutes (sum of `focus_sessions` within local week, Mon 00:00–Sun 23:59).
-- **Earned Chill minutes** = `floor(FocusMinutes / users.target_study_ratio)`. Default ratio = 2.5 if null.
+- **Earned Chill minutes** = `floor(FocusMinutes / users.target_study_ratio)`. Default ratio = 3.0 if null.
 - If chill usage exists (`chill_sessions.duration` this week), show:
   - **Available Chill** = Earned – Spent; **On-track** (green pill) if Available ≥ 0, **Behind** (amber/red pill) if < 0.
 - If no chill usage tracking present, hide Available/On-track and show only Focus + Earned.
@@ -66,4 +66,5 @@ A single dashboard surface showing: (1) weekly Focus minutes and earned Chill mi
 - **A11y:** Keyboard-only usable; color contrast AA; screen reader announces metric changes.
 - Zero-error console in production; no UI jank on mobile mid-tier devices.
 - User can understand forecast assumptions (toggle + "Estimates only" badge) without external help.
+
 

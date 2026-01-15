@@ -9,7 +9,7 @@ create table users(
   id uuid primary key default gen_random_uuid(),
   clerk_user_id text unique not null,
   timezone text not null default 'UTC',
-  target_study_ratio numeric(4,2) not null default 2.50,
+  target_study_ratio numeric(4,2) not null default 3.00,
   created_at timestamptz default now()
 );
 create index idx_users_clerk on users(clerk_user_id);
@@ -212,7 +212,7 @@ agg as (
 )
 insert into user_daily_productivity (user_id, day, focus_minutes, chill_minutes, earned_chill_minutes)
 select p_user, p_day, a.focus_minutes, a.chill_minutes,
-  floor(a.focus_minutes / (select coalesce(nullif(target_study_ratio,0), 2.50) from users where id = p_user))::int
+  floor(a.focus_minutes / (select coalesce(nullif(target_study_ratio,0), 3.00) from users where id = p_user))::int
 from agg a
 on conflict (user_id, day)
 do update set
@@ -267,6 +267,7 @@ drop trigger if exists trg_sessions_after_change on sessions;
 create trigger trg_sessions_after_change
   after insert or update or delete on sessions
   for each row execute function sessions_after_change();
+
 
 
 

@@ -28,7 +28,7 @@ async function main() {
       .values({
         clerkUserId,
         timezone: "America/New_York",
-        targetStudyRatio: "2.50",
+        targetStudyRatio: "3.00",
       })
       .returning();
     
@@ -45,6 +45,7 @@ main().catch(async (e) => {
   await pool.end();
   process.exit(1);
 });
+
 
 
 

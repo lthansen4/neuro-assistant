@@ -14,7 +14,7 @@ This document defines the **canonical MVP database schema** for the "Neuro-Stude
 * `id`: UUID (PK)
 * `clerk_user_id`: Text (unique, not null)
 * `timezone`: Text (default: 'UTC')
-* `target_study_ratio`: Numeric(4,2) (default: 2.50)
+* `target_study_ratio`: Numeric(4,2) (default: 3.00)
 * `created_at`: Timestamptz (default: now())
 
 **Indexes:**
@@ -403,4 +403,5 @@ This schema represents the **canonical MVP implementation** of the Neuro-Student
 1. Create migration `0005_add_rebalancing_fields.sql` to add `term`, `year`, and `is_recurring`
 2. Update TypeScript schema definitions in `packages/db/src/schema.ts`
 3. Update API endpoints to utilize new fields when Rebalancing Engine is implemented
+
 

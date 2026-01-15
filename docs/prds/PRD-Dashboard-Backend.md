@@ -35,7 +35,7 @@ Backend service powering the Dashboard's Chill Bank and Grade Forecast. Returns 
     "earned_chill_minutes_week": 0,
     "spent_chill_minutes_week": 0,
     "net_chill_minutes_week": 0,
-    "target_ratio": 2.5,
+    "target_ratio": 3.0,
     "ratio_achieved": null,
     "status": "on_track|behind",
     "notes": "optional warnings"
@@ -145,4 +145,5 @@ Backend service powering the Dashboard's Chill Bank and Grade Forecast. Returns 
 - Realtime updates reflect within 2 seconds of data change via client resubscription/refetch.
 - Authenticated users only; zero data leakage across users.
 - Meets performance SLA for 95% of requests over rolling 7 days.
+
 

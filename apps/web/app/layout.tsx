@@ -2,6 +2,20 @@ import './globals.css';
 import { ClerkProvider } from '@clerk/nextjs';
 import Script from 'next/script';
 import React from 'react';
+import { Inter, Instrument_Serif } from 'next/font/google';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
+
+const instrumentSerif = Instrument_Serif({
+  weight: '400',
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-instrument-serif',
+});
 
 function ClerkErrorBoundary({ children }: { children: React.ReactNode }) {
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -25,11 +39,11 @@ function ClerkErrorBoundary({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${instrumentSerif.variable}`}>
       <head>
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body suppressHydrationWarning>
+      <body suppressHydrationWarning className="font-sans">
         {/* OneSignal SDK */}
         <Script 
           src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" 
