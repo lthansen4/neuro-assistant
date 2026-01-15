@@ -10,12 +10,19 @@ export default {
           gesso: "#F2F0E9",
         },
         rainbow: {
-          reading: "#E5945C", // Terracotta
-          homework: "#4A5D23", // Moss
-          tests: "#5C7EA5", // Slate Blue
-          chill: "#7C6A96", // Dusty Violet
-          notes: "#D4AF37", // Earthy Gold
+          reading: "#F5E6D3", // Soft Creamy Terracotta
+          homework: "#E2E8D5", // Pale Sage
+          tests: "#D7E3F1", // Soft Sky
+          chill: "#E5E1F1", // Pale Lavender
+          notes: "#F9F1D8", // Soft Gold
         },
+        accent: {
+          reading: "#E5945C",
+          homework: "#4A5D23",
+          tests: "#5C7EA5",
+          chill: "#7C6A96",
+          notes: "#D4AF37",
+        }
       },
       fontFamily: {
         sans: ["var(--font-inter)", "sans-serif"],

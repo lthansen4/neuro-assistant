@@ -37,29 +37,29 @@ export function ChillBank({ earnedMinutes, usedMinutes, targetRatio = 3.0 }: Chi
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
               Available
             </span>
-          </div>
+        </div>
         </CircularProgress>
 
         <div className="grid grid-cols-2 gap-8 w-full mt-8 pt-6 border-t border-slate-50">
           <div className="text-center">
             <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Earned</div>
             <div className="text-lg font-black text-slate-700">{Math.floor(earnedMinutes)}m</div>
-          </div>
+      </div>
           <div className="text-center">
             <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Used</div>
             <div className="text-lg font-black text-slate-700">{Math.floor(usedMinutes)}m</div>
-          </div>
+      </div>
         </div>
 
-        {targetRatio && (
+      {targetRatio && (
           <div className="mt-6 flex items-center justify-center gap-3 w-full opacity-50">
             <span className="h-px flex-1 bg-slate-100"></span>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-              1:{targetRatio} Focus Ratio
-            </p>
+            1:{targetRatio} Focus Ratio
+          </p>
             <span className="h-px flex-1 bg-slate-100"></span>
-          </div>
-        )}
+        </div>
+      )}
       </div>
     </div>
   );

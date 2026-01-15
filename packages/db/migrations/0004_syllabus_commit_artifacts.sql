@@ -11,3 +11,4 @@ create index if not exists idx_artifacts_parse on syllabus_commit_artifacts(pars
 
 
 
+

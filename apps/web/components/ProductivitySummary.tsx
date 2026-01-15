@@ -33,8 +33,8 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
   };
 
   const getStats = () => {
-    if (range === "day") {
-      const today = daily[daily.length - 1];
+  if (range === "day") {
+    const today = daily[daily.length - 1];
       return today ? {
         focus: today.focusMinutes,
         chill: today.chillMinutes,
@@ -88,7 +88,7 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
               Focused
             </span>
-          </div>
+        </div>
         </CircularProgress>
 
         <div className="grid grid-cols-2 gap-8 w-full mt-8 pt-6 border-t border-slate-50">

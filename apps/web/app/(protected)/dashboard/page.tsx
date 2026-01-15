@@ -158,31 +158,34 @@ export default function DashboardPage() {
   const usedChill = weekly.chillMinutes || 0;
 
   return (
-    <div className="min-h-screen bg-white">
-      <main className="px-6 py-12 md:px-12 max-w-7xl mx-auto space-y-16">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-          <div className="space-y-2">
-            <h1 className="text-5xl md:text-7xl font-serif font-black text-brand-blue tracking-tight leading-[0.9]">
-              {refreshing ? "Scanning for chaos..." : `Hey, ${user?.firstName || 'Scholar'}.`}
+    <div className="min-h-screen bg-brand-gesso selection:bg-brand-green/10">
+      {/* Subtle Texture Overlay */}
+      <div className="fixed inset-0 gesso-texture z-0 pointer-events-none" />
+
+      <main className="px-6 py-16 md:px-12 md:py-24 max-w-7xl mx-auto space-y-32 relative z-10">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-12">
+          <div className="space-y-6">
+            <h1 className="text-6xl md:text-[7rem] font-serif font-black text-brand-blue tracking-tighter leading-[0.8]">
+              {refreshing ? "Scanning..." : `Hey, ${user?.firstName || 'Scholar'}.`}
             </h1>
-            <p className="text-slate-400 font-medium text-lg md:text-xl">
+            <p className="text-slate-400 font-medium text-xl md:text-3xl">
               {refreshing ? (
                 <span className="flex items-center gap-3 animate-pulse text-brand-green">
-                  <span className="w-2 h-2 rounded-full bg-brand-green"></span>
                   mapping your semester...
                 </span>
               ) : data.assignments?.scheduled?.length === 0 ? (
-                "Your radar is clear. Go touch grass for a bit. 🌿"
+                "Your radar is clear. Go touch grass. 🌿"
               ) : (
-                `You've got ${data.assignments?.scheduled?.length || 0} items on deck. Let's get this done.`
+                `You've got ${data.assignments?.scheduled?.length || 0} items on deck today.`
               )}
             </p>
           </div>
           
-          <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-3xl border border-slate-100 shadow-sm self-start">
+          <div className="flex items-center gap-2 bg-white/40 backdrop-blur-sm p-1.5 rounded-[2rem] border border-white/50 shadow-sm self-start">
             <button
               onClick={() => handleRangeChange("day")}
-              className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
+              className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
                 range === "day"
                   ? "bg-white text-brand-blue shadow-md"
                   : "text-slate-400 hover:text-slate-600"
@@ -192,7 +195,7 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => handleRangeChange("week")}
-              className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
+              className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
                 range === "week"
                   ? "bg-white text-brand-blue shadow-md"
                   : "text-slate-400 hover:text-slate-600"
@@ -225,28 +228,28 @@ export default function DashboardPage() {
 
         {/* Assignments Section */}
         {data.assignments && (
-          <div className="space-y-12">
-            <div className="flex items-center gap-4">
-              <h2 className="text-3xl font-serif font-black text-brand-blue tracking-tight">Your Roadmap</h2>
-              <div className="h-px flex-1 bg-slate-100"></div>
+          <div className="space-y-20">
+            <div className="flex items-center gap-8">
+              <h2 className="text-4xl font-serif font-black text-brand-blue tracking-tight italic">Your Roadmap</h2>
+              <div className="h-px flex-1 bg-white/40"></div>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-              <div className="lg:col-span-1 space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
+              <div className="lg:col-span-1">
                 <AssignmentsList
                   assignments={data.assignments.inbox || []}
                   title="Capture"
                   emptyMessage="Clear mind, clear inbox. 🕊️"
                 />
               </div>
-              <div className="lg:col-span-1 space-y-6">
+              <div className="lg:col-span-1">
                 <AssignmentsList
                   assignments={data.assignments.scheduled || []}
                   title="Focus"
                   emptyMessage="Nothing on deck right now."
                 />
               </div>
-              <div className="lg:col-span-1 space-y-6">
+              <div className="lg:col-span-1">
                 <AssignmentsList
                   assignments={data.assignments.completed || []}
                   title="Wins"

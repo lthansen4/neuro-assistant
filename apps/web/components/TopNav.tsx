@@ -10,13 +10,13 @@ export function TopNav() {
   const { user } = useUser();
 
   return (
-    <nav className="sticky top-0 z-40 bg-brand-gesso/80 backdrop-blur-xl border-b border-slate-200/50 shadow-sm">
+    <nav className="sticky top-0 z-40 bg-brand-gesso/40 backdrop-blur-md border-b border-slate-200/20">
       <div className="max-w-7xl mx-auto px-6 sm:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-24">
           {/* Logo / Brand */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="text-3xl font-serif font-black text-brand-blue tracking-tight group flex items-center gap-2">
-              <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center transition-all group-hover:rotate-12 shadow-sm border border-slate-200 group-hover:border-brand-green/20 group-hover:shadow-aura-moss">
+            <Link href="/dashboard" className="text-3xl font-serif font-black text-brand-blue tracking-tight group flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center transition-all group-hover:rotate-6 shadow-sm border border-slate-100">
                 <GessoIcon type="prism" className="text-brand-green" size={24} />
               </div>
               <span className="hidden sm:inline">Gesso</span>
@@ -67,7 +67,7 @@ export function TopNav() {
               <UserCircle size={20} strokeWidth={2.5} />
             </div>
           </div>
-        </div>
+      </div>
       </div>
     </nav>
   );

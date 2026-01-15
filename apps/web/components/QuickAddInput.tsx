@@ -115,10 +115,10 @@ export function QuickAddInput() {
             placeholder="Hand over the chaos... I'll do the boring part."
             disabled={isParsing || !isLoaded}
             className={cn(
-              "pl-12 pr-4 py-7 w-full transition-all duration-500",
-              "bg-white/50 backdrop-blur-sm border border-slate-200/50 rounded-[2rem]",
-              "text-lg font-black text-brand-blue placeholder:text-slate-300 placeholder:font-medium",
-              "focus:ring-8 focus:ring-brand-green/5 focus:bg-white focus:shadow-2xl focus:shadow-brand-green/5 focus:border-brand-green/20"
+              "pl-14 pr-6 py-10 w-full transition-all duration-500",
+              "bg-white/40 backdrop-blur-sm border border-white/60 rounded-[2.5rem]",
+              "text-xl font-medium text-brand-blue placeholder:text-slate-300 placeholder:font-medium",
+              "focus:ring-8 focus:ring-brand-green/5 focus:bg-white focus:shadow-2xl focus:shadow-brand-green/5 focus:border-white"
             )}
           />
           <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2 pointer-events-none opacity-30 group-focus-within:opacity-100 transition-opacity">

@@ -14,9 +14,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       <SignedIn>
         <OneSignalInit />
         <div className="flex flex-col min-h-screen">
-          <TopNav />
+        <TopNav />
           <div className="flex-1 pb-24 md:pb-0">
-            {children}
+        {children}
           </div>
           <BottomNav />
         </div>

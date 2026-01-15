@@ -15,3 +15,4 @@ CREATE INDEX idx_assignment_checklists_event ON assignment_checklists(event_id);
 
 
 
+
