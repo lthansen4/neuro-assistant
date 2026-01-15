@@ -37,13 +37,21 @@ function ClerkErrorBoundary({ children }: { children: React.ReactNode }) {
   return <ClerkProvider publishableKey={publishableKey}>{children}</ClerkProvider>;
 }
 
+export const metadata = {
+  title: 'Gesso | Your Academic Canvas',
+  description: 'A neuro-adaptive executive function assistant for the modern student.',
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${instrumentSerif.variable}`}>
       <head>
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body suppressHydrationWarning className="font-sans">
+      <body suppressHydrationWarning className="font-sans text-brand-blue selection:bg-brand-green/10 selection:text-brand-green relative min-h-screen">
+        {/* Global Mesh Gradient Background */}
+        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,_#fff_0%,_rgba(243,232,255,0.4)_30%,_rgba(209,250,229,0.2)_70%,_#fff_100%)]" />
+        
         {/* OneSignal SDK */}
         <Script 
           src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" 

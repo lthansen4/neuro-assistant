@@ -100,3 +100,5 @@ Parse uploaded syllabus PDFs into structured data (class schedule, office hours,
 - ≥90% of confirmed items commit successfully without validation errors.
 - Zero unauthorized access to files or ingestion records (verified via RLS tests).
 
+
+

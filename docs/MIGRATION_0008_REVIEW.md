@@ -244,3 +244,5 @@ export const courseOfficeHours = pgTable("course_office_hours", {...});
 5. **Test compatibility** - Ensure existing code still works
 6. **Update TypeScript** - Reflect schema changes
 
+
+

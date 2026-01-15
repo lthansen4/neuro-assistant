@@ -147,3 +147,5 @@ COMMIT;
 ✅ **Optimized**: New index improves dashboard query performance  
 ✅ **Future-Proof**: Can add more indexes later if needed  
 
+
+

@@ -49,3 +49,5 @@ ALTER TABLE user_streaks
 -- Step 7: Add index for performance
 CREATE INDEX IF NOT EXISTS idx_streaks_user ON user_streaks(user_id);
 
+
+

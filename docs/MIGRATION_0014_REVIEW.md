@@ -349,3 +349,5 @@ If `proposal_moves` doesn't exist, create migrations in this order:
 
 **Alternative:** If you want to proceed with 0014 as-is, document that `proposal_moves` must be created manually first, and add a check to skip gracefully if it doesn't exist.
 
+
+

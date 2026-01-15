@@ -26,3 +26,5 @@
 ### Cross-references
 - See also: Neuro‑Adaptive Scheduling Policy; Advisor Triggering Rules; Nudge‑compatible Block Rules.
 
+
+

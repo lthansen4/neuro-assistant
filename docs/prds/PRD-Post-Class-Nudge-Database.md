@@ -248,3 +248,5 @@
 - Store local time/locale specifics in client; persist `TIMESTAMPTZ` for timestamps
 - Attachment handling is pointer‑only; no OCR in MVP
 
+
+

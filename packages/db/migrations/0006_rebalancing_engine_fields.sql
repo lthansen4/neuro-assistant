@@ -55,3 +55,5 @@ CREATE INDEX IF NOT EXISTS idx_courses_user ON courses(user_id);
 -- Note: user_streaks index would be added if we create the new table
 -- CREATE INDEX IF NOT EXISTS idx_streaks_user ON user_streaks_v2(user_id);
 
+
+

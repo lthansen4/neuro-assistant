@@ -95,3 +95,5 @@ If you want to be more explicit about the view nature, you could:
 3. **Long-term**: Gradually migrate new code to use `calendarEventTemplates` directly
 4. **Future**: Eventually deprecate the view once all code is migrated
 
+
+

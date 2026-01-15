@@ -90,3 +90,5 @@ COMMENT ON TABLE streak_counters IS 'Daily streak tracking for engagement and mo
 COMMENT ON COLUMN streak_counters.current_streak IS 'Consecutive days with at least one nudge action';
 COMMENT ON COLUMN streak_counters.longest_streak IS 'All-time longest streak';
 
+
+

@@ -109,3 +109,5 @@ CREATE TABLE user_streaks (
    WHERE table_name = 'calendar_events' AND column_name = 'is_recurring';
    ```
 
+
+

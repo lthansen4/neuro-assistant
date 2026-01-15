@@ -18,3 +18,5 @@ ALTER TABLE calendar_events
 -- Optional: Add index for term/year queries if needed
 -- CREATE INDEX IF NOT EXISTS idx_courses_term_year ON courses(term, year) WHERE term IS NOT NULL AND year IS NOT NULL;
 
+
+

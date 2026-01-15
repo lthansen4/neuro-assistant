@@ -9,3 +9,5 @@ create table if not exists syllabus_commit_artifacts(
 );
 create index if not exists idx_artifacts_parse on syllabus_commit_artifacts(parse_run_id);
 
+
+

@@ -24,6 +24,21 @@ export default {
         '2xl': '16px',
         '3xl': '24px',
       },
+      animation: {
+        'fade-in': 'fade-in 1s ease-out forwards',
+        'fade-in-delayed': 'fade-in 1s ease-out 0.5s forwards',
+        'slide-up': 'slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+      },
+      keyframes: {
+        'fade-in': {
+          'from': { opacity: '0' },
+          'to': { opacity: '1' },
+        },
+        'slide-up': {
+          'from': { transform: 'translateY(20px)', opacity: '0' },
+          'to': { transform: 'translateY(0)', opacity: '1' },
+        },
+      },
     },
   },
   plugins: [],

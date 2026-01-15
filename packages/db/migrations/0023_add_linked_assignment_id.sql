@@ -8,3 +8,5 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_linked_assignment
 ON calendar_events_new(linked_assignment_id) 
 WHERE linked_assignment_id IS NOT NULL;
 
+
+

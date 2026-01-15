@@ -163,3 +163,5 @@ COMMIT;
 -- DROP INDEX IF EXISTS idx_events_user_assignment ON calendar_events_new;
 -- ALTER TABLE proposal_moves DROP CONSTRAINT IF EXISTS fk_proposal_moves_calendar_events;
 
+
+

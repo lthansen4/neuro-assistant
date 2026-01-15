@@ -1,6 +1,6 @@
 # Product Requirements Documents (PRDs)
 
-This directory contains Product Requirements Documents for the Neuro-Student Assistant project.
+This directory contains Product Requirements Documents for the Gesso project.
 
 ## Syllabus Dump Feature
 
@@ -280,4 +280,6 @@ The Rebalancing Engine (also called "Recalibration Engine") proposes schedule ad
 - Post-Class Nudge PRD references tables that do not yet exist (`class_nudges`, `nudge_groups`, `nudge_delivery_attempts`, `course_nudge_settings`, `user_notification_prefs`).
 - Quick Add PRD references `user_course_aliases` and `quick_add_logs` which were created in migration 0013. The parsing and confirmation logic are pending implementation.
 - Rebalancing Engine PRD references core tables that do not yet exist (`rebalancing_proposals`, `proposal_moves`, `rollback_snapshots`, etc.). Migration 0014 adds baseline fields to `proposal_moves` and defense-in-depth triggers, but the core tables are pending creation.
+
+
 

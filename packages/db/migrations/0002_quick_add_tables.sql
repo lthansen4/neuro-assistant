@@ -33,3 +33,5 @@ create index idx_quick_add_logs_user_created on quick_add_logs(user_id, created_
 create index idx_quick_add_logs_dedupe on quick_add_logs(dedupe_hash);
 
 
+
+

@@ -65,3 +65,5 @@ COMMIT;
 -- SELECT * FROM grading_components WHERE course_id = '...';
 -- SELECT indexname FROM pg_indexes WHERE tablename = 'grading_components';
 
+
+

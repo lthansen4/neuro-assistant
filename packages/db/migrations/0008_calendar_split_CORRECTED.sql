@@ -226,3 +226,5 @@ COMMIT;
 -- SELECT COUNT(*) FROM course_office_hours_old;  -- Should match above
 -- SELECT * FROM course_office_hours LIMIT 5;  -- View should work
 
+
+

@@ -11,3 +11,5 @@ ALTER TYPE event_type ADD VALUE IF NOT EXISTS 'DueDate';
 
 COMMENT ON TYPE event_type IS 'Calendar event types: Class, Work, OfficeHours, Focus, Chill, Studying (test prep), Test, Quiz, Midterm, Final, Homework, DueDate, Other';
 
+
+

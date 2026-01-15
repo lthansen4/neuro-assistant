@@ -1,81 +1,128 @@
 import Link from "next/link";
-import { Layout, Calendar, Upload, Sparkles, Brain } from "lucide-react";
+import { Layout, Calendar, Upload, Sparkles, Brain, ArrowRight } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { cn } from "../lib/utils";
 
 export default function Home() {
-  return (
-    <main className="min-h-screen bg-[#F8FAFF] relative overflow-hidden flex flex-col items-center justify-center p-6">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-200/30 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-200/30 rounded-full blur-[120px]" />
+  const features = [
+    { label: "notes", color: "bg-rainbow-notes text-yellow-800" },
+    { label: "readings", color: "bg-rainbow-reading text-orange-800" },
+    { label: "homework", color: "bg-rainbow-homework text-brand-green" },
+    { label: "tests", color: "bg-rainbow-tests text-blue-800" },
+    { label: "rest", color: "bg-rainbow-chill text-purple-800" },
+  ];
 
-      <div className="max-w-4xl w-full space-y-12 relative z-10 text-center">
-        {/* Hero Section */}
-        <div className="space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-sm font-medium mb-4">
-            <Sparkles className="h-4 w-4" />
-            <span>AI-Powered Executive Functioning</span>
+  return (
+    <main className="min-h-screen relative flex flex-col items-center justify-center overflow-x-hidden">
+      {/* Editorial Hero Section */}
+      <section className="w-full max-w-7xl mx-auto px-6 py-24 md:py-32 flex flex-col items-center text-center space-y-12">
+        <div className="space-y-6 max-w-4xl">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/50 backdrop-blur-sm border border-slate-100 shadow-sm text-brand-green text-[10px] font-black uppercase tracking-[0.2em] animate-fade-in">
+            <Sparkles className="h-3 w-3 fill-current" />
+            <span>The digital primer for your mind</span>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-slate-900">
-            Neuro-Assistant <span className="text-indigo-600">Pro</span>
+          
+          <h1 className="text-7xl md:text-9xl font-serif font-black text-brand-blue tracking-tight leading-[0.9] md:leading-[0.85]">
+            Remember everything. <br className="hidden md:block" />
+            Organize <span className="text-brand-green">nothing.</span>
           </h1>
-          <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-            The intelligent planner for AuDHD students. Less overwhelm, more momentum.
+          
+          <p className="text-xl md:text-2xl text-slate-400 font-medium max-w-2xl mx-auto leading-relaxed">
+            Gesso is the neuro-adaptive workspace that prepares your mental canvas, 
+            so you can focus on the masterpiece of your education.
           </p>
         </div>
 
-        {/* Quick Access Buttons */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-          <Link href="/dashboard" className="group">
-            <div className="h-full p-6 rounded-2xl bg-white/60 backdrop-blur-md border border-white shadow-sm hover:shadow-md hover:border-indigo-200 transition-all flex flex-col items-center gap-4 text-center">
-              <div className="p-4 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                <Layout className="h-8 w-8" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg text-slate-900">Dashboard</h3>
-                <p className="text-sm text-slate-500 mt-1">See your momentum and tasks</p>
-              </div>
+        {/* Soft Rainbow Pills (MyMind Style) */}
+        <div className="flex flex-wrap justify-center gap-3 max-w-2xl animate-slide-up">
+          <span className="text-slate-400 font-medium mr-2 self-center">All your</span>
+          {features.map((f) => (
+            <div
+              key={f.label}
+              className={cn(
+                "px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-sm border border-white/50 transition-transform hover:scale-105 hover:shadow-md",
+                f.color
+              )}
+            >
+              {f.label}
             </div>
-          </Link>
-
-          <Link href="/calendar" className="group">
-            <div className="h-full p-6 rounded-2xl bg-white/60 backdrop-blur-md border border-white shadow-sm hover:shadow-md hover:border-indigo-200 transition-all flex flex-col items-center gap-4 text-center">
-              <div className="p-4 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                <Calendar className="h-8 w-8" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg text-slate-900">Calendar</h3>
-                <p className="text-sm text-slate-500 mt-1">Neuro-adaptive scheduling</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/upload" className="group">
-            <div className="h-full p-6 rounded-2xl bg-white/60 backdrop-blur-md border border-white shadow-sm hover:shadow-md hover:border-indigo-200 transition-all flex flex-col items-center gap-4 text-center">
-              <div className="p-4 rounded-xl bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                <Upload className="h-8 w-8" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg text-slate-900">Upload Syllabus</h3>
-                <p className="text-sm text-slate-500 mt-1">AI-powered backwards planning</p>
-              </div>
-            </div>
-          </Link>
+          ))}
+          <span className="text-slate-400 font-medium ml-2 self-center text-center w-full md:w-auto mt-2 md:mt-0">
+            in one single, private place.
+          </span>
         </div>
 
-        {/* Footer/Bottom Action */}
-        <div className="pt-8">
+        {/* Primary Action */}
+        <div className="pt-12 animate-fade-in-delayed">
           <Link href="/dashboard">
-            <Button className="rounded-full px-8 py-6 h-auto text-lg bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 group">
-              Get Started
-              <Sparkles className="ml-2 h-5 w-5 animate-pulse" />
+            <Button className="rounded-full px-12 py-8 h-auto text-xl bg-brand-green hover:bg-brand-green/90 shadow-2xl shadow-brand-green/20 group">
+              Start your canvas
+              <ArrowRight className="ml-3 h-6 w-6 transition-transform group-hover:translate-x-1" />
             </Button>
           </Link>
-          <p className="mt-4 text-sm text-slate-400 font-medium flex items-center justify-center gap-2">
-            Built for the brilliant AuDHD mind <Brain className="h-4 w-4" />
-          </p>
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <div className="flex -space-x-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">
+                  {String.fromCharCode(64 + i)}
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2">
+              Built for the brilliant AuDHD mind <Brain className="h-3 w-3" />
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
+
+      {/* Adaptive Feature Grid */}
+      <section className="w-full max-w-7xl mx-auto px-6 pb-24 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+        <Link href="/dashboard" className="group block">
+          <div className="h-full p-10 rounded-[3rem] bg-white/40 backdrop-blur-sm border border-white/60 shadow-sm hover:shadow-2xl hover:bg-white hover:border-brand-green/10 transition-all duration-500 flex flex-col gap-6">
+            <div className="w-16 h-16 rounded-[1.5rem] bg-rainbow-homework/50 flex items-center justify-center text-brand-green group-hover:scale-110 transition-transform">
+              <Layout size={32} strokeWidth={2.5} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-serif font-black text-3xl text-brand-blue leading-none">The Roadmap</h3>
+              <p className="text-slate-400 font-medium leading-relaxed">
+                A visual overview of your momentum, energy, and upcoming wins.
+              </p>
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/calendar" className="group block">
+          <div className="h-full p-10 rounded-[3rem] bg-white/40 backdrop-blur-sm border border-white/60 shadow-sm hover:shadow-2xl hover:bg-white hover:border-brand-green/10 transition-all duration-500 flex flex-col gap-6">
+            <div className="w-16 h-16 rounded-[1.5rem] bg-rainbow-tests/50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+              <Calendar size={32} strokeWidth={2.5} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-serif font-black text-3xl text-brand-blue leading-none">The Canvas</h3>
+              <p className="text-slate-400 font-medium leading-relaxed">
+                Neuro-adaptive scheduling that works with your brain, not against it.
+              </p>
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/upload" className="group block">
+          <div className="h-full p-10 rounded-[3rem] bg-white/40 backdrop-blur-sm border border-white/60 shadow-sm hover:shadow-2xl hover:bg-white hover:border-brand-green/10 transition-all duration-500 flex flex-col gap-6">
+            <div className="w-16 h-16 rounded-[1.5rem] bg-rainbow-reading/50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
+              <Upload size={32} strokeWidth={2.5} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-serif font-black text-3xl text-brand-blue leading-none">Quick Ingest</h3>
+              <p className="text-slate-400 font-medium leading-relaxed">
+                Drop your syllabus and let the AI build your backwards plan in seconds.
+              </p>
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      {/* Floating Decorative Blobs (Holi Style) */}
+      <div className="absolute top-[15%] right-[-5%] w-64 h-64 bg-rainbow-chill/20 rounded-full blur-3xl -z-10 animate-pulse" />
+      <div className="absolute bottom-[10%] left-[-5%] w-96 h-96 bg-rainbow-homework/20 rounded-full blur-3xl -z-10 animate-pulse" />
     </main>
   );
 }

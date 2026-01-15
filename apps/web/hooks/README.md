@@ -102,3 +102,5 @@ useDashboardRealtimeWithReactQuery({
 - **RLS policy errors**: Ensure your RLS policies allow reading the `users` table by `clerk_user_id`
 - **Subscription not connecting**: Check browser console for connection errors and verify your Supabase URL and anon key are correct
 
+
+

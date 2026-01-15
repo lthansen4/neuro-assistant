@@ -180,3 +180,5 @@ When the AI detects a large assignment (papers, major projects, thesis work), th
 - Error rate (parse or create) ≤ 2% of attempts; user satisfaction (CSAT on success toast prompt) ≥ 4.3/5.
 - For chunked assignments: ≥ 90% of students complete more chunks on time vs. single large blocks (measured via completion tracking).
 
+
+

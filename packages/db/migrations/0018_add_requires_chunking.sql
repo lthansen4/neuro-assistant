@@ -15,3 +15,5 @@ WHERE requires_chunking = TRUE;
 COMMENT ON COLUMN assignments.requires_chunking IS 
 'True if this assignment requires multiple work sessions (auto-chunking). Papers/large projects typically require chunking.';
 
+
+

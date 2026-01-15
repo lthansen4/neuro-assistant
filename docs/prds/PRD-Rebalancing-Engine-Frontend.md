@@ -84,3 +84,5 @@ Auto-adjust Schedule proposes non-destructive calendar changes when high-priorit
 - ≥ 60% proposal view-to-apply conversion (any items applied) in pilot.
 - **Accessibility:** all actions achievable via keyboard; no critical contrast violations; tooltips announced to screen readers.
 
+
+

@@ -1,4 +1,4 @@
-# Neuro-Assistant Backlog: Specialized Academic Assistant
+# Gesso Backlog: Your Academic Canvas
 
 This document outlines the feature-level requirements, user stories, and technical specifications for the next phase of development. The app is a neuro-adaptive executive function assistant for a neurodivergent freshman in college.
 

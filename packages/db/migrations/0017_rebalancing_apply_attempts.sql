@@ -75,3 +75,5 @@ COMMIT;
 -- ALTER TABLE rebalancing_apply_attempts DROP CONSTRAINT IF EXISTS rebalancing_apply_attempts_operation_chk;
 -- DROP TABLE IF EXISTS rebalancing_apply_attempts CASCADE;
 
+
+

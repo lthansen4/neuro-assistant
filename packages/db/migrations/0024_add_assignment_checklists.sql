@@ -13,3 +13,5 @@ CREATE TABLE IF NOT EXISTS assignment_checklists (
 CREATE INDEX idx_assignment_checklists_assignment ON assignment_checklists(assignment_id);
 CREATE INDEX idx_assignment_checklists_event ON assignment_checklists(event_id);
 
+
+

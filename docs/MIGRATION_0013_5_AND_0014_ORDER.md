@@ -202,3 +202,5 @@ WHERE id = '<test-event-id>';
 - ✅ Baseline fields available for stale-checking
 - ✅ Assignment linkage indexes support query performance
 
+
+

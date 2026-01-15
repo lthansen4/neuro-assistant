@@ -196,3 +196,5 @@ The view is writable via `INSTEAD OF` triggers, so inserting into it automatical
 - Artifact tracking is optional (gracefully handles missing `syllabus_commit_artifacts` table)
 - Office hours are stored both as normalized patterns (`course_office_hours`) and as calendar event instances
 
+
+

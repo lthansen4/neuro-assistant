@@ -68,3 +68,5 @@ COMMENT ON COLUMN daily_deep_work_summary.recovery_forced IS 'Recovery Forcing: 
 
 COMMENT ON TABLE assignment_deferrals IS 'Wall of Awful: Track every time an assignment is deferred. Used to detect stuck patterns.';
 
+
+

@@ -191,3 +191,5 @@ Quiz/Reading  → -10  (quick tasks)
 
 **ADHD-friendly UX = Frictionless + Intelligent + Transparent** 🧠✨
 
+
+

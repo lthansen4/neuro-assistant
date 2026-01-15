@@ -318,3 +318,5 @@ Score = (Urgency × W) + (Impact × W) + (Fit × W) − Friction
 
 **Recommendation:** Start with Phase 1 (Stability) - a broken fast car is worse than a slow reliable car.
 
+
+

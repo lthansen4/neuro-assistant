@@ -168,3 +168,5 @@ energyRoute.get('/history', async (c) => {
 
 export default energyRoute;
 
+
+

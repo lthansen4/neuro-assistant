@@ -14,11 +14,11 @@ export function TopNav() {
         <div className="flex items-center justify-between h-20">
           {/* Logo / Brand */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="text-2xl font-serif font-black text-brand-green tracking-tight group flex items-center gap-2">
-              <div className="w-10 h-10 rounded-2xl bg-brand-green/10 flex items-center justify-center transition-transform group-hover:rotate-12">
+            <Link href="/dashboard" className="text-3xl font-serif font-black text-brand-green tracking-tight group flex items-center gap-2">
+              <div className="w-10 h-10 rounded-2xl bg-brand-green/10 flex items-center justify-center transition-transform group-hover:rotate-12 shadow-sm">
                 <Sparkles className="text-brand-green" size={24} fill="currentColor" />
               </div>
-              <span className="hidden sm:inline">Neuro Assistant</span>
+              <span className="hidden sm:inline">Gesso</span>
             </Link>
           </div>
 

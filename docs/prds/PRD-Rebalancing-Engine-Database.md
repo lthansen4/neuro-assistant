@@ -253,3 +253,5 @@ If you want a normalized catalog; otherwise, keep codes inline on moves.
   - `idx_proposal_moves_source`, `idx_proposal_moves_metadata_gin`, `idx_moves_assignment`
 - Also recommends `idx_events_user_assignment` on `calendar_events_new`.
 
+
+

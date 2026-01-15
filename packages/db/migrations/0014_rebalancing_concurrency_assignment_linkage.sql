@@ -179,3 +179,5 @@ COMMIT;
 -- ALTER TABLE proposal_moves DROP COLUMN IF EXISTS baseline_version;
 -- ALTER TABLE proposal_moves DROP COLUMN IF EXISTS metadata;
 
+
+

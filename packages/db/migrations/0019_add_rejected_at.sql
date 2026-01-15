@@ -6,3 +6,5 @@ ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP WITH TIME ZONE;
 
 COMMENT ON COLUMN rebalancing_proposals.rejected_at IS 'Timestamp when the proposal was rejected by the user';
 
+
+

@@ -75,3 +75,5 @@ COMMIT;
 -- EXPLAIN ANALYZE SELECT * FROM assignments WHERE user_id = '...' AND status = 'Inbox' ORDER BY due_date;
 -- EXPLAIN ANALYZE SELECT * FROM assignments WHERE course_id = '...' ORDER BY due_date;
 
+
+
