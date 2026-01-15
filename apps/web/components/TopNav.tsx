@@ -3,20 +3,21 @@ import { useState, useRef, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { QuickAddInput } from "./QuickAddInput";
-import { Search, Sparkles } from "lucide-react";
+import { Search } from "lucide-react";
+import { GessoIcon } from "./ui/GessoIcon";
 
 export function TopNav() {
   const { user } = useUser();
 
   return (
-    <nav className="sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-slate-100 shadow-sm">
+    <nav className="sticky top-0 z-40 bg-brand-gesso/80 backdrop-blur-xl border-b border-slate-200/50 shadow-sm">
       <div className="max-w-7xl mx-auto px-6 sm:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo / Brand */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="text-3xl font-serif font-black text-brand-green tracking-tight group flex items-center gap-2">
-              <div className="w-10 h-10 rounded-2xl bg-rainbow-homework/20 flex items-center justify-center transition-all group-hover:rotate-12 group-hover:bg-rainbow-homework/40 shadow-sm border border-brand-green/10">
-                <Sparkles className="text-brand-green" size={24} fill="currentColor" />
+            <Link href="/dashboard" className="text-3xl font-serif font-black text-brand-blue tracking-tight group flex items-center gap-2">
+              <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center transition-all group-hover:rotate-12 shadow-sm border border-slate-200 group-hover:border-brand-green/20 group-hover:shadow-aura-moss">
+                <GessoIcon type="prism" className="text-brand-green" size={24} />
               </div>
               <span className="hidden sm:inline">Gesso</span>
             </Link>

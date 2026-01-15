@@ -2,6 +2,8 @@
 "use client";
 
 import { cn } from "../lib/utils";
+import { GessoIcon } from "./ui/GessoIcon";
+import { Clock, Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
 
 interface Assignment {
   id: string;
@@ -14,6 +16,8 @@ interface Assignment {
   courseName: string | null;
   createdAt: string;
   submittedAt?: string | null;
+  deferralCount?: number;
+  isStuck?: boolean;
 }
 
 interface AssignmentsListProps {
@@ -67,94 +71,120 @@ function formatEffort(minutes: number | null): string {
 
 export function AssignmentsList({ assignments, title, emptyMessage = "No assignments" }: AssignmentsListProps) {
   if (assignments.length === 0) {
+    const seniorPeerEmptyMessages: Record<string, string> = {
+      "Capture": "Scanning for chaos... Okay, your mind is clear. 🕊️",
+      "Focus": "Nothing on deck. Go touch grass. 🌿",
+      "Wins": "Ready to crush something? 🏆",
+    };
+
     return (
-      <div className="bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 p-12 text-center">
-        <h3 className="text-sm font-black text-slate-300 uppercase tracking-[0.2em] mb-2">{title}</h3>
-        <p className="text-slate-400 font-medium italic">{emptyMessage}</p>
+      <div className="bg-white/40 backdrop-blur-sm rounded-[2.5rem] border border-dashed border-slate-300 p-12 text-center shadow-inner">
+        <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] mb-3">{title}</h3>
+        <p className="text-slate-500 font-medium italic text-sm">
+          {seniorPeerEmptyMessages[title] || emptyMessage}
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between px-2">
-        <h3 className="text-xs font-black text-slate-300 uppercase tracking-[0.3em]">{title}</h3>
-        <span className="text-[10px] font-black text-brand-green/50 bg-brand-green/5 px-2 py-0.5 rounded-full uppercase tracking-widest">
+      <div className="flex items-center justify-between px-4">
+        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">{title}</h3>
+        <span className="text-[10px] font-black text-brand-green bg-white px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-slate-100">
           {assignments.length} {assignments.length === 1 ? "Item" : "Items"}
         </span>
       </div>
       
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-5">
         {assignments.map((assignment) => {
           const dueDateFormatted = formatDate(assignment.dueDate);
           const effortFormatted = formatEffort(assignment.effortEstimateMinutes);
           const isOverdue = assignment.dueDate && new Date(assignment.dueDate) < new Date() && assignment.status !== "Completed";
+          const wallOfAwful = (assignment.deferralCount || 0) >= 3 || assignment.isStuck;
 
           return (
             <div 
               key={assignment.id} 
               className={cn(
-                "group relative p-6 rounded-3xl transition-all duration-500 cursor-pointer active:scale-[0.98]",
-                "bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200",
-                isOverdue && "border-rose-100 bg-rose-50/10"
+                "group relative p-8 rounded-[2.5rem] transition-all duration-700 cursor-pointer active:scale-[0.98]",
+                "bg-white border border-slate-200/50 shadow-sm hover:shadow-2xl hover:border-slate-300",
+                wallOfAwful && "bg-rainbow-chill/20 border-rainbow-chill/30 animate-vibrate shadow-aura-violet",
+                isOverdue && !wallOfAwful && "border-rose-200 bg-rose-50/20"
               )}
             >
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-6">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
                       {assignment.category && (
                         <span className={cn(
-                          "text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest leading-none",
+                          "text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest leading-none shadow-sm border",
                           getCategoryColor(assignment.category)
                         )}>
                           {assignment.category}
                         </span>
                       )}
                       {assignment.courseName && (
-                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
                           {assignment.courseName}
                         </span>
                       )}
                     </div>
-                    <h4 className="text-xl font-serif font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors">
+                    <h4 className="text-2xl font-serif font-black text-slate-800 leading-tight group-hover:text-brand-green transition-colors tracking-tight">
                       {assignment.title}
                     </h4>
+                    {wallOfAwful && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[10px] font-black text-purple-700 uppercase tracking-widest animate-pulse">
+                          The wall is tall today. Let's micro-chunk this.
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
                   <div className={cn(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center border transition-all duration-500 shadow-inner",
+                    "w-14 h-14 rounded-[1.5rem] flex items-center justify-center border transition-all duration-700 shadow-sm",
                     assignment.status === "Completed" 
-                      ? "bg-brand-green/10 border-brand-green/20 text-brand-green" 
-                      : "bg-slate-50 border-slate-100 text-slate-300 group-hover:bg-brand-green/5 group-hover:border-brand-green/10"
+                      ? "bg-brand-green text-white border-brand-green shadow-aura-moss" 
+                      : wallOfAwful 
+                        ? "bg-white border-purple-200 text-purple-600 shadow-aura-violet"
+                        : "bg-slate-50 border-slate-200 text-slate-300 group-hover:bg-brand-green group-hover:text-white group-hover:border-brand-green group-hover:shadow-aura-moss"
                   )}>
                     {assignment.status === "Completed" ? (
-                      <CheckIcon size={20} strokeWidth={3} />
+                      <CheckCircle2 size={28} strokeWidth={2.5} />
+                    ) : wallOfAwful ? (
+                      <GessoIcon type="brick" size={28} />
                     ) : (
-                      <div className="w-2 h-2 rounded-full bg-current"></div>
+                      <GessoIcon type={
+                        assignment.category?.toLowerCase().includes("read") ? "wave" :
+                        assignment.category?.toLowerCase().includes("homework") ? "bolt" :
+                        assignment.category?.toLowerCase().includes("test") ? "flame" :
+                        "bolt"
+                      } size={28} />
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-50/50">
-                  <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100/50">
+                  <div className="flex items-center gap-5 text-[10px] font-black uppercase tracking-widest">
                     <span className={cn(
-                      "flex items-center gap-1.5",
-                      isOverdue ? "text-rose-500" : "text-slate-400"
+                      "flex items-center gap-2",
+                      isOverdue ? "text-rose-500" : "text-slate-500"
                     )}>
-                      <CalendarIcon size={12} strokeWidth={3} />
+                      <CalendarIcon size={14} strokeWidth={2.5} />
                       {dueDateFormatted}
                     </span>
                     {effortFormatted && (
-                      <span className="text-slate-300 flex items-center gap-1.5">
-                        <ClockIcon size={12} strokeWidth={3} />
+                      <span className="text-slate-400 flex items-center gap-2 bg-slate-50 px-2 py-1 rounded-lg">
+                        <Clock size={14} strokeWidth={2.5} />
                         {effortFormatted}
                       </span>
                     )}
                   </div>
                   
-                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                    View Details →
+                  <div className="text-[10px] font-black text-brand-green uppercase tracking-[0.2em] opacity-0 group-hover:opacity-100 transition-opacity">
+                    {wallOfAwful ? "Micro-Chunk →" : "Dive In →"}
                   </div>
                 </div>
               </div>

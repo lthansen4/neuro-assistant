@@ -162,17 +162,19 @@ export default function DashboardPage() {
       <main className="px-6 py-12 md:px-12 max-w-7xl mx-auto space-y-16">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div className="space-y-2">
-            <h1 className="text-5xl md:text-6xl font-serif font-black text-brand-blue tracking-tight">
-              Hello, {user?.firstName || 'Scholar'}
+            <h1 className="text-5xl md:text-7xl font-serif font-black text-brand-blue tracking-tight leading-[0.9]">
+              {refreshing ? "Scanning for chaos..." : `Hey, ${user?.firstName || 'Scholar'}.`}
             </h1>
             <p className="text-slate-400 font-medium text-lg md:text-xl">
               {refreshing ? (
                 <span className="flex items-center gap-3 animate-pulse text-brand-green">
                   <span className="w-2 h-2 rounded-full bg-brand-green"></span>
-                  Syncing your progress...
+                  mapping your semester...
                 </span>
+              ) : data.assignments?.scheduled?.length === 0 ? (
+                "Your radar is clear. Go touch grass for a bit. 🌿"
               ) : (
-                `You have ${data.assignments?.scheduled?.length || 0} items on your radar.`
+                `You've got ${data.assignments?.scheduled?.length || 0} items on deck. Let's get this done.`
               )}
             </p>
           </div>

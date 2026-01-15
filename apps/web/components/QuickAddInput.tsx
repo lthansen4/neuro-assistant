@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { QuickAddPreviewSheet } from "./QuickAddPreviewSheet";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { GessoIcon } from "./ui/GessoIcon";
 import { cn } from "../lib/utils";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
@@ -102,7 +103,7 @@ export function QuickAddInput() {
             {isParsing ? (
               <Loader2 className="h-5 w-5 text-brand-green animate-spin" />
             ) : (
-              <Sparkles className="h-5 w-5 text-brand-green group-focus-within:animate-pulse" />
+              <GessoIcon type="inkblot" className="h-6 w-6 text-brand-green group-focus-within:animate-pulse" />
             )}
           </div>
           <Input
@@ -111,13 +112,13 @@ export function QuickAddInput() {
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="What's on your mind? ✨"
+            placeholder="Hand over the chaos... I'll do the boring part."
             disabled={isParsing || !isLoaded}
             className={cn(
               "pl-12 pr-4 py-7 w-full transition-all duration-500",
-              "bg-slate-50 border-none rounded-[2rem]",
+              "bg-white/50 backdrop-blur-sm border border-slate-200/50 rounded-[2rem]",
               "text-lg font-black text-brand-blue placeholder:text-slate-300 placeholder:font-medium",
-              "focus:ring-4 focus:ring-brand-green/10 focus:bg-white focus:shadow-2xl focus:shadow-brand-green/5"
+              "focus:ring-8 focus:ring-brand-green/5 focus:bg-white focus:shadow-2xl focus:shadow-brand-green/5 focus:border-brand-green/20"
             )}
           />
           <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2 pointer-events-none opacity-30 group-focus-within:opacity-100 transition-opacity">

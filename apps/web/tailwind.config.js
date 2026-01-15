@@ -7,12 +7,13 @@ export default {
         brand: {
           blue: "#1A1C2E",
           green: "#006747",
+          gesso: "#F2F0E9",
         },
         rainbow: {
-          reading: "#E5945C", // Terracotta/Peach
-          homework: "#006747", // Signature Green
+          reading: "#E5945C", // Terracotta
+          homework: "#4A5D23", // Moss
           tests: "#5C7EA5", // Slate Blue
-          chill: "#8B5CF6", // Muted Purple
+          chill: "#7C6A96", // Dusty Violet
           notes: "#D4AF37", // Earthy Gold
         },
       },
@@ -20,11 +21,19 @@ export default {
         sans: ["var(--font-inter)", "sans-serif"],
         serif: ["var(--font-instrument-serif)", "serif"],
       },
-      borderRadius: {
-        '2xl': '16px',
-        '3xl': '24px',
-      },
-      animation: {
+              borderRadius: {
+                '2xl': '16px',
+                '3xl': '24px',
+                '4xl': '32px',
+              },
+              boxShadow: {
+                'aura-moss': '0 0 30px -5px rgba(74, 93, 35, 0.3)',
+                'aura-terracotta': '0 0 30px -5px rgba(229, 148, 92, 0.3)',
+                'aura-violet': '0 0 30px -5px rgba(124, 106, 150, 0.3)',
+                'aura-gold': '0 0 30px -5px rgba(212, 175, 55, 0.3)',
+                'aura-slate': '0 0 30px -5px rgba(92, 126, 165, 0.3)',
+              },
+              animation: {
         'fade-in': 'fade-in 1s ease-out forwards',
         'fade-in-delayed': 'fade-in 1s ease-out 0.5s forwards',
         'slide-up': 'slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',

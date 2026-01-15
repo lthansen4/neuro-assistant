@@ -48,9 +48,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body suppressHydrationWarning className="font-sans text-brand-blue selection:bg-brand-green/10 selection:text-brand-green relative min-h-screen">
+      <body suppressHydrationWarning className="font-sans text-brand-blue selection:bg-brand-green/10 selection:text-brand-green relative min-h-screen bg-brand-gesso">
         {/* Global Mesh Gradient Background */}
-        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,_#fff_0%,_rgba(243,232,255,0.4)_30%,_rgba(209,250,229,0.2)_70%,_#fff_100%)]" />
+        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,_rgba(255,255,255,0.8)_0%,_rgba(243,232,255,0.2)_30%,_rgba(209,250,229,0.1)_70%,_transparent_100%)]" />
+        
+        {/* Gesso Texture Overlay */}
+        <div className="fixed inset-0 gesso-texture z-0 pointer-events-none" />
         
         {/* OneSignal SDK */}
         <Script 
