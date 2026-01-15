@@ -9,11 +9,11 @@ export default {
           green: "#006747",
         },
         rainbow: {
-          reading: "#FFE4D6",
-          homework: "#D1FAE5",
-          tests: "#E0F2FE",
-          chill: "#F3E8FF",
-          notes: "#FEF9C3",
+          reading: "#E5945C", // Terracotta/Peach
+          homework: "#006747", // Signature Green
+          tests: "#5C7EA5", // Slate Blue
+          chill: "#8B5CF6", // Muted Purple
+          notes: "#D4AF37", // Earthy Gold
         },
       },
       fontFamily: {
@@ -28,6 +28,7 @@ export default {
         'fade-in': 'fade-in 1s ease-out forwards',
         'fade-in-delayed': 'fade-in 1s ease-out 0.5s forwards',
         'slide-up': 'slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'paint-drip': 'paint-drip 10s ease-in-out infinite alternate',
       },
       keyframes: {
         'fade-in': {
@@ -38,6 +39,11 @@ export default {
           'from': { transform: 'translateY(20px)', opacity: '0' },
           'to': { transform: 'translateY(0)', opacity: '1' },
         },
+        'paint-drip': {
+          '0%': { transform: 'translateY(-10%) scaleY(1)', opacity: '0.1' },
+          '50%': { opacity: '0.2' },
+          '100%': { transform: 'translateY(10%) scaleY(1.2)', opacity: '0.1' },
+        }
       },
     },
   },

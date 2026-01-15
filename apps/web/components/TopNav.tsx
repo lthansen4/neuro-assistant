@@ -15,7 +15,7 @@ export function TopNav() {
           {/* Logo / Brand */}
           <div className="flex items-center">
             <Link href="/dashboard" className="text-3xl font-serif font-black text-brand-green tracking-tight group flex items-center gap-2">
-              <div className="w-10 h-10 rounded-2xl bg-brand-green/10 flex items-center justify-center transition-transform group-hover:rotate-12 shadow-sm">
+              <div className="w-10 h-10 rounded-2xl bg-rainbow-homework/20 flex items-center justify-center transition-all group-hover:rotate-12 group-hover:bg-rainbow-homework/40 shadow-sm border border-brand-green/10">
                 <Sparkles className="text-brand-green" size={24} fill="currentColor" />
               </div>
               <span className="hidden sm:inline">Gesso</span>
