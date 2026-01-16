@@ -301,7 +301,7 @@ export default function DashboardPage() {
         {/* Bento Grid (Bottom) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8">
-            <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full">
+            <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft">
               <div className="flex flex-col md:flex-row gap-8">
                 <div className="flex md:flex-col gap-2 md:min-w-[140px]">
                   {[
@@ -330,7 +330,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
-                <div className="flex-1 space-y-6">
+                <div className="flex-1 space-y-6 min-w-0">
                   <div className="space-y-2">
                     <h3 className="card-title text-brand-text italic">
                       {topTab === "top"
@@ -352,35 +352,42 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
-                  <AssignmentsList
-                    assignments={
-                      topTab === "top"
-                        ? top3Assignments
-                        : topTab === "today"
-                        ? todayAssignments
-                        : topTab === "week"
-                        ? weekAssignments
-                        : allAssignments
-                    }
-                    title=""
-                    hideHeader
-                    emptyMessage={
-                      topTab === "top"
-                        ? "Nothing on deck right now."
-                        : topTab === "today"
-                        ? "Nothing due today."
-                        : topTab === "week"
-                        ? "Nothing due this week."
-                        : "No assignments yet."
-                    }
-                    onSelect={(assignment) => setSelectedAssignment(assignment)}
-                  />
+                  {/* Scrollable container for assignments */}
+                  <div className={cn(
+                    "overflow-y-auto pr-2",
+                    topTab === "all" ? "max-h-[600px]" : "max-h-[400px]"
+                  )}>
+                    <AssignmentsList
+                      assignments={
+                        topTab === "top"
+                          ? top3Assignments
+                          : topTab === "today"
+                          ? todayAssignments
+                          : topTab === "week"
+                          ? weekAssignments
+                          : allAssignments
+                      }
+                      title=""
+                      hideHeader
+                      emptyMessage={
+                        topTab === "top"
+                          ? "Nothing on deck right now."
+                          : topTab === "today"
+                          ? "Nothing due today."
+                          : topTab === "week"
+                          ? "Nothing due this week."
+                          : "No assignments yet."
+                      }
+                      onSelect={(assignment) => setSelectedAssignment(assignment)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="lg:col-span-4">
+          {/* Sticky sidebar for widgets on desktop */}
+          <div className="lg:col-span-4 space-y-8 lg:sticky lg:top-24">
             {user && (
               <ChillBank
                 userId={user.id}
@@ -390,20 +397,14 @@ export default function DashboardPage() {
                 onSessionLogged={() => loadDashboard(false)}
               />
             )}
-          </div>
 
-          <div className="lg:col-span-4">
             <StuckRadar assignments={[...(data.assignments?.scheduled || []), ...(data.assignments?.inbox || [])]} />
-          </div>
 
-          <div className="lg:col-span-4">
             <WeekSummary 
               completedCount={data.assignments?.completed?.length || 0}
               totalScheduled={(data.assignments?.scheduled?.length || 0) + (data.assignments?.completed?.length || 0)}
             />
-          </div>
 
-          <div className="lg:col-span-4">
             <StreakBadge streak={data.streak} />
           </div>
         </div>
