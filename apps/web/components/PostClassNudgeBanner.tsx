@@ -17,7 +17,7 @@ interface Nudge {
   metadata?: any;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787').replace(/\/$/, "");
 
 export function PostClassNudgeBanner({ userId }: { userId: string }) {
   const [nudges, setNudges] = useState<Nudge[]>([]);
