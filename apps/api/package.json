@@ -1,11 +1,11 @@
 {
   "name": "@gesso/api",
-  "version": "0.0.5",
+  "version": "0.0.8",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.prod.json",
-    "start": "tsx src/server.ts"
+    "start": "tsx ../../packages/db/run-migrations-now.mjs && tsx src/server.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.7",

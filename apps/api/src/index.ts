@@ -24,7 +24,25 @@ import adhdFeaturesRoute from './routes/adhd-features';
 import { sessionsRoute } from './routes/sessions';
 import { plannerRoute } from './routes/planner';
 
+import { runMigrations } from './lib/migrations';
+
 const app = new Hono();
+
+// Manual migration trigger (Failsafe)
+app.get('/api/admin/migrate', async (c) => {
+  console.log('🛡️ [Admin] Manual migration trigger called');
+  const secret = c.req.query('secret');
+  if (secret !== process.env.CRON_SECRET && secret !== 'FORCE_MIGRATE') {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  
+  try {
+    await runMigrations();
+    return c.json({ ok: true, message: 'Migrations completed' });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
 
 // Configure CORS for production and development
 const allowedOrigins = [

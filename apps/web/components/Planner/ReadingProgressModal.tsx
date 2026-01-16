@@ -56,6 +56,16 @@ export function ReadingProgressModal({
       }
 
       const updatedPagesCompleted = (currentPagesCompleted || 0) + (parseInt(pagesRead) || 0);
+      const isComplete = totalPages ? updatedPagesCompleted >= totalPages : false;
+
+      // Calculate new effort estimate if incomplete
+      let newEffortEstimate = getData.assignment?.effortEstimateMinutes;
+      if (totalPages && !isComplete && getData.assignment?.effortEstimateMinutes) {
+        const remainingPages = totalPages - updatedPagesCompleted;
+        const totalP = totalPages;
+        const originalEffort = getData.assignment.effortEstimateMinutes;
+        newEffortEstimate = Math.max(15, Math.round((remainingPages / totalP) * originalEffort));
+      }
 
       // 2. Update assignment
       const updateRes = await fetch(`${API_BASE}/api/assignments/${assignmentId}`, {
@@ -67,16 +77,30 @@ export function ReadingProgressModal({
         body: JSON.stringify({
           pagesCompleted: updatedPagesCompleted,
           readingQuestions: newQuestions,
+          status: isComplete ? "Completed" : getData.assignment?.status,
+          effortEstimateMinutes: newEffortEstimate,
         }),
       });
 
       if (!updateRes.ok) throw new Error("Failed to save progress");
 
-      toast.success("Progress saved! Great job keeping up with your reading. 📖");
+      toast.success(isComplete ? "Reading completed! Great job! 🥳" : "Progress saved! 📖");
       
-      // 3. Logic for auto-schedule prompt if incomplete
-      if (totalPages && updatedPagesCompleted < totalPages) {
-        toast.info("You still have pages left. We'll make sure they stay on your schedule!");
+      // 3. Trigger optimization if incomplete to schedule remaining pages
+      if (!isComplete) {
+        try {
+          await fetch(`${API_BASE}/api/rebalancing/optimize`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-clerk-user-id": userId,
+            },
+            body: JSON.stringify({ energy_level: 5 }),
+          });
+          toast.info("We've updated your schedule for the remaining pages!");
+        } catch (optErr) {
+          console.error("Optimization failed:", optErr);
+        }
       }
 
       onSaved();

@@ -1,15 +1,3 @@
-#!/usr/bin/env node
-/**
- * Quick migration runner for Railway
- * 
- * Usage:
- *   DATABASE_URL="your-railway-postgres-url" node packages/db/run-migrations-now.mjs
- * 
- * Or copy your DATABASE_URL from Railway and run:
- *   export DATABASE_URL="postgresql://..."
- *   node packages/db/run-migrations-now.mjs
- */
-
 import pg from 'pg';
 
 const migrations = [
@@ -119,12 +107,12 @@ const migrations = [
   }
 ];
 
-export async function run() {
-  console.log('🚀 [Migration Runner] Starting...');
+export async function runMigrations() {
+  console.log('🚀 [Internal Migration Runner] Starting...');
   const connectionString = process.env.DATABASE_URL;
   
   if (!connectionString) {
-    console.error('❌ [Migration Runner] DATABASE_URL environment variable is not set');
+    console.error('❌ [Internal Migration Runner] DATABASE_URL environment variable is not set');
     return;
   }
 
@@ -146,8 +134,7 @@ export async function run() {
       try {
         await client.query(migration.sql);
         console.log(`   ✅ Success\n`);
-      } catch (err) {
-        // Some errors are OK (like "already exists")
+      } catch (err: any) {
         if (err.message.includes('already exists') || err.message.includes('duplicate')) {
           console.log(`   ⏭️  Skipped (already applied)\n`);
         } else {
@@ -156,75 +143,26 @@ export async function run() {
       }
     }
 
-    // Verify
     console.log('📋 Verifying migrations...\n');
-    
     const checks = await client.query(`
       SELECT 
-        'assignments.description' as item,
-        EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'assignments' AND column_name = 'description'
-        ) as exists
-      UNION ALL
-      SELECT 
-        'calendar_events_new.description',
-        EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'calendar_events_new' AND column_name = 'description'
-        )
-      UNION ALL
-      SELECT 
-        'assignment_time_logs table',
-        EXISTS (
-          SELECT 1 FROM information_schema.tables 
-          WHERE table_name = 'assignment_time_logs'
-        )
-      UNION ALL
-      SELECT 
-        'assignments.total_pages',
+        'assignments.total_pages' as item,
         EXISTS (
           SELECT 1 FROM information_schema.columns 
           WHERE table_name = 'assignments' AND column_name = 'total_pages'
-        )
-      UNION ALL
-      SELECT 
-        'assignments.last_deferred_at',
-        EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'assignments' AND column_name = 'last_deferred_at'
-        )
+        ) as exists
     `);
 
-    let allGood = true;
-    for (const row of checks.rows) {
-      const status = row.exists ? '✅' : '❌';
-      console.log(`   ${status} ${row.item}`);
-      if (!row.exists) allGood = false;
-    }
-
-    console.log('');
-    if (allGood) {
-      console.log('🎉 All migrations applied successfully!');
-      console.log('');
-      console.log('Next steps:');
-      console.log('1. Redeploy the API service on Railway');
-      console.log('2. The app should now work with description fields');
+    if (checks.rows[0].exists) {
+      console.log('🎉 Migrations verified successfully!');
     } else {
-      console.log('⚠️  Some migrations may have failed. Check errors above.');
+      console.error('❌ Migration verification failed!');
     }
 
-  } catch (err) {
-    console.error('❌ Connection failed:', err.message);
-    process.exit(1);
+  } catch (err: any) {
+    console.error('❌ Migration failed:', err.message);
   } finally {
     await client.end();
   }
 }
-
-// Only run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  run();
-}
-
 

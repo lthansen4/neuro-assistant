@@ -38,7 +38,10 @@ export default function PlannerPage() {
       const res = await fetch(`${API_BASE}/api/planner/summary?tz=${userTz}`, {
         headers: { "x-clerk-user-id": user.id },
       });
-      if (!res.ok) throw new Error("Failed to fetch planner summary");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to fetch planner summary");
+      }
       const result = await res.json();
       setData(result.summary);
     } catch (err: any) {
@@ -102,7 +105,20 @@ export default function PlannerPage() {
 
       {/* Content */}
       <div className="mt-8">
-        {activeView === "reading" && (
+        {error && (
+          <div className="text-center py-20 bg-brand-rose/5 rounded-[2rem] border border-dashed border-brand-rose/20 animate-fade-in">
+            <p className="text-brand-rose font-bold mb-2">Something went wrong</p>
+            <p className="text-brand-muted text-sm mb-6 max-w-md mx-auto">{error}</p>
+            <button 
+              onClick={fetchSummary} 
+              className="px-6 py-3 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-md"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {data && activeView === "reading" && (
           <ReadingView 
             data={data.reading} 
             onSelect={(a) => setSelectedAssignment(a)}
@@ -115,7 +131,7 @@ export default function PlannerPage() {
             })}
           />
         )}
-        {activeView === "homework" && (
+        {data && activeView === "homework" && (
           <HomeworkView 
             data={data.homework} 
             onSelect={(a) => setSelectedAssignment(a)}
@@ -126,7 +142,7 @@ export default function PlannerPage() {
             })}
           />
         )}
-        {activeView === "tests" && (
+        {data && activeView === "tests" && (
           <TestView 
             data={data.tests} 
             onSelect={(a) => setSelectedAssignment(a)}
