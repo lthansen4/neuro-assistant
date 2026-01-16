@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Calendar } from "../../../components/Calendar";
 import { CalendarLegend } from "../../../components/CalendarLegend";
 import { ProposalPanel } from "../../../components/ProposalPanel";
@@ -10,15 +10,7 @@ import { useUser } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { cn } from "../../../lib/utils";
 import { BentoTileSkeleton } from "../../../components/ui/Skeleton";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
-
-import { QuickAddInput } from "../../../components/QuickAddInput";
-import { useUser } from "@clerk/nextjs";
-import { useSearchParams } from "next/navigation";
-import { cn } from "../../../lib/utils";
-import { BentoTileSkeleton } from "../../../components/ui/Skeleton";
-import { Suspense } from "react";
+import { Loader2 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 

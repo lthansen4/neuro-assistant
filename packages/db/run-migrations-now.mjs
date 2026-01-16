@@ -104,10 +104,12 @@ const migrations = [
           ALTER TABLE assignments 
           ADD COLUMN total_pages INTEGER,
           ADD COLUMN pages_completed INTEGER,
+          ADD COLUMN last_deferred_at TIMESTAMPTZ,
           ADD COLUMN reading_questions JSONB DEFAULT '[]'::jsonb;
           
           COMMENT ON COLUMN assignments.total_pages IS 'Total number of pages in the reading assignment';
           COMMENT ON COLUMN assignments.pages_completed IS 'Number of pages student has finished';
+          COMMENT ON COLUMN assignments.last_deferred_at IS 'When this assignment was last deferred';
           COMMENT ON COLUMN assignments.reading_questions IS 'Array of [{text: string, createdAt: string}] questions for the professor';
           
           RAISE NOTICE 'Added reading tracking columns to assignments';
@@ -188,6 +190,13 @@ async function run() {
         EXISTS (
           SELECT 1 FROM information_schema.columns 
           WHERE table_name = 'assignments' AND column_name = 'total_pages'
+        )
+      UNION ALL
+      SELECT 
+        'assignments.last_deferred_at',
+        EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'assignments' AND column_name = 'last_deferred_at'
         )
     `);
 

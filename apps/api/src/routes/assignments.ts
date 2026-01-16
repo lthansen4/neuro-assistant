@@ -134,6 +134,9 @@ assignmentsRoute.put('/:id', async (c) => {
     if (typeof body.dueDate === 'string' || body.dueDate === null) {
       updatePayload.dueDate = body.dueDate ? new Date(body.dueDate) : null;
     }
+    if (typeof body.lastDeferredAt === 'string' || body.lastDeferredAt === null) {
+      updatePayload.lastDeferredAt = body.lastDeferredAt ? new Date(body.lastDeferredAt) : null;
+    }
     if (typeof body.totalPages === 'number' || body.totalPages === null) {
       updatePayload.totalPages = body.totalPages ?? null;
     }
@@ -257,6 +260,9 @@ assignmentsRoute.get('/:id/details', async (c) => {
         category: assignments.category,
         effortEstimateMinutes: assignments.effortEstimateMinutes,
         status: assignments.status,
+        totalPages: assignments.totalPages,
+        pagesCompleted: assignments.pagesCompleted,
+        readingQuestions: assignments.readingQuestions,
         courseName: courses.name,
       })
       .from(assignments)
