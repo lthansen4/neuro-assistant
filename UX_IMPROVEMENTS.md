@@ -191,6 +191,33 @@ Quiz/Reading  → -10  (quick tasks)
 
 **ADHD-friendly UX = Frictionless + Intelligent + Transparent** 🧠✨
 
+---
+
+## 🔜 **Next Phase Improvements (Planned)**
+
+### 1) Regenerate Smart Questions on Edits
+**Goal:** Keep smart‑question options aligned with user edits (duration, course, due date).
+
+**Planned Behavior:**
+- When the user edits **Estimated Duration**, **Course**, or **Due Date**, the UI re-requests smart questions.
+- Questions are debounced to avoid UI lag.
+
+**Why:**
+- Prevents stale options (e.g., 120‑minute splits shown after editing to 90 minutes).
+- Supports longer duration edits (e.g., 240 minutes) with more relevant scheduling questions.
+
+### 2) Context-Aware Question Enrichment (Optional)
+**Goal:** Improve question quality for known works/topics (e.g., “Infinite Jest”).
+
+**Planned Behavior:**
+- Detect recognizable works/topics in the task title.
+- Fetch lightweight context (curated list or heuristic enrichment).
+- Pass enriched context to the AI question generator.
+
+**Why:**
+- Better prompts = better scheduling questions.
+- Helps infer task difficulty and likely time requirements.
+
 
 
 
