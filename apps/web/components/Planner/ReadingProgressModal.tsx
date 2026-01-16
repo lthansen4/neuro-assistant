@@ -76,9 +76,7 @@ export function ReadingProgressModal({
       
       // 3. Logic for auto-schedule prompt if incomplete
       if (totalPages && updatedPagesCompleted < totalPages) {
-        toast.info("You still have pages left. We'll make sure they stay on your schedule!", {
-          duration: 5000,
-        });
+        toast.info("You still have pages left. We'll make sure they stay on your schedule!");
       }
 
       onSaved();
