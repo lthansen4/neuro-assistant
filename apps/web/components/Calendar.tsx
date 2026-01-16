@@ -237,10 +237,16 @@ export function Calendar({
             const event = clickInfo.event;
             const eventType = event.extendedProps?.eventType || 'Other';
             const linkedAssignmentId = event.extendedProps?.linkedAssignmentId || event.extendedProps?.assignmentId;
-            const isDueDate = eventType === 'DueDate' || event.title?.includes('📌 DUE:') || event.title?.includes('DUE');
+            
+            // Comprehensive check for anything that should open the Assignment detail view
+            const isDueDate = [
+              'DueDate', 'Test', 'Quiz', 'Midterm', 'Final', 'Homework'
+            ].includes(eventType) || event.title?.includes('📌 DUE:') || event.title?.includes('DUE');
+            
+            const isWorkBlock = eventType === 'Focus' || eventType === 'Studying';
 
-            // If it's a Due Date or Focus block linked to an assignment, show Assignment details
-            if ((isDueDate || eventType === 'Focus') && linkedAssignmentId && userId) {
+            // If it's a Due Date or Work block linked to an assignment, show Assignment details
+            if ((isDueDate || isWorkBlock) && linkedAssignmentId && userId) {
               try {
                 const res = await fetch(`${API_BASE}/api/assignments/${linkedAssignmentId}/details`, {
                   headers: { "x-clerk-user-id": userId }

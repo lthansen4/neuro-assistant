@@ -271,7 +271,10 @@ assignmentsRoute.get('/:id/details', async (c) => {
       .from(schema.calendarEventsNew)
       .where(and(
         eq(schema.calendarEventsNew.userId, userId),
-        eq(schema.calendarEventsNew.eventType, 'Focus'),
+        or(
+          eq(schema.calendarEventsNew.eventType, 'Focus'),
+          eq(schema.calendarEventsNew.eventType, 'Studying')
+        ),
         or(
           eq(schema.calendarEventsNew.linkedAssignmentId, assignmentId),
           eq(schema.calendarEventsNew.assignmentId, assignmentId),
