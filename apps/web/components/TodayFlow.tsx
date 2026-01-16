@@ -27,10 +27,22 @@ interface TodayFlowProps {
 export function TodayFlow({ items, onSelect }: TodayFlowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
+  const [highlightedEventIds, setHighlightedEventIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleHighlight = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { eventIds?: string[] } | undefined;
+      const ids = detail?.eventIds || [];
+      setHighlightedEventIds(new Set(ids.map(String)));
+    };
+
+    window.addEventListener("highlightFocusBlocks", handleHighlight as EventListener);
+    return () => window.removeEventListener("highlightFocusBlocks", handleHighlight as EventListener);
   }, []);
 
   const formatTime = (date: Date) => {
@@ -91,6 +103,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
           const start = new Date(item.startTime);
           const end = new Date(item.endTime);
           const isNow = now >= start && now <= end;
+          const isHighlighted = highlightedEventIds.has(String(item.id));
 
           return (
             <div 
@@ -99,7 +112,8 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
                 "min-w-[300px] p-8 rounded-[2rem] snap-center transition-all duration-500",
                 config.bg,
                 "cozy-border shadow-soft",
-                isNow && "ring-2 ring-category-reset-fg animate-pulse-soft"
+                isNow && "ring-2 ring-category-reset-fg animate-pulse-soft",
+                isHighlighted && "ring-4 ring-category-deep-fg shadow-aura-green"
               )}
               onClick={() => onSelect?.(item)}
             >

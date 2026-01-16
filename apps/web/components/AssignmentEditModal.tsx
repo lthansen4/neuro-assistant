@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import { toast } from "./ui/Toast";
+import { GessoIcon } from "./ui/GessoIcon";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
@@ -81,6 +82,20 @@ export function AssignmentEditModal({
 
     loadDetails();
   }, [assignment.id, userId]);
+
+  useEffect(() => {
+    if (focusBlocks.length > 0) {
+      window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+        detail: { eventIds: focusBlocks.map((block) => block.id) }
+      }));
+    }
+
+    return () => {
+      window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+        detail: { eventIds: [] }
+      }));
+    };
+  }, [focusBlocks]);
 
   const handleSave = async () => {
     setError(null);
@@ -278,9 +293,22 @@ export function AssignmentEditModal({
                 return (
                   <div
                     key={block.id}
-                    className="rounded-2xl border border-brand-border/40 bg-brand-surface-2 px-4 py-3 text-sm"
+                    className="rounded-2xl border border-brand-border/40 bg-brand-surface-2 px-4 py-3 text-sm hover:border-brand-primary/50 transition-colors cursor-default group/block"
+                    onMouseEnter={() => {
+                      window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+                        detail: { eventIds: [block.id] }
+                      }));
+                    }}
+                    onMouseLeave={() => {
+                      window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+                        detail: { eventIds: focusBlocks.map(b => b.id) }
+                      }));
+                    }}
                   >
-                    <div className="font-semibold text-brand-text">{block.title}</div>
+                    <div className="flex justify-between items-start">
+                      <div className="font-semibold text-brand-text group-hover/block:text-brand-primary transition-colors">{block.title}</div>
+                      <GessoIcon type="bolt" size={14} className="text-brand-muted opacity-0 group-hover/block:opacity-100 transition-opacity" />
+                    </div>
                     <div className="text-brand-muted">
                       {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </div>
