@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Triggering redeploy to apply fixed migration 0032
+// Triggering redeploy for migration fix - v3 (Robust DO blocks)
 /**
  * Quick migration runner for Railway
  * 
@@ -94,20 +94,34 @@ const migrations = [
     `
   },
   {
-    name: '0032: Add reading tracking to assignments',
+    name: '0032: Add reading tracking to assignments (Robust)',
     sql: `
-      ALTER TABLE assignments ADD COLUMN IF NOT EXISTS total_pages INTEGER;
-      ALTER TABLE assignments ADD COLUMN IF NOT EXISTS pages_completed INTEGER;
-      ALTER TABLE assignments ADD COLUMN IF NOT EXISTS last_deferred_at TIMESTAMPTZ;
-      ALTER TABLE assignments ADD COLUMN IF NOT EXISTS reading_questions JSONB DEFAULT '[]'::jsonb;
-      
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'total_pages') THEN
+          ALTER TABLE assignments ADD COLUMN total_pages INTEGER;
+        END IF;
+        
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'pages_completed') THEN
+          ALTER TABLE assignments ADD COLUMN pages_completed INTEGER;
+        END IF;
+        
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'last_deferred_at') THEN
+          ALTER TABLE assignments ADD COLUMN last_deferred_at TIMESTAMPTZ;
+        END IF;
+        
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'reading_questions') THEN
+          ALTER TABLE assignments ADD COLUMN reading_questions JSONB DEFAULT '[]'::jsonb;
+        END IF;
+      END $$;
+
       COMMENT ON COLUMN assignments.total_pages IS 'Total number of pages in the reading assignment';
       COMMENT ON COLUMN assignments.pages_completed IS 'Number of pages student has finished';
       COMMENT ON COLUMN assignments.last_deferred_at IS 'When this assignment was last deferred';
       COMMENT ON COLUMN assignments.reading_questions IS 'Array of [{text: string, createdAt: string}] questions for the professor';
     `
   }
-];
+],
 
 export async function run() {
   console.log('🚀 [Migration Runner] Starting...');
