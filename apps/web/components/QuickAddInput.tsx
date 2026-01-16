@@ -101,9 +101,9 @@ export function QuickAddInput() {
         <div className="relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center">
             {isParsing ? (
-              <Loader2 className="h-5 w-5 text-brand-green animate-spin" />
+              <Loader2 className="h-5 w-5 text-brand-primary animate-spin" />
             ) : (
-              <GessoIcon type="inkblot" className="h-6 w-6 text-brand-green group-focus-within:animate-pulse" />
+              <GessoIcon type="inkblot" className="h-6 w-6 text-brand-primary group-focus-within:animate-pulse" />
             )}
           </div>
           <Input
@@ -116,9 +116,9 @@ export function QuickAddInput() {
             disabled={isParsing || !isLoaded}
             className={cn(
               "pl-14 pr-6 py-10 w-full transition-all duration-500",
-              "bg-white/40 backdrop-blur-sm border border-white/60 rounded-[2.5rem]",
-              "text-xl font-medium text-brand-blue placeholder:text-slate-300 placeholder:font-medium",
-              "focus:ring-8 focus:ring-brand-green/5 focus:bg-white focus:shadow-2xl focus:shadow-brand-green/5 focus:border-white"
+              "bg-brand-surface cozy-border rounded-[2.5rem]",
+              "text-xl font-medium text-brand-text placeholder:text-brand-muted/40",
+              "focus:ring-8 focus:ring-brand-primary/5 focus:shadow-2xl focus:border-brand-primary/20"
             )}
           />
           <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2 pointer-events-none opacity-30 group-focus-within:opacity-100 transition-opacity">

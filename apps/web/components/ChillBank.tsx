@@ -2,6 +2,7 @@
 "use client";
 
 import { CircularProgress } from "./ui/CircularProgress";
+import { cn } from "../lib/utils";
 
 interface ChillBankProps {
   earnedMinutes: number;
@@ -13,14 +14,16 @@ export function ChillBank({ earnedMinutes, usedMinutes, targetRatio = 3.0 }: Chi
   const available = earnedMinutes - usedMinutes;
   const percentage = earnedMinutes > 0 ? Math.min(100, (available / earnedMinutes) * 100) : 0;
   
-  // Use theme colors
-  const progressColor = "#006747"; // brand-green
-  const bgColor = "#F3E8FF"; // rainbow-chill (Soft Lavender)
+  const progressColor = "#F08A5D"; // Category Reset FG
+  const bgColor = "rgba(240,138,93,0.14)"; // Category Reset BG
 
   return (
-    <div className="bg-white/70 backdrop-blur-md rounded-3xl border border-slate-100 shadow-xl p-8 hover:shadow-2xl transition-all duration-500 group">
+    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft hover:shadow-2xl transition-all duration-500 group h-full flex flex-col justify-between">
       <div className="flex flex-col items-center">
-        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Chill Bank</h3>
+        <div className="w-full flex justify-between items-center mb-6">
+          <h3 className="card-title text-brand-text italic">Chill Bank</h3>
+          <span className="meta-label text-brand-muted">Rest Balance</span>
+        </div>
         
         <CircularProgress
           value={available}
@@ -31,36 +34,36 @@ export function ChillBank({ earnedMinutes, usedMinutes, targetRatio = 3.0 }: Chi
           backgroundColor={bgColor}
         >
           <div className="flex flex-col items-center">
-            <span className="text-3xl font-black text-slate-800 tracking-tighter">
+            <span className="text-4xl font-serif font-black text-brand-text tracking-tighter">
               {Math.floor(available)}m
             </span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+            <span className="meta-label text-brand-muted mt-1">
               Available
             </span>
         </div>
         </CircularProgress>
 
-        <div className="grid grid-cols-2 gap-8 w-full mt-8 pt-6 border-t border-slate-50">
+        <div className="grid grid-cols-2 gap-8 w-full mt-8 pt-6 border-t border-brand-surface-2">
           <div className="text-center">
-            <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Earned</div>
-            <div className="text-lg font-black text-slate-700">{Math.floor(earnedMinutes)}m</div>
-      </div>
+            <div className="meta-label text-brand-muted mb-1">Earned</div>
+            <div className="text-xl font-bold text-brand-text">{Math.floor(earnedMinutes)}m</div>
+          </div>
           <div className="text-center">
-            <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Used</div>
-            <div className="text-lg font-black text-slate-700">{Math.floor(usedMinutes)}m</div>
-      </div>
+            <div className="meta-label text-brand-muted mb-1">Used</div>
+            <div className="text-xl font-bold text-brand-text">{Math.floor(usedMinutes)}m</div>
+          </div>
         </div>
+      </div>
 
       {targetRatio && (
-          <div className="mt-6 flex items-center justify-center gap-3 w-full opacity-50">
-            <span className="h-px flex-1 bg-slate-100"></span>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+        <div className="mt-6 flex items-center justify-center gap-3 w-full opacity-30">
+          <div className="h-px flex-1 bg-brand-muted/20"></div>
+          <p className="text-[10px] font-bold text-brand-muted uppercase tracking-[0.2em]">
             1:{targetRatio} Focus Ratio
           </p>
-            <span className="h-px flex-1 bg-slate-100"></span>
+          <div className="h-px flex-1 bg-brand-muted/20"></div>
         </div>
       )}
-      </div>
     </div>
   );
 }

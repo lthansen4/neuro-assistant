@@ -48,10 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body suppressHydrationWarning className="font-sans text-brand-blue selection:bg-brand-green/10 selection:text-brand-green relative min-h-screen bg-brand-gesso">
-        {/* Global Mesh Gradient Background */}
-        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,_rgba(255,255,255,0.8)_0%,_rgba(243,232,255,0.2)_30%,_rgba(209,250,229,0.1)_70%,_transparent_100%)]" />
-        
+      <body suppressHydrationWarning className="font-sans text-brand-text selection:bg-brand-primary/10 selection:text-brand-primary relative min-h-screen bg-brand-gesso">
         {/* Gesso Texture Overlay */}
         <div className="fixed inset-0 gesso-texture z-0 pointer-events-none" />
         

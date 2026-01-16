@@ -7,6 +7,10 @@ import { GradeForecast } from "../../../components/GradeForecast";
 import { StreakBadge } from "../../../components/StreakBadge";
 import { ProductivitySummary } from "../../../components/ProductivitySummary";
 import { AssignmentsList } from "../../../components/AssignmentsList";
+import { TodayFlow } from "../../../components/TodayFlow";
+import { QuickAddInput } from "../../../components/QuickAddInput";
+import { StuckRadar } from "../../../components/StuckRadar";
+import { WeekSummary } from "../../../components/WeekSummary";
 
 interface Assignment {
   id: string;
@@ -19,6 +23,8 @@ interface Assignment {
   courseName: string | null;
   createdAt: string;
   submittedAt?: string | null;
+  deferralCount?: number;
+  isStuck?: boolean;
 }
 
 interface DashboardData {
@@ -56,54 +62,23 @@ export default function DashboardPage() {
       const userId = user.id;
       const summary = await fetchDashboardSummary(userId, range);
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard/page.tsx:61',message:'Dashboard data fetched',data:{assignmentTitles:summary?.assignments?.scheduled?.map((a: any)=>a.title),completedTitles:summary?.assignments?.completed?.map((a: any)=>a.title)},timestamp:Date.now(),sessionId:'debug-session',runId:'title-sync',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      
       setData(summary);
       setLastRefresh(new Date());
-      console.log('[Dashboard] Data refreshed at', new Date().toLocaleTimeString());
     } catch (err: any) {
-      const errorMessage = err.message || "Failed to load dashboard";
-      setError(errorMessage);
-      console.error("Dashboard error:", err);
+      setError(err.message || "Failed to load dashboard");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // Initial load
   useEffect(() => {
     if (!isLoaded || !user) {
-      setLoading(false);
+      if (isLoaded && !user) setLoading(false);
       return;
     }
     loadDashboard(true);
   }, [user, isLoaded, range]);
-
-  // Auto-refresh every 10 seconds
-  useEffect(() => {
-    if (!user) return;
-    
-    const interval = setInterval(() => {
-      console.log('[Dashboard] Auto-refreshing...');
-      loadDashboard(false);
-    }, 10000); // 10 seconds
-
-    return () => clearInterval(interval);
-  }, [user, range]);
-
-  // Refresh when window gains focus (user returns to tab)
-  useEffect(() => {
-    const handleFocus = () => {
-      console.log('[Dashboard] Window focused, refreshing...');
-      loadDashboard(false);
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [user, range]);
 
   const handleRangeChange = async (newRange: "day" | "week") => {
     setRange(newRange);
@@ -118,195 +93,120 @@ export default function DashboardPage() {
 
   if (!isLoaded || loading) {
     return (
-      <main className="p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Loading dashboard...</div>
+      <main className="p-6 bg-brand-gesso min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin" />
+          <div className="text-brand-muted font-medium">Preparing your canvas...</div>
         </div>
       </main>
     );
   }
 
-  if (error) {
+  if (error || !data) {
     return (
-      <main className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h2 className="text-red-800 font-semibold mb-2">Error</h2>
-          <p className="text-red-600 text-sm">{error}</p>
-          <p className="text-red-500 text-xs mt-2">
-            Make sure the API server is running and you have a user ID mapped in the database.
-          </p>
+      <main className="p-6 bg-brand-gesso min-h-screen">
+        <div className="bg-rose-50 border border-rose-100 rounded-3xl p-8 max-w-lg mx-auto mt-20 text-center space-y-4">
+          <h2 className="text-rose-800 font-serif font-black text-3xl">Something went wrong</h2>
+          <p className="text-rose-600 font-medium">{error || "No data available"}</p>
+          <button 
+            onClick={() => loadDashboard(true)}
+            className="bg-white text-rose-800 px-8 py-3 rounded-full font-bold shadow-sm border border-rose-100 hover:bg-rose-50 transition-colors"
+          >
+            Try again
+          </button>
         </div>
       </main>
     );
   }
 
-  if (!data) {
-    return (
-      <main className="p-6">
-        <div className="text-gray-500">No data available</div>
-      </main>
-    );
-  }
-
-  const weekly = data.weekly || {
-    focusMinutes: 0,
-    chillMinutes: 0,
-    earnedChillMinutes: 0,
-  };
-
+  const weekly = data.weekly || { focusMinutes: 0, chillMinutes: 0, earnedChillMinutes: 0 };
   const earnedChill = weekly.earnedChillMinutes || 0;
   const usedChill = weekly.chillMinutes || 0;
 
+  const flowItems = (data.assignments?.scheduled || []).map(a => ({
+    id: a.id,
+    title: a.title,
+    startTime: a.dueDate || new Date().toISOString(),
+    endTime: a.dueDate ? new Date(new Date(a.dueDate).getTime() + 60*60*1000).toISOString() : new Date().toISOString(),
+    category: (a.category?.toLowerCase().includes('read') || a.category?.toLowerCase().includes('homework')) ? 'deep' :
+              (a.category?.toLowerCase().includes('chill')) ? 'reset' :
+              (a.category?.toLowerCase().includes('test') || a.category?.toLowerCase().includes('exam')) ? 'exam' : 'deep',
+    status: a.status,
+  }));
+
   return (
-    <div className="min-h-screen bg-brand-gesso selection:bg-brand-green/10">
-      {/* Subtle Texture Overlay */}
+    <div className="min-h-screen bg-brand-gesso selection:bg-brand-primary/10 selection:text-brand-primary">
       <div className="fixed inset-0 gesso-texture z-0 pointer-events-none" />
 
-      <main className="px-6 py-16 md:px-12 md:py-24 max-w-7xl mx-auto space-y-32 relative z-10">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-12">
-          <div className="space-y-6">
-            <h1 className="text-6xl md:text-[7rem] font-serif font-black text-brand-blue tracking-tighter leading-[0.8]">
-              {refreshing ? "Scanning..." : `Hey, ${user?.firstName || 'Scholar'}.`}
-            </h1>
-            <p className="text-slate-400 font-medium text-xl md:text-3xl">
-              {refreshing ? (
-                <span className="flex items-center gap-3 animate-pulse text-brand-green">
-                  mapping your semester...
-                </span>
-              ) : data.assignments?.scheduled?.length === 0 ? (
-                "Your radar is clear. Go touch grass. 🌿"
-              ) : (
-                `You've got ${data.assignments?.scheduled?.length || 0} items on deck today.`
-              )}
-            </p>
+      {/* Sticky Quick Add (Top) */}
+      <div className="sticky top-0 z-30 bg-brand-gesso/80 backdrop-blur-md pt-8 pb-4 px-6 md:px-12">
+        <div className="max-w-7xl mx-auto">
+          <QuickAddInput />
+        </div>
+      </div>
+
+      <main className="px-6 py-12 md:px-12 md:py-16 max-w-7xl mx-auto space-y-32 relative z-10">
+        <div className="space-y-12">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-12">
+            <div className="space-y-6">
+              <h1 className="text-6xl md:text-[7rem] font-serif font-black text-brand-text tracking-tighter leading-[0.8]">
+                {refreshing ? "Scanning..." : `Hey, ${user?.firstName || 'Scholar'}.`}
+              </h1>
+              <p className="text-brand-muted font-medium text-xl md:text-3xl">
+                {data.assignments?.scheduled?.length === 0 ? "Your radar is clear. Go touch grass. 🌿" : `You've got ${data.assignments?.scheduled?.length || 0} items on deck today.`}
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-2 bg-brand-surface-2 p-1.5 rounded-full cozy-border self-start">
+              <button onClick={() => handleRangeChange("day")} className={`px-8 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.1em] transition-all ${range === "day" ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted hover:text-brand-text"}`}>Day</button>
+              <button onClick={() => handleRangeChange("week")} className={`px-8 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.1em] transition-all ${range === "week" ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted hover:text-brand-text"}`}>Week</button>
+            </div>
           </div>
-          
-          <div className="flex items-center gap-2 bg-white/40 backdrop-blur-sm p-1.5 rounded-[2rem] border border-white/50 shadow-sm self-start">
-            <button
-              onClick={() => handleRangeChange("day")}
-              className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-                range === "day"
-                  ? "bg-white text-brand-blue shadow-md"
-                  : "text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              Day
-            </button>
-            <button
-              onClick={() => handleRangeChange("week")}
-              className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-                range === "week"
-                  ? "bg-white text-brand-blue shadow-md"
-                  : "text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              Week
-            </button>
-          </div>
+
+          <TodayFlow items={flowItems as any} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-          <ProductivitySummary
-            daily={data.daily || []}
-            weekly={data.weekly}
-            range={range}
-          />
-          <ChillBank
-            earnedMinutes={earnedChill}
-            usedMinutes={usedChill}
-            targetRatio={3.0}
-          />
-          <div className="hidden lg:block">
+        {/* Bento Grid (Bottom) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-8">
+            <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full space-y-8">
+              <div className="flex items-center justify-between">
+                <h3 className="card-title text-brand-text italic">The Top 3</h3>
+                <span className="meta-label text-brand-muted">Focus Priority</span>
+              </div>
+              <AssignmentsList
+                assignments={(data.assignments?.scheduled || []).slice(0, 3)}
+                title=""
+                hideHeader
+              />
+            </div>
+          </div>
+
+          <div className="lg:col-span-4">
+            <ChillBank earnedMinutes={earnedChill} usedMinutes={usedChill} targetRatio={3.0} />
+          </div>
+
+          <div className="lg:col-span-4">
+            <StuckRadar assignments={[...(data.assignments?.scheduled || []), ...(data.assignments?.inbox || [])]} />
+          </div>
+
+          <div className="lg:col-span-4">
+            <WeekSummary 
+              completedCount={data.assignments?.completed?.length || 0}
+              totalScheduled={(data.assignments?.scheduled?.length || 0) + (data.assignments?.completed?.length || 0)}
+            />
+          </div>
+
+          <div className="lg:col-span-4">
             <StreakBadge streak={data.streak} />
           </div>
         </div>
 
-        {data.preferences?.showGradeForecast !== false && (
-          <GradeForecast forecasts={data.forecasts || []} />
-        )}
-
-        {/* Assignments Section */}
-        {data.assignments && (
-          <div className="space-y-20">
-            <div className="flex items-center gap-8">
-              <h2 className="text-4xl font-serif font-black text-brand-blue tracking-tight italic">Your Roadmap</h2>
-              <div className="h-px flex-1 bg-white/40"></div>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
-              <div className="lg:col-span-1">
-                <AssignmentsList
-                  assignments={data.assignments.inbox || []}
-                  title="Capture"
-                  emptyMessage="Clear mind, clear inbox. 🕊️"
-                />
-              </div>
-              <div className="lg:col-span-1">
-                <AssignmentsList
-                  assignments={data.assignments.scheduled || []}
-                  title="Focus"
-                  emptyMessage="Nothing on deck right now."
-                />
-              </div>
-              <div className="lg:col-span-1">
-                <AssignmentsList
-                  assignments={data.assignments.completed || []}
-                  title="Wins"
-                  emptyMessage="Ready for your first win? 🏆"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Daily chart visualization */}
-        {range === "week" && data.daily && data.daily.length > 0 && (
-          <div className="bg-white/70 backdrop-blur-md rounded-3xl border border-slate-100 shadow-xl p-8 transition-all hover:shadow-2xl">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-xl font-black text-slate-800 tracking-tight">Focus Momentum</h3>
-                <p className="text-sm font-medium text-slate-400 mt-1">Your cognitive output over the last 7 days</p>
-              </div>
-              <div className="px-4 py-2 bg-indigo-50 rounded-2xl border border-indigo-100">
-                <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Trend: Stable</span>
-              </div>
-            </div>
-            
-            <div className="flex items-end gap-4 h-48 px-2">
-              {data.daily.map((day: any, idx: number) => {
-                const maxFocus = Math.max(...data.daily.map((d: any) => d.focusMinutes || 0), 1);
-                const height = (day.focusMinutes / maxFocus) * 100;
-                const isToday = new Date(day.day).toDateString() === new Date().toDateString();
-                
-                return (
-                  <div key={idx} className="flex-1 flex flex-col items-center group">
-                    <div className="relative w-full flex flex-col items-center">
-                      {/* Tooltip on hover */}
-                      <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-20 pointer-events-none">
-                        {day.focusMinutes}m
-                      </div>
-                      
-                      <div
-                        className={`w-full max-w-[40px] rounded-2xl transition-all duration-500 ease-out shadow-sm ${
-                          isToday 
-                            ? "bg-gradient-to-t from-indigo-600 to-blue-400 shadow-indigo-200 shadow-lg scale-105" 
-                            : "bg-slate-100 group-hover:bg-indigo-100"
-                        }`}
-                        style={{ height: `${Math.max(8, height)}%` }}
-                      />
-                    </div>
-                    <div className={`text-[10px] font-black uppercase tracking-tighter mt-4 ${isToday ? 'text-indigo-600' : 'text-slate-400'}`}>
-                      {new Date(day.day).toLocaleDateString("en-US", { weekday: "short" })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <ProductivitySummary daily={data.daily || []} weekly={data.weekly} range={range} />
+          {data.preferences?.showGradeForecast !== false && <GradeForecast forecasts={data.forecasts || []} />}
+        </div>
       </main>
     </div>
   );
 }
-

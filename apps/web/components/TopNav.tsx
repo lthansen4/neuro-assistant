@@ -15,11 +15,11 @@ export function TopNav() {
         <div className="flex items-center justify-between h-24">
           {/* Logo / Brand */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="text-3xl font-serif font-black text-brand-blue tracking-tight group flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center transition-all group-hover:rotate-6 shadow-sm border border-slate-100">
-                <GessoIcon type="prism" className="text-brand-green" size={24} />
+            <Link href="/dashboard" className="text-3xl font-serif font-black text-brand-text tracking-tight group flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-brand-surface flex items-center justify-center transition-all group-hover:rotate-6 shadow-sm border border-brand-muted/10">
+                <GessoIcon type="prism" className="text-brand-primary" size={24} />
               </div>
-              <span className="hidden sm:inline">Gesso</span>
+              <span className="hidden sm:inline italic">Gesso</span>
             </Link>
           </div>
 
@@ -27,43 +27,36 @@ export function TopNav() {
           <div className="hidden md:flex items-center gap-10">
             <Link 
               href="/dashboard" 
-              className="text-slate-400 hover:text-brand-green text-xs font-black uppercase tracking-[0.2em] transition-colors"
+              className="text-brand-muted hover:text-brand-primary text-[12px] font-bold uppercase tracking-[0.2em] transition-colors"
             >
               Dashboard
             </Link>
             <Link 
               href="/calendar" 
-              className="text-slate-400 hover:text-brand-green text-xs font-black uppercase tracking-[0.2em] transition-colors"
+              className="text-brand-muted hover:text-brand-primary text-[12px] font-bold uppercase tracking-[0.2em] transition-colors"
             >
               Calendar
             </Link>
             <Link 
               href="/upload" 
-              className="text-slate-400 hover:text-brand-green text-xs font-black uppercase tracking-[0.2em] transition-colors"
+              className="text-brand-muted hover:text-brand-primary text-[12px] font-bold uppercase tracking-[0.2em] transition-colors"
             >
               Upload
             </Link>
-          </div>
-
-          {/* Global Quick Add Input (Desktop) */}
-          <div className="hidden lg:block flex-1 max-w-lg mx-12">
-            <div className="relative">
-              <QuickAddInput />
-            </div>
           </div>
 
           {/* User Menu */}
           <div className="flex items-center gap-6">
             {user && (
               <div className="hidden sm:flex flex-col items-end">
-                <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Scholar</div>
-                <div className="text-sm font-black text-slate-800 tracking-tight leading-none">
+                <div className="text-[10px] font-bold text-brand-muted uppercase tracking-widest leading-none mb-1">Scholar</div>
+                <div className="text-sm font-bold text-brand-text tracking-tight leading-none">
                   {user.firstName || user.username}
                 </div>
               </div>
             )}
             
-            <div className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
+            <div className="w-10 h-10 rounded-2xl bg-brand-surface border border-brand-muted/10 flex items-center justify-center text-brand-muted shadow-soft">
               <UserCircle size={20} strokeWidth={2.5} />
             </div>
           </div>

@@ -2,6 +2,7 @@
 "use client";
 
 import { CircularProgress } from "./ui/CircularProgress";
+import { cn } from "../lib/utils";
 
 interface DailyProductivity {
   day: string;
@@ -39,7 +40,7 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
         focus: today.focusMinutes,
         chill: today.chillMinutes,
         earned: today.earnedChillMinutes,
-        label: "Today's Focus"
+        label: "Daily Focus"
       } : null;
     }
     return weekly ? {
@@ -54,24 +55,26 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
 
   if (!stats) {
     return (
-      <div className="bg-white/70 backdrop-blur-md rounded-3xl border border-slate-100 shadow-xl p-8 transition-all duration-500 h-full flex flex-col justify-center items-center">
-        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-2">
-          {range === "day" ? "Today" : "This Week"}
+      <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full flex flex-col justify-center items-center text-center space-y-2">
+        <h3 className="card-title text-brand-text italic">
+          {range === "day" ? "Daily" : "Weekly"} Focus
         </h3>
-        <p className="text-sm font-medium text-slate-300 italic">Finding your data...</p>
+        <p className="text-brand-muted font-medium text-sm italic">Finding your data...</p>
       </div>
     );
   }
 
-  // Define focus target (e.g., 4 hours/day or 20 hours/week)
   const focusTarget = range === "day" ? 240 : 1200;
-  const focusColor = "#1A1C2E"; // brand-blue
-  const bgColor = "#E0F2FE"; // rainbow-tests (Sky Blue) as a light complement
+  const focusColor = "#6D5EF7"; // brand-primary
+  const bgColor = "#F6F2EA"; // brand-surface-2
 
   return (
-    <div className="bg-white/70 backdrop-blur-md rounded-3xl border border-slate-100 shadow-xl p-8 hover:shadow-2xl transition-all duration-500 group">
+    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft hover:shadow-2xl transition-all duration-500 group h-full flex flex-col justify-between">
       <div className="flex flex-col items-center">
-        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">{stats.label}</h3>
+        <div className="w-full flex justify-between items-center mb-6">
+          <h3 className="card-title text-brand-text italic">{stats.label}</h3>
+          <span className="meta-label text-brand-muted">Cognitive Load</span>
+        </div>
         
         <CircularProgress
           value={stats.focus}
@@ -82,33 +85,33 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
           backgroundColor={bgColor}
         >
           <div className="flex flex-col items-center">
-            <span className="text-3xl font-black text-slate-800 tracking-tighter">
+            <span className="text-4xl font-serif font-black text-brand-text tracking-tighter">
               {formatMinutes(stats.focus)}
             </span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+            <span className="meta-label text-brand-muted mt-1">
               Focused
             </span>
         </div>
         </CircularProgress>
 
-        <div className="grid grid-cols-2 gap-8 w-full mt-8 pt-6 border-t border-slate-50">
+        <div className="grid grid-cols-2 gap-8 w-full mt-8 pt-6 border-t border-brand-surface-2">
           <div className="text-center">
-            <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Chill Time</div>
-            <div className="text-lg font-black text-slate-700">{Math.round(stats.chill)}m</div>
+            <div className="meta-label text-brand-muted mb-1">Chill Time</div>
+            <div className="text-xl font-bold text-brand-text">{Math.round(stats.chill)}m</div>
           </div>
           <div className="text-center">
-            <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Earned</div>
-            <div className="text-lg font-black text-slate-700">{Math.round(stats.earned)}m</div>
+            <div className="meta-label text-brand-muted mb-1">Earned</div>
+            <div className="text-xl font-bold text-brand-text">{Math.round(stats.earned)}m</div>
           </div>
         </div>
+      </div>
 
-        <div className="mt-6 flex items-center justify-center gap-3 w-full opacity-50">
-          <span className="h-px flex-1 bg-slate-100"></span>
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-            {Math.round((stats.focus / focusTarget) * 100)}% of Target
-          </p>
-          <span className="h-px flex-1 bg-slate-100"></span>
-        </div>
+      <div className="mt-6 flex items-center justify-center gap-3 w-full opacity-30">
+        <div className="h-px flex-1 bg-brand-muted/20"></div>
+        <p className="text-[10px] font-bold text-brand-muted uppercase tracking-[0.2em]">
+          {Math.round((stats.focus / focusTarget) * 100)}% of Target
+        </p>
+        <div className="h-px flex-1 bg-brand-muted/20"></div>
       </div>
     </div>
   );
