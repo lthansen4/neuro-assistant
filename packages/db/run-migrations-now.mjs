@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Triggering redeploy for migration fix - v3 (Robust DO blocks)
+// Triggering redeploy for migration fix - v4 (Semicolon fix)
 /**
  * Quick migration runner for Railway
  * 
