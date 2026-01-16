@@ -569,41 +569,71 @@ calendarRoute.delete('/events/:id', async (c) => {
       return metadata?.transitionTax && metadata?.linkedToEvent === eventId;
     });
     
-    // Check if this event is linked to an assignment
-    const linkedAssignmentId = (event.metadata as any)?.linkedAssignmentId;
-    let deletedAssignment = false;
-    
+    // If this event is linked to an assignment, delete the assignment and all related events/buffers
+    const linkedAssignmentId =
+      (event.metadata as any)?.linkedAssignmentId ||
+      (event.metadata as any)?.assignmentId ||
+      event.assignmentId ||
+      null;
+
     if (linkedAssignmentId) {
-      console.log(`[Calendar] Event ${eventId} linked to assignment ${linkedAssignmentId}, checking for deletion...`);
-      
-      // Check if there are other calendar events for this assignment
-      const otherEventsForAssignment = allUserEvents.filter(evt => {
-        if (evt.id === eventId) return false; // Skip the event we're deleting
-        const metadata = evt.metadata as any;
-        return metadata?.linkedAssignmentId === linkedAssignmentId;
+      const assignmentEvents = await db.query.calendarEventsNew.findMany({
+        where: and(
+          eq(schema.calendarEventsNew.userId, userId),
+          or(
+            eq(schema.calendarEventsNew.assignmentId, linkedAssignmentId),
+            eq(schema.calendarEventsNew.linkedAssignmentId, linkedAssignmentId),
+            sql`${schema.calendarEventsNew.metadata} ->> 'assignmentId' = ${linkedAssignmentId}`
+          )
+        )
       });
-      
-      if (otherEventsForAssignment.length === 0) {
-        // This is the LAST/ONLY event for this assignment - delete the assignment
-        await db.delete(schema.assignments)
-          .where(and(
-            eq(schema.assignments.id, linkedAssignmentId),
-            eq(schema.assignments.userId, userId)
-          ));
-        console.log(`[Calendar] ✅ Deleted orphaned assignment ${linkedAssignmentId} (no other events)`);
-        deletedAssignment = true;
-      } else {
-        console.log(`[Calendar] ℹ️ Assignment ${linkedAssignmentId} has ${otherEventsForAssignment.length} other event(s), keeping it`);
+
+      const eventIds = assignmentEvents.map((evt) => evt.id);
+      let deletedBuffers = 0;
+
+      if (eventIds.length > 0) {
+        const bufferDelete = await db.delete(schema.calendarEventsNew).where(
+          and(
+            eq(schema.calendarEventsNew.userId, userId),
+            sql`(${schema.calendarEventsNew.metadata} ->> 'linkedToEvent')::uuid in (${sql.join(
+              eventIds.map((id) => sql`${id}::uuid`),
+              sql`,`
+            )})`
+          )
+        ).returning({ id: schema.calendarEventsNew.id });
+        deletedBuffers = bufferDelete.length;
+
+        await db.delete(schema.calendarEventsNew).where(
+          and(
+            eq(schema.calendarEventsNew.userId, userId),
+            sql`${schema.calendarEventsNew.id} in (${sql.join(
+              eventIds.map((id) => sql`${id}::uuid`),
+              sql`,`
+            )})`
+          )
+        );
       }
+
+      await db.delete(schema.assignments).where(and(
+        eq(schema.assignments.id, linkedAssignmentId),
+        eq(schema.assignments.userId, userId)
+      ));
+
+      return c.json({
+        ok: true,
+        deletedId: eventId,
+        deletedBuffers,
+        deletedAssignment: true,
+        deletedEvents: eventIds.length,
+      });
     }
-    
-    // Delete the main event
+
+    // Otherwise delete only this event and any linked transition buffers
     await db.delete(schema.calendarEventsNew)
       .where(eq(schema.calendarEventsNew.id, eventId));
     
     console.log(`[Calendar] Successfully deleted event ${eventId}`);
     
-    // Also delete any linked transition buffers
     if (linkedBuffers.length > 0) {
       for (const buffer of linkedBuffers) {
         await db.delete(schema.calendarEventsNew)
@@ -616,7 +646,7 @@ calendarRoute.delete('/events/:id', async (c) => {
       ok: true, 
       deletedId: eventId,
       deletedBuffers: linkedBuffers.length,
-      deletedAssignment 
+      deletedAssignment: false
     });
   } catch (error: any) {
     console.error('[Calendar] Delete event error:', error);
