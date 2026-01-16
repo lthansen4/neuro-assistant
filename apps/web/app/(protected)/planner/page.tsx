@@ -8,7 +8,7 @@ import { cn } from "../../../lib/utils";
 import { ReadingView } from "../../../components/Planner/ReadingView";
 import { HomeworkView } from "../../../components/Planner/HomeworkView";
 import { TestView } from "../../../components/Planner/TestView";
-import { ClassView } from "../../../components/Planner/ClassView";
+import { CourseView } from "../../../components/Planner/CourseView";
 import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
 import { FocusTimerModal } from "../../../components/FocusTimerModal";
 
@@ -71,7 +71,7 @@ export default function PlannerPage() {
     { id: "homework", label: "Homework", icon: ClipboardList },
     { id: "reading", label: "Reading", icon: BookOpen },
     { id: "tests", label: "Tests", icon: Flame },
-    { id: "classes", label: "By Class", icon: GraduationCap },
+    { id: "classes", label: "By Course", icon: GraduationCap },
   ];
 
   return (
@@ -162,7 +162,7 @@ export default function PlannerPage() {
           />
         )}
         {!error && data && activeView === "classes" && (
-          <ClassView 
+          <CourseView 
             data={[
               ...Object.values(data.homework || {}).flat(),
               ...Object.values(data.reading || {}).flat(),

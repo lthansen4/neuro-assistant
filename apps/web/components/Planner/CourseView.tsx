@@ -1,4 +1,4 @@
-// apps/web/components/Planner/ClassView.tsx
+// apps/web/components/Planner/CourseView.tsx
 "use client";
 
 import { cn } from "../../lib/utils";
@@ -6,13 +6,13 @@ import { GraduationCap, ClipboardList, BookOpen, Flame, Clock, Calendar, Calenda
 import Link from "next/link";
 import { Progress } from "../ui/progress";
 
-interface ClassViewProps {
+interface CourseViewProps {
   data: any[];
   onSelect: (assignment: any) => void;
   onFocus: (assignment: any) => void;
 }
 
-export function ClassView({ data, onSelect, onFocus }: ClassViewProps) {
+export function CourseView({ data, onSelect, onFocus }: CourseViewProps) {
   // Group assignments by courseName
   const grouped = data.reduce((acc: any, item: any) => {
     const course = item.courseName || "Other / General";
@@ -56,7 +56,7 @@ export function ClassView({ data, onSelect, onFocus }: ClassViewProps) {
       {data.length === 0 && (
         <div className="text-center py-20 bg-brand-surface-2/30 rounded-[2rem] border border-dashed border-brand-border">
           <GraduationCap className="mx-auto mb-4 text-brand-muted opacity-20" size={48} />
-          <p className="text-brand-muted font-medium">No assignments found for any classes.</p>
+          <p className="text-brand-muted font-medium">No assignments found for any courses.</p>
         </div>
       )}
     </div>
