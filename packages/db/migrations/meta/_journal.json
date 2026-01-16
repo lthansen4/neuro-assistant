@@ -1,0 +1,210 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1640000000000,
+      "tag": "0001_unified",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1640000001000,
+      "tag": "0002_quick_add_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1640000002000,
+      "tag": "0003_calendar_events_dedupe_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1640000003000,
+      "tag": "0004_syllabus_commit_artifacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1640000004000,
+      "tag": "0005_add_rebalancing_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1640000005000,
+      "tag": "0006_rebalancing_engine_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1640000006000,
+      "tag": "0007_migrate_user_streaks",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1640000007000,
+      "tag": "0008_calendar_split_CORRECTED",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1640000008000,
+      "tag": "0009_assignments_standardization",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1640000009000,
+      "tag": "0010_courses_grading",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1640000010000,
+      "tag": "0011_add_confidence_score_to_staging",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1640000011000,
+      "tag": "0012_dashboard_performance",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1640000012000,
+      "tag": "0013_quick_add_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1640000013000,
+      "tag": "0013_5_rebalancing_base_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1640000014000,
+      "tag": "0014_rebalancing_concurrency_assignment_linkage",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1640000015000,
+      "tag": "0014_5_rebalancing_bridge_calendar_integration",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1640000016000,
+      "tag": "0015_rebalancing_rollback_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1640000017000,
+      "tag": "0016_rebalancing_churn_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1640000018000,
+      "tag": "0017_rebalancing_apply_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1640000019000,
+      "tag": "0018_add_requires_chunking",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1640000020000,
+      "tag": "0019_add_rejected_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1640000021000,
+      "tag": "0020_add_event_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1640000022000,
+      "tag": "0021_add_post_class_nudges",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1640000023000,
+      "tag": "0022_add_priority_2_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1640000024000,
+      "tag": "0023_add_linked_assignment_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1640000025000,
+      "tag": "0024_add_assignment_checklists",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1640000026000,
+      "tag": "0029_add_assignment_description",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1640000027000,
+      "tag": "0030_add_calendar_event_description",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1640000028000,
+      "tag": "0031_add_assignment_time_tracking",
+      "breakpoints": true
+    }
+  ]
+}
+
