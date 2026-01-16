@@ -13,13 +13,18 @@ interface FlowItem {
   category: "class" | "deep" | "reset" | "due" | "exam" | "wall";
   status: string;
   emoji?: string;
+  eventType?: string;
+  metadata?: any;
+  linkedAssignmentId?: string;
+  isMovable?: boolean;
 }
 
 interface TodayFlowProps {
   items: FlowItem[];
+  onSelect?: (item: FlowItem) => void;
 }
 
-export function TodayFlow({ items }: TodayFlowProps) {
+export function TodayFlow({ items, onSelect }: TodayFlowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
 
@@ -83,7 +88,9 @@ export function TodayFlow({ items }: TodayFlowProps) {
 
         {displayItems.map((item) => {
           const config = getCategoryConfig(item.category);
-          const isNow = item.id === "2"; // Mocking "The Reset" as NOW for visual match
+          const start = new Date(item.startTime);
+          const end = new Date(item.endTime);
+          const isNow = now >= start && now <= end;
 
           return (
             <div 
@@ -94,6 +101,7 @@ export function TodayFlow({ items }: TodayFlowProps) {
                 "cozy-border shadow-soft",
                 isNow && "ring-2 ring-category-reset-fg animate-pulse-soft"
               )}
+              onClick={() => onSelect?.(item)}
             >
               <div className="space-y-6">
                 <div className="flex justify-between items-start">

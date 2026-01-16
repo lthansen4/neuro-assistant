@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { fetchDashboardSummary, fetchDashboardPreferences, updateDashboardPreferences } from "../../../lib/api";
+import { fetchDashboardSummary, fetchDashboardPreferences, updateDashboardPreferences, fetchCalendarEvents } from "../../../lib/api";
 import { ChillBank } from "../../../components/ChillBank";
 import { GradeForecast } from "../../../components/GradeForecast";
 import { StreakBadge } from "../../../components/StreakBadge";
@@ -13,6 +13,7 @@ import { StuckRadar } from "../../../components/StuckRadar";
 import { WeekSummary } from "../../../components/WeekSummary";
 import { cn } from "../../../lib/utils";
 import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
+import { EventDetailsModal } from "../../../components/EventDetailsModal";
 
 interface Assignment {
   id: string;
@@ -43,6 +44,20 @@ interface DashboardData {
   };
 }
 
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  extendedProps?: {
+    eventType?: string;
+    type?: string;
+    isMovable?: boolean;
+    linkedAssignmentId?: string;
+    metadata?: any;
+  };
+}
+
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -52,7 +67,18 @@ export default function DashboardPage() {
   const [range, setRange] = useState<"day" | "week">("week");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<{
+    id: string;
+    title: string;
+    start: Date;
+    end: Date;
+    eventType: string;
+    isMovable: boolean;
+    metadata?: any;
+    linkedAssignmentId?: string;
+  } | null>(null);
   const [topTab, setTopTab] = useState<"top" | "today" | "week" | "all">("top");
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
   const loadDashboard = async (showLoader = true) => {
     if (!user) return;
@@ -65,6 +91,12 @@ export default function DashboardPage() {
       setError(null);
       const userId = user.id;
       const summary = await fetchDashboardSummary(userId, range);
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+      const eventsResponse = await fetchCalendarEvents(userId, startOfToday, endOfToday).catch(() => ({ events: [] }));
+      setCalendarEvents(eventsResponse?.events || []);
       
       setData(summary);
       setLastRefresh(new Date());
@@ -138,6 +170,33 @@ export default function DashboardPage() {
     status: a.status,
   }));
 
+  const flowFromCalendar = calendarEvents.map((evt) => {
+    const eventType = evt.extendedProps?.eventType || evt.extendedProps?.type || "Other";
+    const lower = eventType.toLowerCase();
+    const category =
+      lower.includes("class") || lower.includes("office")
+        ? "class"
+        : lower.includes("chill") || lower.includes("reset") || lower.includes("transition")
+        ? "reset"
+        : lower.includes("due")
+        ? "due"
+        : lower.includes("exam") || lower.includes("test") || lower.includes("quiz") || lower.includes("midterm") || lower.includes("final")
+        ? "exam"
+        : "deep";
+    return {
+      id: evt.id,
+      title: evt.title,
+      startTime: evt.start,
+      endTime: evt.end,
+      category,
+      status: "Scheduled",
+      eventType,
+      metadata: evt.extendedProps?.metadata,
+      linkedAssignmentId: evt.extendedProps?.linkedAssignmentId,
+      isMovable: evt.extendedProps?.isMovable ?? false,
+    };
+  });
+
   const allAssignments = (() => {
     const merged = [
       ...(data.assignments?.scheduled || []),
@@ -210,7 +269,23 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <TodayFlow items={flowItems as any} />
+          <TodayFlow
+            items={(flowFromCalendar.length > 0 ? flowFromCalendar : (flowItems as any))}
+            onSelect={(item) => {
+              const fallbackStart = new Date(item.startTime);
+              const fallbackEnd = new Date(item.endTime);
+              setSelectedEvent({
+                id: item.id,
+                title: item.title,
+                start: fallbackStart,
+                end: fallbackEnd,
+                eventType: item.eventType || "Other",
+                isMovable: item.isMovable ?? true,
+                metadata: item.metadata,
+                linkedAssignmentId: item.linkedAssignmentId,
+              });
+            }}
+          />
         </div>
 
         {/* Bento Grid (Bottom) */}
@@ -331,6 +406,18 @@ export default function DashboardPage() {
             }}
             onDeleted={() => {
               setSelectedAssignment(null);
+              loadDashboard(false);
+            }}
+          />
+        )}
+
+        {selectedEvent && user && (
+          <EventDetailsModal
+            event={selectedEvent}
+            userId={user.id}
+            onClose={() => setSelectedEvent(null)}
+            onDeleted={() => {
+              setSelectedEvent(null);
               loadDashboard(false);
             }}
           />

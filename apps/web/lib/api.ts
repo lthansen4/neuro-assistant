@@ -71,3 +71,18 @@ export async function commitStagedItems(parseRunId: string, clerkUserId: string)
   return res.json();
 }
 
+export async function fetchCalendarEvents(userId: string, start: Date, end: Date) {
+  const params = new URLSearchParams({
+    start: start.toISOString(),
+    end: end.toISOString(),
+  });
+  const res = await fetch(`${API_BASE}/api/calendar/events?${params.toString()}`, {
+    headers: { "x-clerk-user-id": userId },
+  });
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => res.statusText);
+    throw new Error(`Failed to fetch calendar events: ${res.status} ${errorText}`);
+  }
+  return res.json();
+}
+
