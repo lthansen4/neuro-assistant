@@ -3,17 +3,18 @@
 
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { BookOpen, ClipboardList, Flame, Search, Loader2 } from "lucide-react";
+import { BookOpen, ClipboardList, Flame, Search, Loader2, GraduationCap } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { ReadingView } from "../../../components/Planner/ReadingView";
 import { HomeworkView } from "../../../components/Planner/HomeworkView";
 import { TestView } from "../../../components/Planner/TestView";
+import { ClassView } from "../../../components/Planner/ClassView";
 import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
 import { FocusTimerModal } from "../../../components/FocusTimerModal";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
-type ViewType = "reading" | "homework" | "tests";
+type ViewType = "reading" | "homework" | "tests" | "classes";
 
 export default function PlannerPage() {
   const { user, isLoaded } = useUser();
@@ -70,6 +71,7 @@ export default function PlannerPage() {
     { id: "homework", label: "Homework", icon: ClipboardList },
     { id: "reading", label: "Reading", icon: BookOpen },
     { id: "tests", label: "Tests", icon: Flame },
+    { id: "classes", label: "By Class", icon: GraduationCap },
   ];
 
   return (
@@ -156,6 +158,23 @@ export default function PlannerPage() {
               assignmentId: a.id,
               title: a.title,
               category: a.category || "Exam"
+            })}
+          />
+        )}
+        {!error && data && activeView === "classes" && (
+          <ClassView 
+            data={[
+              ...Object.values(data.homework || {}).flat(),
+              ...Object.values(data.reading || {}).flat(),
+              ...(data.tests || [])
+            ]} 
+            onSelect={(a) => setSelectedAssignment(a)}
+            onFocus={(a) => setFocusTarget({
+              assignmentId: a.id,
+              title: a.title,
+              category: a.category,
+              totalPages: a.totalPages,
+              pagesCompleted: a.pagesCompleted
             })}
           />
         )}
