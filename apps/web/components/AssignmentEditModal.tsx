@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import { toast } from "./ui/Toast";
@@ -16,6 +16,14 @@ export interface AssignmentEditData {
   effortEstimateMinutes: number | null;
   status: "Inbox" | "Scheduled" | "Locked_In" | "Completed";
   courseName: string | null;
+}
+
+interface FocusBlock {
+  id: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+  metadata?: Record<string, any> | null;
 }
 
 function toLocalDateTimeValue(value: string | null) {
@@ -49,6 +57,30 @@ export function AssignmentEditModal({
   const [deleting, setDeleting] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [focusBlocks, setFocusBlocks] = useState<FocusBlock[]>([]);
+  const [loadingFocusBlocks, setLoadingFocusBlocks] = useState(false);
+
+  useEffect(() => {
+    const loadDetails = async () => {
+      setLoadingFocusBlocks(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}/details`, {
+          headers: { "x-clerk-user-id": userId },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+          throw new Error(data.error || "Failed to load assignment details.");
+        }
+        setFocusBlocks(Array.isArray(data.focusBlocks) ? data.focusBlocks : []);
+      } catch (err) {
+        console.error("[AssignmentEditModal] Failed to load focus blocks:", err);
+      } finally {
+        setLoadingFocusBlocks(false);
+      }
+    };
+
+    loadDetails();
+  }, [assignment.id, userId]);
 
   const handleSave = async () => {
     setError(null);
@@ -230,6 +262,33 @@ export function AssignmentEditModal({
               className="w-full border border-brand-border rounded-2xl px-4 py-2 text-sm"
             />
           </div>
+        </div>
+
+        <div className="space-y-3 border-t border-brand-border/40 pt-4">
+          <h3 className="text-sm font-semibold text-brand-text">Scheduled Focus Blocks</h3>
+          {loadingFocusBlocks ? (
+            <p className="text-sm text-brand-muted">Loading focus blocks...</p>
+          ) : focusBlocks.length === 0 ? (
+            <p className="text-sm text-brand-muted">No focus blocks scheduled yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {focusBlocks.map((block) => {
+                const start = new Date(block.startAt);
+                const end = new Date(block.endAt);
+                return (
+                  <div
+                    key={block.id}
+                    className="rounded-2xl border border-brand-border/40 bg-brand-surface-2 px-4 py-3 text-sm"
+                  >
+                    <div className="font-semibold text-brand-text">{block.title}</div>
+                    <div className="text-brand-muted">
+                      {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">

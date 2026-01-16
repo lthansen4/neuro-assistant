@@ -224,3 +224,55 @@ assignmentsRoute.delete('/:id', async (c) => {
     return c.json({ error: error.message || 'Failed to delete assignment' }, 500);
   }
 });
+
+/**
+ * GET /api/assignments/:id/details
+ * Returns assignment details plus linked Focus blocks
+ */
+assignmentsRoute.get('/:id/details', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const assignmentId = c.req.param('id');
+    const assignment = await db.query.assignments.findFirst({
+      where: and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)),
+    });
+
+    if (!assignment) {
+      return c.json({ error: 'Assignment not found' }, 404);
+    }
+
+    const focusBlocks = await db
+      .select({
+        id: schema.calendarEventsNew.id,
+        title: schema.calendarEventsNew.title,
+        startAt: schema.calendarEventsNew.startAt,
+        endAt: schema.calendarEventsNew.endAt,
+        eventType: schema.calendarEventsNew.eventType,
+        metadata: schema.calendarEventsNew.metadata,
+      })
+      .from(schema.calendarEventsNew)
+      .where(and(
+        eq(schema.calendarEventsNew.userId, userId),
+        eq(schema.calendarEventsNew.eventType, 'Focus'),
+        or(
+          eq(schema.calendarEventsNew.linkedAssignmentId, assignmentId),
+          eq(schema.calendarEventsNew.assignmentId, assignmentId),
+          sql`${schema.calendarEventsNew.metadata} ->> 'assignmentId' = ${assignmentId}`
+        )
+      ))
+      .orderBy(schema.calendarEventsNew.startAt);
+
+    return c.json({
+      ok: true,
+      assignment,
+      focusBlocks,
+    });
+  } catch (error: any) {
+    console.error('[Assignments API] Error fetching details:', error);
+    return c.json({ error: error.message || 'Failed to fetch assignment details' }, 500);
+  }
+});
