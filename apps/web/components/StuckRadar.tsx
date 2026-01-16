@@ -8,6 +8,7 @@ interface StuckAssignment {
   id: string;
   title: string;
   deferralCount?: number;
+  isStuck?: boolean;
 }
 
 interface StuckRadarProps {
@@ -15,7 +16,7 @@ interface StuckRadarProps {
 }
 
 export function StuckRadar({ assignments }: StuckRadarProps) {
-  const stuckItems = assignments.filter(a => (a.deferralCount || 0) >= 3);
+  const stuckItems = assignments.filter(a => (a.deferralCount || 0) >= 3 || a.isStuck);
 
   return (
     <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full space-y-6">
@@ -38,7 +39,7 @@ export function StuckRadar({ assignments }: StuckRadarProps) {
               <div key={item.id} className="flex items-center justify-between p-4 bg-category-wall-bg rounded-2xl border border-category-wall-fg/10">
                 <span className="text-sm font-bold text-category-wall-fg truncate mr-2">{item.title}</span>
                 <span className="text-[10px] font-black uppercase text-category-wall-fg/60 whitespace-nowrap">
-                  {item.deferralCount}x snoozed
+                  {item.isStuck ? "flagged stuck" : `${item.deferralCount}x moved`}
                 </span>
               </div>
             ))}

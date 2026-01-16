@@ -33,6 +33,16 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
     return `${mins}m`;
   };
 
+  const sumFocus = (items: DailyProductivity[]) =>
+    items.reduce((total, item) => total + (item.focusMinutes || 0), 0);
+
+  const todayFocus = daily.length ? daily[daily.length - 1]?.focusMinutes || 0 : 0;
+  const last7 = daily.slice(-7);
+  const last30 = daily.slice(-30);
+  const avgPerDay = daily.length ? sumFocus(daily) / daily.length : 0;
+  const avgWeek = last7.length ? sumFocus(last7) / last7.length : 0;
+  const avgMonth = last30.length ? sumFocus(last30) / last30.length : 0;
+
   const getStats = () => {
   if (range === "day") {
     const today = daily[daily.length - 1];
@@ -94,14 +104,22 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
         </div>
         </CircularProgress>
 
-        <div className="grid grid-cols-2 gap-8 w-full mt-8 pt-6 border-t border-brand-surface-2">
+        <div className="grid grid-cols-2 gap-6 w-full mt-8 pt-6 border-t border-brand-surface-2">
           <div className="text-center">
-            <div className="meta-label text-brand-muted mb-1">Chill Time</div>
-            <div className="text-xl font-bold text-brand-text">{Math.round(stats.chill)}m</div>
+            <div className="meta-label text-brand-muted mb-1">Today</div>
+            <div className="text-xl font-bold text-brand-text">{formatMinutes(todayFocus)}</div>
           </div>
           <div className="text-center">
-            <div className="meta-label text-brand-muted mb-1">Earned</div>
-            <div className="text-xl font-bold text-brand-text">{Math.round(stats.earned)}m</div>
+            <div className="meta-label text-brand-muted mb-1">Avg / Day</div>
+            <div className="text-xl font-bold text-brand-text">{formatMinutes(avgPerDay)}</div>
+          </div>
+          <div className="text-center">
+            <div className="meta-label text-brand-muted mb-1">Avg / Week</div>
+            <div className="text-xl font-bold text-brand-text">{formatMinutes(avgWeek)}</div>
+          </div>
+          <div className="text-center">
+            <div className="meta-label text-brand-muted mb-1">Avg / Month</div>
+            <div className="text-xl font-bold text-brand-text">{formatMinutes(avgMonth)}</div>
           </div>
         </div>
       </div>
