@@ -117,3 +117,4 @@ SELECT
     WHERE table_name = 'assignment_time_logs'
   ) THEN '✅ EXISTS' ELSE '❌ MISSING' END;
 
+

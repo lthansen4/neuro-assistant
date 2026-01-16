@@ -573,16 +573,16 @@ quickAddRoute.post("/commit", async (c) => {
         const start = new Date(body.parsed.sessionStartISO);
         const end = new Date(body.parsed.sessionEndISO);
         const [evt] = await tx
-          .insert(schema.calendarEvents)
+          .insert(schema.calendarEventsNew)
           .values({
             userId,
             courseId: body.parsed.courseId ?? null,
-            assignmentId: assignment.id,
-            type: "Focus",
+            linkedAssignmentId: assignment.id,
+            eventType: "Focus",
             title: `Focus: ${body.parsed.title}`,
             description: (body.parsed as any).description || body.rawInput, // Consistent description
-            startTime: start,
-            endTime: end,
+            startAt: start,
+            endAt: end,
             isMovable: true,
           } as any)
           .returning();

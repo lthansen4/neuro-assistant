@@ -8,3 +8,4 @@ ADD COLUMN description TEXT;
 CREATE INDEX idx_assignments_description ON assignments USING gin(to_tsvector('english', description))
 WHERE description IS NOT NULL;
 
+
