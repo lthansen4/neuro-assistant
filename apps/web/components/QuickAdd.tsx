@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 // TEMP: Set your seeded DB user UUID (printed by seed script).
 // Replace with Clerk->DB mapping once available.
 const USER_UUID = process.env.NEXT_PUBLIC_DEBUG_USER_ID || ""; // fill for dev
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://neuroapi-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
 type Suggestion =
   | { type: "alias"; label: string; courseId: string; confidence: number }

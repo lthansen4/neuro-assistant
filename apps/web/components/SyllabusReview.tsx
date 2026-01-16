@@ -32,7 +32,7 @@ type CommitSummary = {
   timezone: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://neuroapi-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 const CONF_THRESHOLD = 0.6;
 
 function isHighStakes(category?: string | null) {
