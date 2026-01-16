@@ -17,7 +17,7 @@ process.on('unhandledRejection', (err: any) => {
 });
 
 async function startServer() {
-  console.log('🚀🚀🚀 [API] STARTING SERVER VERSION 0.0.8 🚀🚀🚀');
+  console.log('🚀🚀🚀 [API] STARTING SERVER VERSION 0.0.9 (Trigger: Robust fix v4) 🚀🚀🚀');
   console.log(`[API] Starting on port ${port}...`);
   
   // Run migrations on startup
