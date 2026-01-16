@@ -35,7 +35,13 @@ export function TopNav() {
               href="/calendar" 
               className="text-brand-muted hover:text-brand-primary text-[12px] font-bold uppercase tracking-[0.2em] transition-colors"
             >
-              Calendar
+              Schedule
+            </Link>
+            <Link 
+              href="/planner" 
+              className="text-brand-muted hover:text-brand-primary text-[12px] font-bold uppercase tracking-[0.2em] transition-colors"
+            >
+              Planner
             </Link>
             <Link 
               href="/upload" 

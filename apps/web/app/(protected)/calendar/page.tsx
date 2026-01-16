@@ -180,7 +180,7 @@ function CalendarPageContent() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div className="space-y-4">
             <h1 className="text-5xl md:text-7xl font-serif font-black text-brand-text tracking-tighter leading-none">
-              Planner
+              Schedule
             </h1>
             <p className="text-brand-muted font-medium text-lg md:text-xl">
               Drag, drop, and reclaim your time.
