@@ -9,25 +9,7 @@ import { db } from '../lib/db';
 import { nudges, nudgeActions, streakCounters, users } from '../../../../packages/db/src/schema';
 import { eq, and, sql, or } from 'drizzle-orm';
 import { DateTime } from 'luxon';
-
-// Helper: get userId (UUID) from header or query - supports Clerk user ID lookup
-async function getUserId(c: any): Promise<string> {
-  const uid = c.req.header("x-user-id") || c.req.header("x-clerk-user-id") || c.req.query("userId") || c.req.query("clerkUserId");
-  if (!uid) throw new Error("Missing userId (header x-user-id or x-clerk-user-id, or query ?userId=...)");
-  
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
-  if (!isUUID || uid.startsWith("user_")) {
-    const dbUser = await db.query.users.findFirst({
-      where: eq(users.clerkUserId, uid)
-    });
-    if (dbUser) {
-      return dbUser.id;
-    } else {
-      throw new Error("User not found in database for Clerk ID");
-    }
-  }
-  return uid;
-}
+import { getUserId } from '../lib/auth-utils';
 
 export const nudgesRoute = new Hono();
 

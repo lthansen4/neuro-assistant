@@ -118,7 +118,13 @@ export default function PlannerPage() {
           </div>
         )}
 
-        {data && activeView === "reading" && (
+        {!error && !data && !loading && (
+          <div className="text-center py-20 bg-brand-surface-2/30 rounded-[2rem] border border-dashed border-brand-border">
+            <p className="text-brand-muted font-medium">No data available. Try refreshing.</p>
+          </div>
+        )}
+
+        {!error && data && activeView === "reading" && data.reading && (
           <ReadingView 
             data={data.reading} 
             onSelect={(a) => setSelectedAssignment(a)}
@@ -131,7 +137,7 @@ export default function PlannerPage() {
             })}
           />
         )}
-        {data && activeView === "homework" && (
+        {!error && data && activeView === "homework" && data.homework && (
           <HomeworkView 
             data={data.homework} 
             onSelect={(a) => setSelectedAssignment(a)}
@@ -142,7 +148,7 @@ export default function PlannerPage() {
             })}
           />
         )}
-        {data && activeView === "tests" && (
+        {!error && data && activeView === "tests" && data.tests && (
           <TestView 
             data={data.tests} 
             onSelect={(a) => setSelectedAssignment(a)}

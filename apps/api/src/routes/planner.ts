@@ -3,27 +3,9 @@ import { Hono } from "hono";
 import { db, schema } from "../lib/db";
 import { and, eq, gte, sql, asc, or } from "drizzle-orm";
 import { DateTime } from "luxon";
+import { getUserId } from "../lib/auth-utils";
 
 export const plannerRoute = new Hono();
-
-// Helper to get userId from header or query
-async function getUserId(c: any): Promise<string> {
-  const uid = c.req.header("x-user-id") || c.req.header("x-clerk-user-id") || c.req.query("userId") || c.req.query("clerkUserId");
-  if (!uid) throw new Error("Missing userId (header x-user-id or x-clerk-user-id, or query ?userId=...)");
-  
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
-  if (!isUUID || uid.startsWith("user_")) {
-    const dbUser = await db.query.users.findFirst({
-      where: eq(schema.users.clerkUserId, uid),
-    });
-    if (!dbUser) {
-      throw new Error(`No database user found for Clerk ID: ${uid}`);
-    }
-    return dbUser.id;
-  }
-  
-  return uid;
-}
 
 // GET /api/planner/summary
 // Returns grouped assignments for Reading, Homework, and Test views

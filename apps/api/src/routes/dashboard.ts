@@ -2,30 +2,9 @@
 import { Hono } from "hono";
 import { db, schema } from "../lib/db";
 import { and, between, desc, eq, gte, lte, sql, inArray } from "drizzle-orm";
+import { getUserId } from "../lib/auth-utils";
 
 export const dashboardRoute = new Hono();
-
-// Helper to get userId from header or query
-// Supports both database UUID and Clerk user ID (looks up DB user if Clerk ID provided)
-export async function getUserId(c: any): Promise<string> {
-  const uid = c.req.header("x-user-id") || c.req.header("x-clerk-user-id") || c.req.query("userId") || c.req.query("clerkUserId");
-  if (!uid) throw new Error("Missing userId (header x-user-id or x-clerk-user-id, or query ?userId=...)");
-  
-  // If it looks like a Clerk user ID (starts with user_ or is not a UUID format), look up the database user
-  // UUIDs are 36 characters with dashes, Clerk IDs are typically longer and start with "user_"
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
-  if (!isUUID || uid.startsWith("user_")) {
-    const dbUser = await db.query.users.findFirst({
-      where: eq(schema.users.clerkUserId, uid),
-    });
-    if (!dbUser) {
-      throw new Error(`No database user found for Clerk ID: ${uid}. Make sure the user exists in the database.`);
-    }
-    return dbUser.id;
-  }
-  
-  return uid;
-}
 
 // GET /api/dashboard/summary?range=week|day
 dashboardRoute.get("/summary", async (c) => {

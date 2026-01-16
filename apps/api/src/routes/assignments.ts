@@ -2,24 +2,9 @@ import { Hono } from 'hono';
 import { db, schema } from '../lib/db';
 import { assignments, courses } from '../../../../packages/db/src/schema';
 import { and, eq, or, sql } from 'drizzle-orm';
+import { getUserId } from '../lib/auth-utils';
 
 export const assignmentsRoute = new Hono();
-
-// Helper to get userId
-async function getUserId(c: any): Promise<string | null> {
-  const clerkUserId = c.req.header('x-clerk-user-id');
-  if (!clerkUserId) {
-    console.error('[Assignments API] Missing x-clerk-user-id header');
-    return null;
-  }
-
-  const { users } = await import('../../../../packages/db/src/schema');
-  const user = await db.query.users.findFirst({
-    where: eq(users.clerkUserId, clerkUserId)
-  });
-
-  return user?.id || null;
-}
 
 /**
  * POST /api/assignments/quick-add
