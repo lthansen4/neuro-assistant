@@ -299,7 +299,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Bento Grid (Bottom) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8">
             <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full">
               <div className="flex flex-col md:flex-row gap-8">

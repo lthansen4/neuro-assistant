@@ -65,7 +65,7 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
 
   if (!stats) {
     return (
-      <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full flex flex-col justify-center items-center text-center space-y-2">
+      <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft flex flex-col justify-center items-center text-center space-y-2">
         <h3 className="card-title text-brand-text italic">
           {range === "day" ? "Daily" : "Weekly"} Focus
         </h3>
@@ -79,7 +79,7 @@ export function ProductivitySummary({ daily, weekly, range }: ProductivitySummar
   const bgColor = "#F6F2EA"; // brand-surface-2
 
   return (
-    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft hover:shadow-2xl transition-all duration-500 group h-full flex flex-col justify-between">
+    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft hover:shadow-2xl transition-all duration-500 group flex flex-col justify-between">
       <div className="flex flex-col items-center">
         <div className="w-full flex justify-between items-center mb-6">
           <h3 className="card-title text-brand-text italic">{stats.label}</h3>

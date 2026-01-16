@@ -16,7 +16,7 @@ interface StreakBadgeProps {
 export function StreakBadge({ streak }: StreakBadgeProps) {
   if (!streak) {
     return (
-      <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full flex flex-col justify-center text-center space-y-2">
+      <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft flex flex-col justify-center text-center space-y-2">
         <h3 className="card-title text-brand-text italic">Momentum</h3>
         <p className="text-brand-muted font-medium text-sm italic">Start your streak today! 🔥</p>
       </div>
@@ -28,7 +28,7 @@ export function StreakBadge({ streak }: StreakBadgeProps) {
     : false;
 
   return (
-    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full space-y-8 group">
+    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft space-y-8 group">
       <div className="flex items-center justify-between">
         <h3 className="card-title text-brand-text italic flex items-center gap-2">
           Streak {isActive && <span className="animate-bounce">🔥</span>}

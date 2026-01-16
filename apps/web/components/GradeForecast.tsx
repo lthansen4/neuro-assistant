@@ -18,7 +18,7 @@ interface GradeForecastProps {
 export function GradeForecast({ forecasts }: GradeForecastProps) {
   if (forecasts.length === 0) {
     return (
-      <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full flex flex-col justify-center text-center space-y-2">
+      <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft flex flex-col justify-center text-center space-y-2">
         <h3 className="card-title text-brand-text italic">Grade Radar</h3>
         <p className="text-brand-muted font-medium text-sm italic">No forecasts available yet 📉</p>
       </div>
@@ -32,7 +32,7 @@ export function GradeForecast({ forecasts }: GradeForecastProps) {
   };
 
   return (
-    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full space-y-8">
+    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft space-y-8">
       <div className="flex items-center justify-between">
         <h3 className="card-title text-brand-text italic">Grade Radar</h3>
         <span className="meta-label text-brand-muted">Projected</span>

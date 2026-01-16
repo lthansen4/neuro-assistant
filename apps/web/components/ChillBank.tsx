@@ -157,7 +157,7 @@ export function ChillBank({
   }, [chillRunning, chillRemainingSec, chillDurationSec]);
 
   return (
-    <div className="bg-brand-surface p-10 rounded-[2.5rem] cozy-border shadow-soft hover:shadow-2xl transition-all duration-500 group h-full flex flex-col justify-between">
+    <div className="bg-brand-surface p-10 rounded-[2.5rem] cozy-border shadow-soft hover:shadow-2xl transition-all duration-500 group flex flex-col justify-between">
       <div className="flex flex-col items-center">
         <div className="w-full flex justify-between items-center mb-6">
           <h3 className="card-title text-brand-text italic">Chill Bank</h3>

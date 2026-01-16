@@ -19,7 +19,7 @@ export function StuckRadar({ assignments }: StuckRadarProps) {
   const stuckItems = assignments.filter(a => (a.deferralCount || 0) >= 3 || a.isStuck);
 
   return (
-    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full space-y-6">
+    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft space-y-6">
       <div className="flex items-center gap-3">
         <GessoIcon type="brick" size={24} className="text-category-wall-fg" />
         <h3 className="card-title text-brand-text italic">Stuck Radar</h3>

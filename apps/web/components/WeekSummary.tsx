@@ -12,7 +12,7 @@ export function WeekSummary({ completedCount, totalScheduled }: WeekSummaryProps
   const percentage = totalScheduled > 0 ? Math.round((completedCount / totalScheduled) * 100) : 0;
 
   return (
-    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full space-y-6">
+    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft space-y-6">
       <div className="space-y-1">
         <h3 className="card-title text-brand-text italic">This Week</h3>
         <p className="meta-label text-brand-muted">The progress report</p>
