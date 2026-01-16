@@ -157,61 +157,61 @@ export function ChillBank({
   }, [chillRunning, chillRemainingSec, chillDurationSec]);
 
   return (
-    <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft hover:shadow-2xl transition-all duration-500 group h-full flex flex-col justify-between">
+    <div className="bg-brand-surface p-10 rounded-[2.5rem] cozy-border shadow-soft hover:shadow-2xl transition-all duration-500 group h-full flex flex-col justify-between">
       <div className="flex flex-col items-center">
         <div className="w-full flex justify-between items-center mb-6">
           <h3 className="card-title text-brand-text italic">Chill Bank</h3>
           <span className="meta-label text-brand-muted">Rest Balance</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-          <div className="flex flex-col items-center gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full">
+          <div className="flex flex-col items-center gap-5">
             <CircularProgress
               value={focusElapsedSec % 60}
               max={60}
-              size={140}
-              strokeWidth={12}
-              color={focusColor}
-              backgroundColor="#F6F2EA"
+              size={160}
+              strokeWidth={10}
+              color={`${focusColor}AA`}
+              backgroundColor="rgba(109,94,247,0.12)"
             >
               <div className="flex flex-col items-center">
-                <span className="text-2xl font-serif font-black text-brand-text tracking-tighter">
+                <span className="text-3xl font-serif font-black text-brand-text tracking-tighter">
                   {focusRunning ? `${focusMinutes}m` : "0m"}
                 </span>
-                <span className="meta-label text-brand-muted mt-1">
+                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-brand-muted mt-2">
                   Focus
                 </span>
               </div>
             </CircularProgress>
             <Button
               onClick={focusRunning ? stopFocus : startFocus}
-              className="rounded-full px-6 py-2 text-[11px] font-black uppercase tracking-[0.2em]"
+              className="rounded-full px-8 py-3 text-[11px] font-black uppercase tracking-[0.2em] bg-brand-primary text-white shadow-soft hover:brightness-110"
             >
               {focusRunning ? "Stop" : "Lock In"}
             </Button>
           </div>
 
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex flex-col items-center gap-5">
             <CircularProgress
               value={chillRunning ? chillRemainingSec : Math.max(0, Math.floor(available) * 60)}
               max={Math.max(1, Math.floor(available) * 60)}
-              size={140}
-              strokeWidth={12}
-              color={progressColor}
+              size={160}
+              strokeWidth={10}
+              color="rgba(240,138,93,0.75)"
               backgroundColor={bgColor}
             >
               <div className="flex flex-col items-center">
-                <span className="text-2xl font-serif font-black text-brand-text tracking-tighter">
+                <span className="text-3xl font-serif font-black text-brand-text tracking-tighter">
                   {chillRunning ? formatClock(chillRemainingSec) : `${Math.floor(available)}m`}
                 </span>
-                <span className="meta-label text-brand-muted mt-1">
+                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-brand-muted mt-2">
                   Chill
                 </span>
               </div>
             </CircularProgress>
             <Button
               onClick={chillRunning ? () => stopChill(false) : startChill}
-              className="rounded-full px-6 py-2 text-[11px] font-black uppercase tracking-[0.2em]"
+              className="rounded-full px-8 py-3 text-[11px] font-black uppercase tracking-[0.2em] bg-brand-surface-2 text-brand-text shadow-soft hover:brightness-105"
               disabled={!chillRunning && Math.floor(available) <= 0}
             >
               {chillRunning ? "Stop" : "Redeem"}
