@@ -278,91 +278,16 @@ Be realistic about duration estimates:
     // Generate context-aware smart questions using AI
     let smartQuestions: any[] = [];
     try {
-      const eventsText = upcomingEvents && upcomingEvents.length > 0
-        ? upcomingEvents.map(e => {
-            try {
-              return `- ${e.category || 'Event'}: ${e.title || 'Untitled'} on ${DateTime.fromJSDate(e.startAt).setZone(userTz).toFormat('EEE MMM d, h:mm a')}`;
-            } catch {
-              return `- ${e.category || 'Event'}: ${e.title || 'Untitled'}`;
-            }
-          }).join('\n')
-        : '- No upcoming events';
-
-      const assignmentsText = pendingAssignments && pendingAssignments.length > 0
-        ? pendingAssignments.map(a => {
-            try {
-              return `- ${a.title || 'Untitled'} (${a.category || 'Assignment'}) due ${a.dueAt ? DateTime.fromJSDate(a.dueAt).setZone(userTz).toFormat('EEE MMM d') : 'TBD'} - ${a.estimatedDuration || 60}min`;
-            } catch {
-              return `- ${a.title || 'Untitled'} (${a.category || 'Assignment'})`;
-            }
-          }).join('\n')
-        : '- No pending assignments';
-
-      const contextSummary = `
-Upcoming Events (next 7 days):
-${eventsText}
-
-Pending Assignments (next 7 days):
-${assignmentsText}
-
-Current Assignment:
-- Title: ${object.title}
-- Category: ${object.category}
-- Due: ${dueAt ? DateTime.fromISO(dueAt).setZone(userTz).toFormat('EEE MMM d, h:mm a') : 'Not specified'}
-- Estimated: ${object.estimated_duration} minutes
-`;
-
-      const { object: questions } = await generateObject({
-        model: openai("gpt-4o-mini"),
-        schema: z.object({
-          questions: z.array(z.object({
-            id: z.string(),
-            text: z.string().describe("Question to ask user"),
-            type: z.enum(["text", "number", "select", "boolean"]),
-            options: z.array(z.string()).describe("2-4 suggested answer options (ALWAYS provide these, user can also choose 'Other')"),
-            reasoning: z.string().describe("Why this question helps scheduling"),
-          })),
-        }),
-        prompt: `You're a smart scheduling assistant for an ADHD student. Based on their context, generate 2-3 highly relevant questions that will help you schedule this assignment optimally.
-
-${contextSummary}
-
-IMPORTANT: For EVERY question, provide 2-4 suggested answer options. The UI will show these in a dropdown with "Other" as the last option.
-If you ask about splitting work time, make options that match the estimated duration.
-Example: if estimated duration is 90 minutes, options should sum to ~90 minutes (e.g., "One go (90 minutes)", "Two sessions (45 minutes each)", "Three sessions (30 minutes each)").
-
-Generate questions that are:
-1. SPECIFIC to their context (reference specific events/deadlines you see)
-2. ACTIONABLE (answers directly improve scheduling)
-3. BRIEF (one sentence max)
-4. Include 2-4 helpful answer options for each
-
-Examples of GOOD context-aware questions:
-
-Q: "You have a Bio exam Tuesday - should we finish this before then?"
-Options: ["Yes, before the exam", "No, after the exam", "During exam prep (multitask)"]
-
-Q: "How difficult is this compared to your Math homework due Thursday?"
-Options: ["Much easier", "About the same", "Harder", "Much harder"]
-
-Q: "You're free Wednesday afternoon - is that a good time to work on this?"
-Options: ["Yes, perfect", "No, prefer morning", "No, prefer evening"]
-
-Q: "How many problems/pages/questions is this?"
-Options: ["1-5", "6-10", "11-20", "20+"]
-
-Q: "Do you want to tackle this in one go or split it up?"
-Options: ["One go (90 minutes)", "Two sessions (45 minutes each)", "Three sessions (30 minutes each)"]
-
-Examples of BAD questions:
-- No options provided (always provide options!)
-- Too vague: "How much work is this?"
-- Defeats purpose: "When do you want to do this?"
-
-Generate 2-3 questions with OPTIONS that USE THE CONTEXT you see above.`,
+      smartQuestions = await buildSmartQuestions({
+        userId,
+        userTz,
+        title: object.title,
+        category: object.category,
+        dueAt,
+        estimatedDuration: object.estimated_duration,
+        upcomingEvents,
+        pendingAssignments,
       });
-
-      smartQuestions = questions.questions;
       console.log(`[QuickAdd] Generated ${smartQuestions.length} smart questions`);
     } catch (e) {
       console.error("[QuickAdd] Failed to generate smart questions:", e);
@@ -501,6 +426,46 @@ Generate 2-3 questions with OPTIONS that USE THE CONTEXT you see above.`,
   } catch (e: any) {
     console.error("[QuickAdd Parse Error]", e);
     return c.json({ error: e.message || "Failed to parse input" }, 400);
+  }
+});
+
+// POST /api/quick-add/questions
+// body: { assignment_draft, user_tz? }
+// returns: { smart_questions }
+quickAddRoute.post("/questions", async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const body = await c.req.json<{
+      assignment_draft: {
+        title: string;
+        category?: string;
+        due_at?: string | null;
+        estimated_duration?: number | null;
+      };
+      user_tz?: string;
+    }>();
+
+    if (!body?.assignment_draft?.title) {
+      return c.json({ error: "assignment_draft.title is required" }, 400);
+    }
+
+    const userTz = body.user_tz || "America/Chicago";
+    const draft = body.assignment_draft;
+    const smartQuestions = await buildSmartQuestions({
+      userId,
+      userTz,
+      title: draft.title,
+      category: draft.category,
+      dueAt: draft.due_at || null,
+      estimatedDuration: draft.estimated_duration || null,
+      upcomingEvents: [],
+      pendingAssignments: [],
+    });
+
+    return c.json({ smart_questions: smartQuestions });
+  } catch (e: any) {
+    console.error("[QuickAdd Questions Error]", e);
+    return c.json({ error: e.message }, 400);
   }
 });
 
@@ -1184,6 +1149,112 @@ interface ChunkOptions {
   difficulty?: 'low' | 'medium' | 'high';
   interest?: 'low' | 'medium' | 'high';
   category?: string;
+}
+
+async function buildSmartQuestions({
+  userId,
+  userTz,
+  title,
+  category,
+  dueAt,
+  estimatedDuration,
+  upcomingEvents,
+  pendingAssignments,
+}: {
+  userId: string;
+  userTz: string;
+  title: string;
+  category?: string | null;
+  dueAt: string | null;
+  estimatedDuration?: number | null;
+  upcomingEvents: Array<{ title: string; category: string; startAt: Date; endAt: Date }>;
+  pendingAssignments: Array<{ title: string; category: string | null; dueAt: Date | null; estimatedDuration: number | null }>;
+}): Promise<any[]> {
+  const eventsText = upcomingEvents && upcomingEvents.length > 0
+    ? upcomingEvents.map(e => {
+        try {
+          return `- ${e.category || 'Event'}: ${e.title || 'Untitled'} on ${DateTime.fromJSDate(e.startAt).setZone(userTz).toFormat('EEE MMM d, h:mm a')}`;
+        } catch {
+          return `- ${e.category || 'Event'}: ${e.title || 'Untitled'}`;
+        }
+      }).join('\n')
+    : '- No upcoming events';
+
+  const assignmentsText = pendingAssignments && pendingAssignments.length > 0
+    ? pendingAssignments.map(a => {
+        try {
+          return `- ${a.title || 'Untitled'} (${a.category || 'Assignment'}) due ${a.dueAt ? DateTime.fromJSDate(a.dueAt).setZone(userTz).toFormat('EEE MMM d') : 'TBD'} - ${a.estimatedDuration || 60}min`;
+        } catch {
+          return `- ${a.title || 'Untitled'} (${a.category || 'Assignment'})`;
+        }
+      }).join('\n')
+    : '- No pending assignments';
+
+  const contextSummary = `
+Upcoming Events (next 7 days):
+${eventsText}
+
+Pending Assignments (next 7 days):
+${assignmentsText}
+
+Current Assignment:
+- Title: ${title}
+- Category: ${category || 'Homework'}
+- Due: ${dueAt ? DateTime.fromISO(dueAt).setZone(userTz).toFormat('EEE MMM d, h:mm a') : 'Not specified'}
+- Estimated: ${estimatedDuration || 60} minutes
+`;
+
+  const { object: questions } = await generateObject({
+    model: openai("gpt-4o-mini"),
+    schema: z.object({
+      questions: z.array(z.object({
+        id: z.string(),
+        text: z.string().describe("Question to ask user"),
+        type: z.enum(["text", "number", "select", "boolean"]),
+        options: z.array(z.string()).describe("2-4 suggested answer options (ALWAYS provide these, user can also choose 'Other')"),
+        reasoning: z.string().describe("Why this question helps scheduling"),
+      })),
+    }),
+    prompt: `You're a smart scheduling assistant for an ADHD student. Based on their context, generate 2-3 highly relevant questions that will help you schedule this assignment optimally.
+
+${contextSummary}
+
+IMPORTANT: For EVERY question, provide 2-4 suggested answer options. The UI will show these in a dropdown with "Other" as the last option.
+If you ask about splitting work time, make options that match the estimated duration.
+Example: if estimated duration is 90 minutes, options should sum to ~90 minutes (e.g., "One go (90 minutes)", "Two sessions (45 minutes each)", "Three sessions (30 minutes each)").
+
+Generate questions that are:
+1. SPECIFIC to their context (reference specific events/deadlines you see)
+2. ACTIONABLE (answers directly improve scheduling)
+3. BRIEF (one sentence max)
+4. Include 2-4 helpful answer options for each
+
+Examples of GOOD context-aware questions:
+
+Q: "You have a Bio exam Tuesday - should we finish this before then?"
+Options: ["Yes, before the exam", "No, after the exam", "During exam prep (multitask)"]
+
+Q: "How difficult is this compared to your Math homework due Thursday?"
+Options: ["Much easier", "About the same", "Harder", "Much harder"]
+
+Q: "You're free Wednesday afternoon - is that a good time to work on this?"
+Options: ["Yes, perfect", "No, prefer morning", "No, prefer evening"]
+
+Q: "How many problems/pages/questions is this?"
+Options: ["1-5", "6-10", "11-20", "20+"]
+
+Q: "Do you want to tackle this in one go or split it up?"
+Options: ["One go (90 minutes)", "Two sessions (45 minutes each)", "Three sessions (30 minutes each)"]
+
+Examples of BAD questions:
+- No options provided (always provide options!)
+- Too vague: "How much work is this?"
+- Defeats purpose: "When do you want to do this?"
+
+Generate 2-3 questions with OPTIONS that USE THE CONTEXT you see above.`,
+  });
+
+  return questions.questions || [];
 }
 
 // Helper function to find the first available time slot (avoids conflicts)

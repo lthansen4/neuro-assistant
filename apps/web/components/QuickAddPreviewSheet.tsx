@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -36,6 +36,68 @@ export function QuickAddPreviewSheet({
   const [editedDraft, setEditedDraft] = useState(parseResult?.assignment_draft);
   const [editedFocusDraft, setEditedFocusDraft] = useState(parseResult?.focus_block_draft);
   const [smartAnswers, setSmartAnswers] = useState<Record<string, any>>({});
+  const [smartQuestions, setSmartQuestions] = useState<any[]>(parseResult?.smart_questions || []);
+  const [isRegeneratingQuestions, setIsRegeneratingQuestions] = useState(false);
+  const lastDurationRef = useRef<number | null>(editedDraft?.estimated_duration ?? null);
+
+  useEffect(() => {
+    setEditedDraft(parseResult?.assignment_draft);
+    setEditedFocusDraft(parseResult?.focus_block_draft);
+    setSmartQuestions(parseResult?.smart_questions || []);
+    setSmartAnswers({});
+    lastDurationRef.current = parseResult?.assignment_draft?.estimated_duration ?? null;
+  }, [parseResult]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const duration = editedDraft?.estimated_duration;
+    if (!duration || duration <= 0) return;
+    if (duration === lastDurationRef.current) return;
+
+    const timer = setTimeout(async () => {
+      setIsRegeneratingQuestions(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/quick-add/questions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-clerk-user-id": userId,
+          },
+          body: JSON.stringify({
+            assignment_draft: {
+              title: editedDraft?.title,
+              category: editedDraft?.category,
+              due_at: editedDraft?.due_at,
+              estimated_duration: duration,
+            },
+            user_tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.smart_questions)) {
+            setSmartQuestions(data.smart_questions);
+            setSmartAnswers({});
+          }
+        }
+      } catch (error) {
+        console.error("[QuickAddPreviewSheet] Failed to regenerate questions:", error);
+      } finally {
+        setIsRegeneratingQuestions(false);
+        lastDurationRef.current = duration;
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    editedDraft?.estimated_duration,
+    editedDraft?.title,
+    editedDraft?.category,
+    editedDraft?.due_at,
+    isOpen,
+    userId
+  ]);
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
@@ -344,12 +406,17 @@ export function QuickAddPreviewSheet({
           )}
 
           {/* Smart Context-Aware Questions */}
-          {parseResult?.smart_questions && parseResult.smart_questions.length > 0 && (
+          {smartQuestions && smartQuestions.length > 0 && (
             <SmartQuestions
-              questions={parseResult.smart_questions}
+              questions={smartQuestions}
               answers={smartAnswers}
               onAnswersChange={setSmartAnswers}
             />
+          )}
+          {isRegeneratingQuestions && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Updating questions based on your changes...
+            </p>
           )}
 
           {/* Optional Description */}
