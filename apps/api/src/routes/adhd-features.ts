@@ -133,36 +133,59 @@ app.get('/breakdown-questions/:id', async (c) => {
           reasoning: z.string().describe('Why this question helps break down the task')
         }))
       }),
-      prompt: `You're helping an ADHD student break down a task that feels overwhelming. Generate 2-4 specific questions to understand the task better so you can create a helpful step-by-step checklist.
+      prompt: `You're an executive function coach helping a neurodivergent college student who's stuck on a task. They've deferred this ${assignment.deferralCount || 0} times, which means something is blocking them. Your job is to identify the EXACT friction point.
 
-Assignment: ${assignment.title}
-Category: ${assignment.category || 'Unknown'}
-Due Date: ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'Not specified'}
+**Assignment:** ${assignment.title}
+**Category:** ${assignment.category || 'Unknown'}
+**Due Date:** ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'Not specified'}
+**Time Estimated:** ${assignment.effortEstimateMinutes ? `${assignment.effortEstimateMinutes} minutes` : 'Unknown'}
 
-IMPORTANT RULES:
-1. Ask specific, concrete questions - NOT vague ones like "How much work is this?"
-2. For homework/problem sets: Ask HOW MANY problems/questions (this is critical!)
-3. For essays/papers: Ask about length, structure, and what they need to write
-4. For reading: Ask how many pages and if they need to take notes
-5. Keep questions friendly and teenager-appropriate - use casual language
-6. Questions should be open-ended so students can give exact answers without being forced into categories
+**YOUR GOAL:** Generate 3-5 diagnostic questions that identify WHY they're stuck. Common barriers:
+1. **Vague instructions** - They don't know what "good" looks like
+2. **Missing prerequisites** - They need something they don't have yet (notes, materials, info)
+3. **Unclear first step** - They don't know how to START
+4. **Hidden complexity** - The task is actually 5 tasks disguised as one
+5. **Emotional block** - It feels high-stakes or they're afraid of failure
 
-Example GOOD questions for "Math homework":
-- "How many problems do you need to do?"
-- "What topic/chapter is this covering? (e.g., 'Chapter 7 - Quadratic Equations')"
-- "Do you have notes or examples you can reference, or will you need to look things up?"
+**QUESTION STRATEGY:**
+- Start with scope questions (concrete deliverables)
+- Then ask about barriers (what's missing or unclear)
+- End with action questions (what's the smallest first step)
 
-Example GOOD questions for "Essay":
-- "How many pages or words does it need to be?"
-- "What's the topic or prompt for this essay?"
-- "Do you already have a thesis/main idea, or do you need to brainstorm that first?"
+**CATEGORY-SPECIFIC QUESTIONS:**
 
-Example BAD questions:
-- "How difficult is this?" (too vague)
-- "When do you want to work on this?" (defeats the purpose)
-- "Do you want to break this down?" (we already know they do!)
+**For Homework/Problem Sets:**
+- "How many problems total? (e.g., '15 problems from pages 82-84')"
+- "Do you have worked examples for this type of problem, or are you starting from scratch?"
+- "Which problems look straightforward vs which ones look confusing?"
 
-Generate questions that will help you create a realistic, specific checklist.`
+**For Essays/Papers:**
+- "How many pages/words? What's the exact prompt or thesis?"
+- "Do you have a thesis/argument already, or do you need to brainstorm that first?"
+- "What part feels most unclear - the argument, the structure, or finding sources?"
+
+**For Reading:**
+- "How many pages? Do you need to annotate, take notes, or just read?"
+- "Are you reading to understand concepts, or reading to find specific info for an assignment?"
+
+**For Projects/Labs:**
+- "What's the final deliverable? (e.g., 'working code', 'lab report', 'presentation')"
+- "Do you have all the materials/access you need, or is something missing?"
+- "What's the first 10-minute task you could do to make progress?"
+
+**For Exams/Studying:**
+- "What topics/chapters are on the exam? How many total concepts?"
+- "Do you have study materials (notes, practice problems, old exams), or do you need to create them?"
+- "What part feels shakiest - memorization, understanding, or applying concepts?"
+
+**CRITICAL RULES:**
+1. Ask CONCRETE questions with numbers/specifics (not "How hard is this?")
+2. Identify missing materials/info (huge ADHD blocker)
+3. Ask about the FIRST step, not the whole thing
+4. Avoid motivational fluff - be practical and direct
+5. If the task feels huge, ask: "What's the smallest chunk you could finish in 20 minutes?"
+
+Generate 3-5 questions that will actually help you create a realistic breakdown.`
     });
     
     console.log('[ADHD] Generated questions:', object.questions);
@@ -668,10 +691,61 @@ app.post('/complete/:assignmentId', async (c) => {
     
     console.log(`[ADHD Complete] ✅ Marked ${completedEventCount} calendar event(s) as complete`);
     
+    // 🎯 TIME TRACKING: Calculate actual time spent
+    // Sum up all focus session durations for this assignment
+    const focusSessions = await db.query.sessions.findMany({
+      where: and(
+        eq(schema.sessions.userId, userId),
+        eq(schema.sessions.type, 'Focus')
+      )
+    });
+    
+    // Calculate actual time from focus sessions for this assignment
+    let actualMinutes = 0;
+    for (const session of focusSessions) {
+      // Check if session was for this assignment (metadata might have assignmentId)
+      const sessionMeta = session.metadata as any;
+      if (sessionMeta?.assignmentId === assignmentId || sessionMeta?.linkedAssignmentId === assignmentId) {
+        actualMinutes += session.durationMinutes;
+      }
+    }
+    
+    // If no focus sessions found, estimate based on time from creation to completion
+    if (actualMinutes === 0 && assignment.createdAt) {
+      const createdAt = new Date(assignment.createdAt);
+      const completedAt = new Date();
+      const daysDiff = Math.max(1, Math.round((completedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+      // Rough heuristic: assume 30-60 min per day worked on it
+      actualMinutes = Math.min(daysDiff * 45, (assignment.effortEstimateMinutes || 60) * 2);
+    }
+    
+    // Log time tracking data
+    try {
+      await db.insert(schema.assignmentTimeLogs).values({
+        userId,
+        assignmentId,
+        courseId: assignment.courseId || null,
+        title: assignment.title,
+        category: assignment.category || null,
+        estimatedMinutes: assignment.effortEstimateMinutes || null,
+        actualMinutes,
+        completedAt: new Date()
+      } as any);
+      
+      console.log(`[ADHD Complete] 📊 Time tracking logged: ${assignment.title} - Est: ${assignment.effortEstimateMinutes || 'N/A'} min, Actual: ${actualMinutes} min`);
+    } catch (timeLogError) {
+      console.error('[ADHD Complete] Failed to log time tracking (non-fatal):', timeLogError);
+      // Don't fail the completion if time tracking fails
+    }
+    
     return c.json({ 
       ok: true, 
       completedAt: new Date(),
-      completedEvents: completedEventCount 
+      completedEvents: completedEventCount,
+      timeTracked: {
+        estimated: assignment.effortEstimateMinutes || null,
+        actual: actualMinutes
+      }
     });
   } catch (error: any) {
     console.error('[ADHD Complete] Error:', error);

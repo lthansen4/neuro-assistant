@@ -365,6 +365,26 @@ export const quickAddLogs = pgTable("quick_add_logs", {
   idx_dedupe: uniqueIndex("idx_quick_add_dedupe").on(t.userId, t.dedupeHash).where(sql`dedupe_hash IS NOT NULL`)
 }));
 
+// Assignment Time Tracking (Migration 0031): Learn from actual vs estimated time
+export const assignmentTimeLogs = pgTable("assignment_time_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  assignmentId: uuid("assignment_id").references(() => assignments.id, { onDelete: "cascade" }).notNull(),
+  courseId: uuid("course_id").references(() => courses.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  category: text("category"),
+  estimatedMinutes: integer("estimated_minutes"),
+  actualMinutes: integer("actual_minutes").notNull(),
+  accuracyRatio: numeric("accuracy_ratio", { precision: 5, scale: 2 }), // auto-calculated
+  completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  idx_user: index("idx_time_logs_user").on(t.userId),
+  idx_user_category: index("idx_time_logs_user_category").on(t.userId, t.category),
+  idx_user_course: index("idx_time_logs_user_course").on(t.userId, t.courseId),
+  idx_completed: index("idx_time_logs_completed").on(t.completedAt)
+}));
+
 // Rebalancing Engine: Proposals (Migration 0013_5)
 export const rebalancingProposals = pgTable("rebalancing_proposals", {
   id: uuid("id").primaryKey().defaultRandom(),
