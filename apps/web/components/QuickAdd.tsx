@@ -8,6 +8,15 @@ type Suggestion =
   | { type: "alias"; label: string; courseId: string; confidence: number }
   | { type: "course"; label: string; courseId: string; confidence: number };
 
+type FocusBlockDraft = {
+  title: string;
+  start_at: string;
+  duration_minutes: number;
+  category: string;
+  chunked: boolean;
+  chunks?: Array<{ title: string; start_at: string; duration_minutes: number }> | null;
+};
+
 type ParseResponse = {
   parsed: {
     courseHint: string;
@@ -17,6 +26,7 @@ type ParseResponse = {
     effortMinutes?: number;
     confidence: number;
   };
+  focus_block_draft?: FocusBlockDraft | null;
   suggestions: Suggestion[];
   dedupeHash: string;
   confidence: number;
@@ -67,6 +77,18 @@ export function QuickAdd() {
     setCategory(p.category || "");
     setDueDateISO(p.dueDateISO || "");
     setEffortMinutes(p.effortMinutes ?? "");
+    
+    // Auto-fill focus session from AI's intelligent scheduling
+    if (parseRes.focus_block_draft) {
+      const fb = parseRes.focus_block_draft;
+      setCreateFocusSession(true);
+      setSessionStartISO(fb.start_at);
+      // Calculate end time from start + duration
+      const startDate = new Date(fb.start_at);
+      const endDate = new Date(startDate.getTime() + fb.duration_minutes * 60000);
+      setSessionEndISO(endDate.toISOString());
+    }
+    
     // auto-pick best suggestion if it's confident
     if (parseRes.suggestions?.length) {
       const best = [...parseRes.suggestions].sort((a, b) => b.confidence - a.confidence)[0];
@@ -301,6 +323,24 @@ export function QuickAdd() {
               />
               Create a Focus session
             </label>
+            
+            {/* AI Scheduling Suggestion */}
+            {parseRes.focus_block_draft && (
+              <div className="bg-brand-mint/10 border border-brand-mint/20 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-brand-mint text-lg">✨</span>
+                  <p className="text-sm font-semibold text-brand-text">AI Scheduling Suggestion</p>
+                </div>
+                <p className="text-sm text-brand-muted">
+                  {parseRes.focus_block_draft.chunked ? (
+                    <>I've broken this into {parseRes.focus_block_draft.chunks?.length} work sessions to avoid overwhelm.</>
+                  ) : (
+                    <>I found a {parseRes.focus_block_draft.duration_minutes}min slot at {new Date(parseRes.focus_block_draft.start_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</>
+                  )}
+                </p>
+              </div>
+            )}
+            
             {createFocusSession && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
