@@ -52,6 +52,7 @@ export default function DashboardPage() {
   const [range, setRange] = useState<"day" | "week">("week");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [topTab, setTopTab] = useState<"top" | "all">("top");
 
   const loadDashboard = async (showLoader = true) => {
     if (!user) return;
@@ -137,14 +138,13 @@ export default function DashboardPage() {
     status: a.status,
   }));
 
-  const [topTab, setTopTab] = useState<"top" | "all">("top");
   const allAssignments = (() => {
     const merged = [
       ...(data.assignments?.scheduled || []),
       ...(data.assignments?.inbox || []),
       ...(data.assignments?.completed || []),
     ];
-    const seen = new Map<string, any>();
+    const seen = new Map<string, Assignment>();
     for (const item of merged) {
       if (!seen.has(item.id)) seen.set(item.id, item);
     }
