@@ -5,7 +5,10 @@ import { CalendarLegend } from "../../../components/CalendarLegend";
 import { ProposalPanel } from "../../../components/ProposalPanel";
 import { StuckAssignmentModal } from "../../../components/StuckAssignmentModal";
 import { OptimizeScheduleButton } from "../../../components/OptimizeScheduleButton";
+import { QuickAddInput } from "../../../components/QuickAddInput";
 import { useUser } from "@clerk/nextjs";
+import { cn } from "../../../lib/utils";
+import { BentoTileSkeleton } from "../../../components/ui/Skeleton";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
@@ -20,19 +23,6 @@ export default function CalendarPage() {
   const [stuckAssignmentId, setStuckAssignmentId] = useState<string | null>(null);
   const [stuckEventId, setStuckEventId] = useState<string | null>(null);
 
-  console.log('[CalendarPage] Render state:', { isLoaded, hasUser: !!user, userId: user?.id });
-  
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:RENDER',message:'CalendarPage render',data:{stuckModalOpen,stuckAssignmentId,isLoaded,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H,I'})}).catch(()=>{});
-  // #endregion
-  
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:STATE_EFFECT',message:'Stuck modal state changed',data:{stuckModalOpen,stuckAssignmentId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H,I'})}).catch(()=>{});
-  }, [stuckModalOpen, stuckAssignmentId]);
-  // #endregion
-
-  // Clear error when user loads
   useEffect(() => {
     if (isLoaded && user?.id) {
       setError("");
@@ -41,42 +31,27 @@ export default function CalendarPage() {
     }
   }, [isLoaded, user?.id]);
 
-  // Listen for optimization ready events (from Quick Add auto-trigger)
   useEffect(() => {
     const handleOptimizationReady = (event: any) => {
-      const { movesCount, reason } = event.detail;
-      console.log('[Calendar] Optimization ready:', movesCount, 'moves,', reason);
-      
-      // Refresh proposal state and show banner
       checkForProposal();
-      
-      // Optionally auto-open the panel (can be disabled if too intrusive)
-      // setProposalPanelOpen(true);
     };
-    
     window.addEventListener('optimizationReady', handleOptimizationReady as EventListener);
     return () => window.removeEventListener('optimizationReady', handleOptimizationReady as EventListener);
   }, []);
 
-  // Check for applied proposal periodically (every minute)
   useEffect(() => {
     if (!user?.id) return;
-    
     const interval = setInterval(() => {
       checkForAppliedProposal();
-    }, 60 * 1000); // Check every minute
-    
+    }, 60 * 1000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
-  // Check for existing proposal
   async function checkForProposal() {
     if (!user?.id) return;
     try {
       const res = await fetch(`${API_BASE}/api/rebalancing/proposals`, {
-        headers: {
-          "x-clerk-user-id": user.id,
-        },
+        headers: { "x-clerk-user-id": user.id },
       });
       if (res.ok) {
         const data = await res.json();
@@ -87,14 +62,11 @@ export default function CalendarPage() {
     }
   }
 
-  // Check for applied proposal (for undo option)
   async function checkForAppliedProposal() {
     if (!user?.id) return;
     try {
       const res = await fetch(`${API_BASE}/api/rebalancing/applied`, {
-        headers: {
-          "x-clerk-user-id": user.id,
-        },
+        headers: { "x-clerk-user-id": user.id },
       });
       if (res.ok) {
         const data = await res.json();
@@ -112,68 +84,8 @@ export default function CalendarPage() {
     }
   }
 
-  async function handleRebalance() {
-    if (!user?.id) return;
-    
-    try {
-      console.log("[Calendar] Generating new proposal...");
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'calendar/page.tsx:REBALANCE_START',message:'Rebalance clicked',data:{userId:user.id.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      
-      // Clear any existing applied proposal state
-      setAppliedProposal(null);
-      
-      // Generate a new proposal
-      const res = await fetch(`${API_BASE}/api/rebalancing/propose`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-clerk-user-id": user.id,
-        },
-        body: JSON.stringify({ energyLevel: 5 }), // Default energy level
-      });
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'calendar/page.tsx:REBALANCE_RESPONSE',message:'Response received',data:{ok:res.ok,status:res.status,contentType:res.headers.get('content-type')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D,E'})}).catch(()=>{});
-      // #endregion
-
-      if (!res.ok) {
-        const responseText = await res.text();
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'calendar/page.tsx:REBALANCE_NOT_OK',message:'Response not ok',data:{status:res.status,responseText:responseText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(()=>{});
-        // #endregion
-        const data = await res.json();
-        throw new Error(data.error || "Failed to generate proposal");
-      }
-
-      const data = await res.json();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'calendar/page.tsx:REBALANCE_SUCCESS',message:'Proposal data parsed',data:{ok:data.ok,movesCount:data.moves_count},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      if (data.ok) {
-        setHasProposal(true);
-        console.log("[Calendar] Opening panel in 'propose' mode");
-        setProposalPanelOpen(true);
-        // Panel will open in 'propose' mode and fetch the new proposal
-      }
-    } catch (e: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'calendar/page.tsx:REBALANCE_CATCH',message:'Error caught',data:{error:e.message,name:e.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
-      // #endregion
-      console.error("[Calendar] Error generating proposal:", e);
-      alert(`Failed to generate proposal: ${e.message}`);
-    }
-  }
-
   async function onMove(id: string, start: Date, end: Date) {
     if (!user?.id) return;
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:ONMOVE_START',message:'onMove called',data:{id,start:start.toISOString(),end:end.toISOString(),userId:user.id.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F,G'})}).catch(()=>{});
-    // #endregion
-    
     try {
       const res = await fetch(`${API_BASE}/api/calendar/event-drop`, {
         method: "POST",
@@ -183,220 +95,171 @@ export default function CalendarPage() {
         },
         body: JSON.stringify({ id, start, end }),
       });
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:ONMOVE_RESPONSE',message:'Response received',data:{ok:res.ok,status:res.status,contentType:res.headers.get('content-type')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F,G'})}).catch(()=>{});
-      // #endregion
-      
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:ONMOVE_ERROR',message:'Response not ok',data:{status:res.status,error:data.error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
         throw new Error(data.error || "Failed to update event");
       }
-      
       const data = await res.json();
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:ONMOVE_DATA',message:'Response data parsed',data:{deferral:data.deferral,isStuckInDeferral:data.deferral?.isStuck,linkedIdInDeferral:data.deferral?.linkedAssignmentId,dataKeys:Object.keys(data)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G,H'})}).catch(()=>{});
-      // #endregion
-      
-      // Check if assignment is stuck (Wall of Awful detected)
-      // FIXED: isStuck and linkedAssignmentId are inside the deferral object
       if (data.deferral?.isStuck && data.deferral?.linkedAssignmentId) {
-        console.log('[Page] Wall of Awful detected in response:', data.deferral.linkedAssignmentId);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:ONMOVE_STUCK_DETECTED',message:'Setting stuck modal state',data:{linkedAssignmentId:data.deferral.linkedAssignmentId,eventId:id,stuckModalOpenBefore:stuckModalOpen,stuckAssignmentIdBefore:stuckAssignmentId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H'})}).catch(()=>{});
-        // #endregion
         setStuckAssignmentId(data.deferral.linkedAssignmentId);
         setStuckEventId(id);
         setStuckModalOpen(true);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:ONMOVE_STUCK_STATE_SET',message:'Stuck modal state set',data:{linkedAssignmentId:data.deferral.linkedAssignmentId,eventId:id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H'})}).catch(()=>{});
-        // #endregion
-      } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:ONMOVE_NOT_STUCK',message:'Not stuck or missing data',data:{hasDeferral:!!data.deferral,isStuck:data.deferral?.isStuck,linkedAssignmentId:data.deferral?.linkedAssignmentId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G,H'})}).catch(()=>{});
-        // #endregion
       }
-      
-      // Calendar component will automatically refresh events on next render
     } catch (e: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:ONMOVE_CATCH',message:'Error caught',data:{error:e.message,name:e.name,stack:e.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
       console.error("Error moving event:", e);
-      alert(`Failed to move event: ${e.message}`);
-      // Re-throw so Calendar.tsx can catch it and revert visual changes
       throw e;
     }
   }
 
-  if (!isLoaded || !user?.id) {
-    return (
-      <main className="p-4">
-        <h1 className="text-xl font-semibold mb-4">Calendar</h1>
-        <div className="text-center text-gray-500 py-8">Loading...</div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="p-4">
-        <h1 className="text-xl font-semibold mb-4">Calendar</h1>
-        <div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">
-          {error}
-        </div>
-      </main>
-    );
-  }
-
-  // Show loading only while Clerk is still loading
   if (!isLoaded) {
     return (
-      <main className="p-4">
-        <h1 className="text-xl font-semibold mb-4">Calendar</h1>
-        <p>Loading user...</p>
-      </main>
+      <div className="min-h-screen bg-brand-gesso">
+        <div className="fixed inset-0 gesso-texture z-0 pointer-events-none" />
+        <div className="sticky top-0 z-30 bg-brand-gesso/80 backdrop-blur-md pt-8 pb-4 px-6 md:px-12">
+          <div className="max-w-7xl mx-auto">
+            <div className="h-14 bg-white/40 rounded-[2.5rem] animate-pulse" />
+          </div>
+        </div>
+        <main className="px-6 py-12 md:px-12 md:py-16 max-w-7xl mx-auto relative z-10">
+          <div className="space-y-4 mb-12">
+            <div className="h-12 w-64 bg-brand-surface-2/60 rounded-2xl animate-pulse" />
+          </div>
+          <div className="bg-brand-surface rounded-[2.5rem] cozy-border shadow-soft h-[600px] animate-pulse" />
+        </main>
+      </div>
     );
   }
 
-  // If loaded but no user, this shouldn't happen in protected route but handle it
-  if (!user) {
-    return (
-      <main className="p-4">
-        <h1 className="text-xl font-semibold mb-4">Calendar</h1>
-        <p>Not authenticated. Redirecting...</p>
-      </main>
-    );
-  }
+  if (!user) return null;
 
   return (
-    <main className="p-4 relative">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Calendar</h1>
-          <button
-            onClick={() => setShowLegend((prev) => !prev)}
-            className="px-3 py-1 text-xs font-semibold rounded-full border border-brand-border text-brand-muted hover:text-brand-text hover:bg-brand-surface"
-          >
-            {showLegend ? "Hide legend" : "Show legend"}
-          </button>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {hasProposal && !appliedProposal && (
-            <button
-              onClick={() => setProposalPanelOpen(true)}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              View Proposals
-            </button>
-          )}
-          <OptimizeScheduleButton
-            userId={user.id}
-            onOptimizationComplete={(proposalId, movesCount) => {
-              if (movesCount > 0) {
-                console.log('[Calendar] Optimization complete, opening proposal panel');
-                // Clear any applied proposal state so we open in 'propose' mode
-                setAppliedProposal(null);
-                setHasProposal(true);
-                setProposalPanelOpen(true);
-              }
-            }}
-          />
+    <div className="min-h-screen bg-brand-gesso selection:bg-brand-primary/10 selection:text-brand-primary">
+      <div className="fixed inset-0 gesso-texture z-0 pointer-events-none" />
+
+      {/* Sticky Quick Add (Top) */}
+      <div className="sticky top-0 z-30 bg-brand-gesso/80 backdrop-blur-md pt-8 pb-4 px-6 md:px-12">
+        <div className="max-w-7xl mx-auto">
+          <QuickAddInput />
         </div>
       </div>
-      
-      {hasProposal && !proposalPanelOpen && !appliedProposal && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
-          <p className="text-blue-900">
-            <strong>Proposed schedule adjustments available</strong>
+
+      <main className="px-6 py-12 md:px-12 md:py-16 max-w-7xl mx-auto space-y-12 relative z-10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+          <div className="space-y-4">
+            <h1 className="text-5xl md:text-7xl font-serif font-black text-brand-text tracking-tighter leading-none">
+              Planner
+            </h1>
+            <p className="text-brand-muted font-medium text-lg md:text-xl">
+              Drag, drop, and reclaim your time.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3 bg-brand-surface-2 p-1.5 rounded-full cozy-border">
+            <button
+              onClick={() => setShowLegend((prev) => !prev)}
+              className={cn(
+                "px-6 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.1em] transition-all",
+                showLegend ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted hover:text-brand-text"
+              )}
+            >
+              {showLegend ? "Hide Legend" : "Show Legend"}
+            </button>
+            <OptimizeScheduleButton
+              userId={user.id}
+              onOptimizationComplete={(proposalId, movesCount) => {
+                if (movesCount > 0) {
+                  setAppliedProposal(null);
+                  setHasProposal(true);
+                  setProposalPanelOpen(true);
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        {hasProposal && !proposalPanelOpen && !appliedProposal && (
+          <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-[1.5rem] p-6 flex items-center justify-between shadow-soft animate-fade-in">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-brand-primary/10 rounded-full flex items-center justify-center">
+                <span className="text-brand-primary text-xl">✨</span>
+              </div>
+              <p className="text-brand-text font-bold">
+                Schedule improvements available!
+              </p>
+            </div>
             <button
               onClick={() => setProposalPanelOpen(true)}
-              className="ml-2 text-blue-600 underline hover:text-blue-800"
+              className="bg-brand-primary text-white px-6 py-2 rounded-full text-sm font-bold shadow-soft hover:brightness-110 transition-all"
             >
               View Proposals
             </button>
-          </p>
-        </div>
-      )}
+          </div>
+        )}
 
-      {appliedProposal && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded flex items-center justify-between text-sm">
-          <p className="text-green-900">
-            <strong>Schedule changes applied</strong>
-            <span className="ml-2 text-green-700">
-              You can undo within {appliedProposal.timeRemainingMinutes} minutes
-            </span>
-          </p>
-          <button
-            onClick={() => {
-              console.log("[Calendar] Opening panel in 'undo' mode for proposal:", appliedProposal.id);
-              setProposalPanelOpen(true);
-              // Panel will open in 'undo' mode since appliedProposal is set
-            }}
-            className="ml-4 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-          >
-            Undo Changes
-          </button>
-        </div>
-      )}
+        {appliedProposal && (
+          <div className="bg-brand-mint/5 border border-brand-mint/20 rounded-[1.5rem] p-6 flex items-center justify-between shadow-soft animate-fade-in">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-brand-mint/10 rounded-full flex items-center justify-center text-brand-mint text-xl">
+                ✓
+              </div>
+              <div>
+                <p className="text-brand-text font-bold">Schedule changes applied</p>
+                <p className="text-brand-muted text-sm font-medium">
+                  Undo window: {appliedProposal.timeRemainingMinutes}m
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setProposalPanelOpen(true)}
+              className="bg-brand-mint text-white px-6 py-2 rounded-full text-sm font-bold shadow-soft hover:brightness-110 transition-all"
+            >
+              Undo Changes
+            </button>
+          </div>
+        )}
 
-      {showLegend && (
-        <div className="mb-4">
-          <CalendarLegend />
-        </div>
-      )}
+        {showLegend && (
+          <div className="animate-slide-up">
+            <CalendarLegend />
+          </div>
+        )}
 
-      <Calendar events={[]} onMove={onMove} userId={user.id} />
-      
-      {user.id && (
-        <>
-          <ProposalPanel
-            isOpen={proposalPanelOpen}
-            onClose={() => {
-              setProposalPanelOpen(false);
-              checkForProposal();
-              checkForAppliedProposal();
-            }}
+        <div className="bg-brand-surface rounded-[2.5rem] cozy-border shadow-soft p-4 md:p-8 relative overflow-hidden">
+          <Calendar events={[]} onMove={onMove} userId={user.id} />
+        </div>
+
+        <ProposalPanel
+          isOpen={proposalPanelOpen}
+          onClose={() => {
+            setProposalPanelOpen(false);
+            checkForProposal();
+            checkForAppliedProposal();
+          }}
+          userId={user.id}
+          mode={appliedProposal ? 'undo' : 'propose'}
+          proposalId={appliedProposal?.id}
+          onProposalApplied={() => {
+            checkForProposal();
+            checkForAppliedProposal();
+            setTimeout(() => window.location.reload(), 500);
+          }}
+        />
+        
+        {stuckModalOpen && stuckAssignmentId && (
+          <StuckAssignmentModal
+            key={stuckAssignmentId}
+            assignmentId={stuckAssignmentId}
             userId={user.id}
-            mode={appliedProposal ? 'undo' : 'propose'}
-            proposalId={appliedProposal?.id}
-            onProposalApplied={() => {
-              // Refresh proposal check and calendar
-              checkForProposal();
-              checkForAppliedProposal();
-              // Refresh calendar events (could use a more elegant refresh)
+            eventId={stuckEventId || undefined}
+            onClose={() => {
+              setStuckModalOpen(false);
+              setStuckAssignmentId(null);
+              setStuckEventId(null);
               setTimeout(() => window.location.reload(), 500);
             }}
           />
-          
-          {(() => {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:MODAL_RENDER_CHECK',message:'Modal render condition check',data:{stuckModalOpen,stuckAssignmentId,shouldRender:!!(stuckModalOpen && stuckAssignmentId),userId:user.id.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'I'})}).catch(()=>{});
-            // #endregion
-            
-            return stuckModalOpen && stuckAssignmentId ? (
-              <StuckAssignmentModal
-                key={stuckAssignmentId}
-                assignmentId={stuckAssignmentId}
-                userId={user.id}
-                eventId={stuckEventId || undefined}
-                onClose={() => {
-                  console.log('[Page] Closing stuck assignment modal');
-                  setStuckModalOpen(false);
-                  setStuckAssignmentId(null);
-                  setStuckEventId(null);
-                  // Optionally refresh calendar
-                  setTimeout(() => window.location.reload(), 500);
-                }}
-              />
-            ) : null;
-          })()}
-        </>
-      )}
-    </main>
+        )}
+      </main>
+    </div>
   );
 }

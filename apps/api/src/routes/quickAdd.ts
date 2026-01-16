@@ -122,6 +122,7 @@ quickAddRoute.post("/parse", async (c) => {
         has_study_intent: z.boolean().describe("True if user wants to schedule study/work time"),
         preferred_work_time: z.string().nullable().describe("If user specified WHEN to work on it (e.g., 'today at 3pm', 'tomorrow morning'), extract the time. Null if they only mentioned due date."),
         requires_chunking: z.boolean().describe("True if this is a long-form task requiring multiple work sessions (paper, large project, thesis)"),
+        description: z.string().nullable().describe("Detailed notes or description from the user's input, if any. Extract specific instructions, requirements, or prerequisites mentioned."),
       }),
       prompt: `Parse this assignment input: "${body.text}"
       
@@ -270,7 +271,7 @@ Be realistic about duration estimates:
       due_at: dueAt,
       category: object.category,
       estimated_duration: object.estimated_duration,
-      description: null, // User can add this in the UI
+      description: object.description, // Use the AI-extracted description
       requires_chunking: object.requires_chunking, // NEW: AI-detected chunking flag
     };
 
@@ -557,7 +558,7 @@ quickAddRoute.post("/commit", async (c) => {
           userId,
           courseId: body.parsed.courseId ?? null,
           title: body.parsed.title,
-          description: body.rawInput, // Save the original user input as description
+          description: (body.parsed as any).description || body.rawInput, // Use AI description if available, else raw
           category: body.parsed.category ?? null,
           dueDate: due,
           effortEstimateMinutes: body.parsed.effortMinutes ?? null,
@@ -579,7 +580,7 @@ quickAddRoute.post("/commit", async (c) => {
             assignmentId: assignment.id,
             type: "Focus",
             title: `Focus: ${body.parsed.title}`,
-            description: body.rawInput, // Pass the user's original input to the event
+            description: (body.parsed as any).description || body.rawInput, // Consistent description
             startTime: start,
             endTime: end,
             isMovable: true,
@@ -811,6 +812,7 @@ Use their specific context to make the BEST scheduling decision.`,
         userId,
         courseId: draft.course_id || null,
         title: draft.title,
+        description: draft.description || null, // Save the AI-extracted or user-edited description
         category: draft.category || "Homework",
         dueDate: draft.due_at ? new Date(draft.due_at) : null,
         effortEstimateMinutes: draft.estimated_duration || 60,
@@ -863,6 +865,7 @@ Use their specific context to make the BEST scheduling decision.`,
         eventsToCreate.push({
           userId,
           title: `${draft.title} - ${chunk.label}`, // e.g., "Paper - Research/Outline"
+          description: draft.description || null, // Consistent description
           eventType: 'Focus' as const,
           startAt: chunk.startAt,
           endAt: chunk.endAt,
@@ -966,6 +969,7 @@ Use their specific context to make the BEST scheduling decision.`,
         .values({
           userId,
           title: focusDraft.title,
+          description: draft.description || null, // Consistent description
           eventType: focusDraft.category as any,
           startAt,
           endAt,

@@ -1,8 +1,13 @@
 /**
  * Gesso API Server
- * v1.1.0 - Added description field support for Quick Add notes
+ * v1.2.0 - Fixed description column in all calendar queries
+ * Build: 2026-01-16T00:00:00Z
  */
 import { Hono } from 'hono';
+
+// Startup log to verify deployment version
+console.log('[Gesso API] Starting server v1.2.0 (Build: 2026-01-16)');
+console.log('[Gesso API] Description field support: ENABLED');
 import { cors } from 'hono/cors';
 import { coursesRoute } from './routes/courses';
 import { assignmentsRoute } from './routes/assignments';
