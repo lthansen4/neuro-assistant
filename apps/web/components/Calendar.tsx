@@ -163,20 +163,24 @@ export function Calendar({
           eventContent={(eventInfo) => {
             const isCompleted = eventInfo.event.extendedProps?.metadata?.isCompleted;
             const category = eventInfo.event.extendedProps?.eventType || 'Other';
+            const timeText = eventInfo.timeText || "";
             
             return (
               <div className={cn(
-                "p-2 h-full flex flex-col gap-1 transition-opacity",
+                "p-2.5 h-full flex flex-col gap-1.5 transition-opacity",
                 isCompleted && "opacity-50"
               )}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider opacity-70">
                     {category}
                   </span>
                   {isCompleted && <span className="text-brand-mint text-[14px]">✓</span>}
                 </div>
+                {timeText && (
+                  <div className="text-[11px] font-medium text-brand-muted">{timeText}</div>
+                )}
                 <div className={cn(
-                  "font-bold text-[13px] leading-tight truncate",
+                  "font-bold text-[14px] md:text-[15px] leading-snug",
                   isCompleted && "line-through"
                 )}>
                   {eventInfo.event.title}
