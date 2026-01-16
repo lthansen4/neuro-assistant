@@ -52,10 +52,10 @@ export function BottomNav() {
         {!isOpen ? (
           <button
             onClick={() => setIsOpen(true)}
-            className="w-full flex items-center justify-center gap-2 text-brand-muted text-[11px] font-black uppercase tracking-[0.3em]"
+            className="w-full flex items-center justify-center text-brand-muted text-[14px] font-black tracking-[0.4em]"
+            aria-label="Open navigation"
           >
-            Menu
-            <span className="text-brand-primary">⌃</span>
+            ~~~
           </button>
         ) : (
           <div className="relative flex items-center justify-between">
