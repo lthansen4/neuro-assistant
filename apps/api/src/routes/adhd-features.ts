@@ -696,18 +696,15 @@ app.post('/complete/:assignmentId', async (c) => {
     const focusSessions = await db.query.sessions.findMany({
       where: and(
         eq(schema.sessions.userId, userId),
+        eq(schema.sessions.assignmentId, assignmentId),
         eq(schema.sessions.type, 'Focus')
       )
     });
     
-    // Calculate actual time from focus sessions for this assignment
+    // Calculate actual time from focus sessions
     let actualMinutes = 0;
     for (const session of focusSessions) {
-      // Check if session was for this assignment (metadata might have assignmentId)
-      const sessionMeta = session.metadata as any;
-      if (sessionMeta?.assignmentId === assignmentId || sessionMeta?.linkedAssignmentId === assignmentId) {
-        actualMinutes += session.durationMinutes;
-      }
+      actualMinutes += session.actualDuration || 0;
     }
     
     // If no focus sessions found, estimate based on time from creation to completion
