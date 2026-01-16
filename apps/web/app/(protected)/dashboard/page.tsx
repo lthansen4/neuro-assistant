@@ -16,6 +16,8 @@ import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
 import { EventDetailsModal } from "../../../components/EventDetailsModal";
 import { FocusTimerModal } from "../../../components/FocusTimerModal";
 import { Button } from "../../../components/ui/button";
+import { BentoTileSkeleton, AssignmentCardSkeleton, TodayFlowSkeleton } from "../../../components/ui/Skeleton";
+import { toast } from "../../../components/ui/Toast";
 
 interface Assignment {
   id: string;
@@ -135,12 +137,45 @@ export default function DashboardPage() {
 
   if (!isLoaded || loading) {
     return (
-      <main className="p-6 bg-brand-gesso min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin" />
-          <div className="text-brand-muted font-medium">Preparing your canvas...</div>
+      <div className="min-h-screen bg-brand-gesso">
+        <div className="fixed inset-0 gesso-texture z-0 pointer-events-none" />
+        
+        {/* Sticky Quick Add Skeleton */}
+        <div className="sticky top-0 z-30 bg-brand-gesso/80 backdrop-blur-md pt-8 pb-4 px-6 md:px-12">
+          <div className="max-w-7xl mx-auto">
+            <div className="h-14 bg-white/40 rounded-[2.5rem] animate-pulse" />
+          </div>
         </div>
-      </main>
+
+        <main className="px-6 py-12 md:px-12 md:py-16 max-w-7xl mx-auto space-y-12 relative z-10">
+          {/* Header Skeleton */}
+          <div className="space-y-4">
+            <div className="h-8 w-48 bg-brand-surface-2/60 rounded-2xl animate-pulse" />
+            <div className="h-12 w-64 bg-brand-surface-2/60 rounded-2xl animate-pulse" />
+          </div>
+
+          {/* Today Flow Skeleton */}
+          <TodayFlowSkeleton />
+
+          {/* Bento Grid Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 items-start">
+            <div className="lg:col-span-8">
+              <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft space-y-6">
+                <div className="h-6 w-32 bg-brand-surface-2/60 rounded-2xl animate-pulse" />
+                <AssignmentCardSkeleton />
+                <AssignmentCardSkeleton />
+                <AssignmentCardSkeleton />
+              </div>
+            </div>
+            <div className="lg:col-span-4 space-y-8">
+              <BentoTileSkeleton />
+              <BentoTileSkeleton />
+              <BentoTileSkeleton />
+              <BentoTileSkeleton />
+            </div>
+          </div>
+        </main>
+      </div>
     );
   }
 

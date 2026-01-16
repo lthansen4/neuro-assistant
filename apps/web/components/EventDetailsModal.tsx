@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import confetti from 'canvas-confetti';
+import { toast } from "./ui/Toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
 
@@ -278,6 +279,10 @@ export function EventDetailsModal({
     }
 
     setDeleting(true);
+    
+    // Optimistic: close immediately
+    onClose();
+    toast.loading("Deleting event...");
 
     try {
       const response = await fetch(`${API_BASE}/api/calendar/events/${event.id}`, {
@@ -294,14 +299,16 @@ export function EventDetailsModal({
 
       const data = await response.json().catch(() => ({}));
       if ((event.metadata as any)?.linkedAssignmentId && data?.deletedAssignment === false) {
-        alert("Removed from calendar. The assignment is still in your list because it has other events.");
+        toast.info("Removed from calendar. Assignment kept (has other events).");
+      } else {
+        toast.success("Event deleted ✓");
       }
 
       // Success - call onDeleted to refresh calendar
       onDeleted();
     } catch (error: any) {
       console.error('Failed to delete event:', error);
-      alert(`Failed to delete event: ${error.message}`);
+      toast.error(`Failed to delete: ${error.message}`);
       setDeleting(false);
     }
   };

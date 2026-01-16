@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
+import { toast } from "./ui/Toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
@@ -50,10 +51,14 @@ export function AssignmentEditModal({
   const handleSave = async () => {
     setError(null);
     if (!title.trim()) {
+      toast.error("Title is required");
       setError("Title is required.");
       return;
     }
+    
     setSaving(true);
+    const toastId = toast.loading("Saving assignment...");
+    
     try {
       const payload = {
         title: title.trim(),
@@ -73,8 +78,10 @@ export function AssignmentEditModal({
       if (!res.ok || data.error) {
         throw new Error(data.error || "Failed to update assignment.");
       }
+      toast.success("Assignment updated ✓");
       onUpdated();
     } catch (err: any) {
+      toast.error(err.message || "Failed to update");
       setError(err.message || "Failed to update assignment.");
     } finally {
       setSaving(false);
@@ -87,6 +94,11 @@ export function AssignmentEditModal({
     }
     setDeleting(true);
     setError(null);
+    
+    // Optimistic: close modal immediately for snappiness
+    onClose();
+    toast.loading("Deleting assignment...");
+    
     try {
       const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}`, {
         method: "DELETE",
@@ -98,8 +110,10 @@ export function AssignmentEditModal({
       if (!res.ok || data.error) {
         throw new Error(data.error || "Failed to delete assignment.");
       }
+      toast.success("Assignment deleted ✓");
       onDeleted();
     } catch (err: any) {
+      toast.error(err.message || "Failed to delete");
       setError(err.message || "Failed to delete assignment.");
       setDeleting(false);
     }
@@ -108,6 +122,11 @@ export function AssignmentEditModal({
   const handleComplete = async () => {
     setCompleting(true);
     setError(null);
+    
+    // Optimistic: close modal immediately
+    onClose();
+    toast.loading("Marking complete...");
+    
     try {
       const res = await fetch(`${API_BASE}/api/adhd/complete/${assignment.id}`, {
         method: "POST",
@@ -119,8 +138,10 @@ export function AssignmentEditModal({
       if (!res.ok || data.error) {
         throw new Error(data.error || "Failed to mark assignment complete.");
       }
+      toast.success(`"${assignment.title}" complete! 🎉`);
       onUpdated();
     } catch (err: any) {
+      toast.error(err.message || "Failed to mark complete");
       setError(err.message || "Failed to mark assignment complete.");
     } finally {
       setCompleting(false);

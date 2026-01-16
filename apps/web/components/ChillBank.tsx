@@ -6,6 +6,7 @@ import { CircularProgress } from "./ui/CircularProgress";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import { createSession } from "../lib/api";
+import { toast } from "./ui/Toast";
 
 interface ChillBankProps {
   userId: string;
@@ -102,16 +103,19 @@ export function ChillBank({
   const stopFocus = async () => {
     if (!focusStart) return;
     setError(null);
+    const focusMinutes = Math.round((new Date().getTime() - new Date(focusStart).getTime()) / 60000);
     try {
       await createSession(userId, {
         type: "Focus",
         startTime: focusStart,
         endTime: new Date().toISOString(),
       });
+      toast.success(`Focus logged! ${focusMinutes}m earned 🔥`);
       setFocusRunning(false);
       setFocusStart(null);
       onSessionLogged?.();
     } catch (e: any) {
+      toast.error(e.message || "Failed to log session");
       setError(e.message || "Failed to log focus session.");
     }
   };
@@ -135,17 +139,20 @@ export function ChillBank({
     const endTime = autoComplete
       ? new Date(new Date(chillStart).getTime() + chillDurationSec * 1000).toISOString()
       : new Date().toISOString();
+    const chillMinutes = Math.round((new Date(endTime).getTime() - new Date(chillStart).getTime()) / 60000);
     try {
       await createSession(userId, {
         type: "Chill",
         startTime: chillStart,
         endTime,
       });
+      toast.success(`Chill session logged! ${chillMinutes}m redeemed 🌊`);
       setChillRunning(false);
       setChillStart(null);
       setChillDurationSec(0);
       onSessionLogged?.();
     } catch (e: any) {
+      toast.error(e.message || "Failed to log session");
       setError(e.message || "Failed to log chill session.");
     }
   };

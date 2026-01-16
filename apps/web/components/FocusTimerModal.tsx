@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "./ui/button";
 import { CircularProgress } from "./ui/CircularProgress";
 import { createSession } from "../lib/api";
+import { toast } from "./ui/Toast";
 
 export function FocusTimerModal({
   userId,
@@ -41,6 +42,8 @@ export function FocusTimerModal({
   const handleStop = async () => {
     setSaving(true);
     setError(null);
+    const minutes = Math.round(elapsedMs / 60000);
+    
     try {
       await createSession(userId, {
         type: "Focus",
@@ -48,8 +51,10 @@ export function FocusTimerModal({
         endTime: new Date().toISOString(),
         assignmentId: assignmentId || null,
       });
+      toast.success(`Focus session logged! ${minutes}m earned 🔥`);
       onLogged();
     } catch (err: any) {
+      toast.error(err.message || "Failed to log session");
       setError(err.message || "Failed to log focus session.");
     } finally {
       setSaving(false);

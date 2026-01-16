@@ -3,6 +3,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import Script from 'next/script';
 import React from 'react';
 import { Inter, Instrument_Serif } from 'next/font/google';
+import { Toaster } from '../components/ui/Toast';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -58,6 +59,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           defer
           strategy="afterInteractive"
         />
+        
+        {/* Toast Notifications */}
+        <Toaster />
+        
         <ClerkErrorBoundary>
           {children}
         </ClerkErrorBoundary>
