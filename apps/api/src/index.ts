@@ -1,3 +1,7 @@
+/**
+ * Gesso API Server
+ * v1.1.0 - Added description field support for Quick Add notes
+ */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { coursesRoute } from './routes/courses';
