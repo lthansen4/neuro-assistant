@@ -353,10 +353,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Scrollable container for assignments */}
-                  <div className={cn(
-                    "overflow-y-auto pr-2",
-                    topTab === "all" ? "max-h-[600px]" : "max-h-[400px]"
-                  )}>
+                  <div className="overflow-y-auto pr-2 max-h-[500px]">
                     <AssignmentsList
                       assignments={
                         topTab === "top"
@@ -386,8 +383,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Sticky sidebar for widgets on desktop */}
-          <div className="lg:col-span-4 space-y-8 lg:sticky lg:top-24">
+          <div className="lg:col-span-4">
             {user && (
               <ChillBank
                 userId={user.id}
@@ -397,14 +393,20 @@ export default function DashboardPage() {
                 onSessionLogged={() => loadDashboard(false)}
               />
             )}
+          </div>
 
+          <div className="lg:col-span-4">
             <StuckRadar assignments={[...(data.assignments?.scheduled || []), ...(data.assignments?.inbox || [])]} />
+          </div>
 
+          <div className="lg:col-span-4">
             <WeekSummary 
               completedCount={data.assignments?.completed?.length || 0}
               totalScheduled={(data.assignments?.scheduled?.length || 0) + (data.assignments?.completed?.length || 0)}
             />
+          </div>
 
+          <div className="lg:col-span-4">
             <StreakBadge streak={data.streak} />
           </div>
         </div>
