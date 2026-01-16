@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { db, schema } from '../lib/db';
-import { eq, and, gte, lte, or } from 'drizzle-orm';
+import { eq, and, gte, lte, or, aliasedTable } from 'drizzle-orm';
 import { getUserId } from '../lib/auth-utils';
 import { DateTime } from 'luxon';
 import { sql } from 'drizzle-orm';
@@ -70,13 +70,15 @@ calendarRoute.get('/events', async (c) => {
       
       const templates = await db.execute(sql`
         SELECT 
-          id, course_id, event_type, day_of_week,
-          start_time_local, end_time_local, location, is_movable, metadata,
-          start_date, end_date
-        FROM calendar_event_templates
-        WHERE user_id = ${userId}::uuid
-        AND (start_date IS NULL OR start_date <= ${endDateStr}::date)
-        AND (end_date IS NULL OR end_date >= ${startDateStr}::date)
+          t.id, t.course_id, t.event_type, t.day_of_week,
+          t.start_time_local, t.end_time_local, t.location, t.is_movable, t.metadata,
+          t.start_date, t.end_date,
+          c.name as course_name
+        FROM calendar_event_templates t
+        LEFT JOIN courses c ON t.course_id = c.id
+        WHERE t.user_id = ${userId}::uuid
+        AND (t.start_date IS NULL OR t.start_date <= ${endDateStr}::date)
+        AND (t.end_date IS NULL OR t.end_date >= ${startDateStr}::date)
       `);
       
       console.log(`[Calendar] Found ${templates.rows.length} templates for date range ${startDateStr} to ${endDateStr}`);
@@ -86,6 +88,7 @@ calendarRoute.get('/events', async (c) => {
           start_date: templates.rows[0].start_date,
           end_date: templates.rows[0].end_date,
           event_type: templates.rows[0].event_type,
+          course_name: templates.rows[0].course_name
         });
       }
       
@@ -126,7 +129,7 @@ calendarRoute.get('/events', async (c) => {
           
           // Get title from metadata or generate default
           const metadata = template.metadata || {};
-          const title = metadata.title || `${template.event_type}: Course`;
+          const title = metadata.title || (template.course_name ? `${template.event_type}: ${template.course_name}` : `${template.event_type}: Event`);
           
           // Check if this template instance has been overridden by a direct event
           // We'll check this after fetching direct events to avoid duplicates
@@ -139,6 +142,7 @@ calendarRoute.get('/events', async (c) => {
             endAt: endUtc,
             eventType: template.event_type,
             isMovable: template.is_movable || false,
+            courseName: template.course_name,
             metadata: { 
               ...metadata, 
               location: template.location,
@@ -156,6 +160,7 @@ calendarRoute.get('/events', async (c) => {
       // These are manually created events like test events or user-created Focus sessions
       if (useNewTable) {
         console.log(`[Calendar] Querying direct events from calendar_events_new for user ${userId}`);
+        const assignmentCourses = aliasedTable(schema.courses, 'assignment_courses');
         const directEvents = await db
           .select({
             id: schema.calendarEventsNew.id,
@@ -168,8 +173,13 @@ calendarRoute.get('/events', async (c) => {
             assignmentId: schema.calendarEventsNew.assignmentId,
             linkedAssignmentId: schema.calendarEventsNew.linkedAssignmentId, // ✅ PRIORITY 2: For deferral tracking
             metadata: schema.calendarEventsNew.metadata,
+            courseName: schema.courses.name,
+            assignmentCourseName: assignmentCourses.name,
           })
           .from(schema.calendarEventsNew)
+          .leftJoin(schema.courses, eq(schema.calendarEventsNew.courseId, schema.courses.id))
+          .leftJoin(schema.assignments, eq(schema.calendarEventsNew.linkedAssignmentId, schema.assignments.id))
+          .leftJoin(assignmentCourses, eq(schema.assignments.courseId, assignmentCourses.id))
           .where(
             and(
               eq(schema.calendarEventsNew.userId, userId)
@@ -223,6 +233,7 @@ calendarRoute.get('/events', async (c) => {
               assignmentId: evt.assignmentId,
               linkedAssignmentId: evt.linkedAssignmentId, // PRIORITY 2: For deferral tracking
               metadata: evt.metadata,
+              courseName: evt.courseName || evt.assignmentCourseName,
             });
           } else {
             console.log(`[Calendar] ✗ Skipping direct event ${evt.title} - outside date range`);
@@ -385,6 +396,7 @@ calendarRoute.get('/events', async (c) => {
           hasChecklist, // NEW: Flag to show clipboard icon
           checklistId, // NEW: For opening checklist modal
           metadata: evt.metadata,
+          courseName: (evt as any).courseName,
         },
       };
     });

@@ -818,6 +818,7 @@ Use their specific context to make the BEST scheduling decision.`,
         .insert(schema.calendarEventsNew)
         .values({
           userId,
+          courseId: draft.course_id || null,
           title: `📌 DUE: ${draft.title}`,
           eventType: "DueDate", // Use "DueDate" type for deadline markers
           startAt: dueDate,
@@ -846,6 +847,7 @@ Use their specific context to make the BEST scheduling decision.`,
         // Add the Focus block
         eventsToCreate.push({
           userId,
+          courseId: draft.course_id || null,
           title: `${draft.title} - ${chunk.label}`, // e.g., "Paper - Research/Outline"
           description: draft.description || null, // Consistent description
           eventType: 'Focus' as const,
@@ -869,6 +871,7 @@ Use their specific context to make the BEST scheduling decision.`,
           
           eventsToCreate.push({
             userId,
+            courseId: draft.course_id || null,
             title: "Transition Buffer",
             eventType: 'Chill' as const, // Low-cog recovery time
             startAt: bufferStart,

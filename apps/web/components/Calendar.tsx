@@ -208,26 +208,52 @@ export function Calendar({
             const isCompleted = eventInfo.event.extendedProps?.metadata?.isCompleted;
             const category = eventInfo.event.extendedProps?.eventType || 'Other';
             const timeText = eventInfo.timeText || "";
+            const isTransitionBuffer = eventInfo.event.extendedProps?.metadata?.transitionTax;
+            const courseName = eventInfo.event.extendedProps?.courseName;
             
+            // Shorten titles for crowded views
+            let displayTitle = eventInfo.event.title;
+            if (currentView === 'dayGridMonth' || currentView === 'timeGridWeek') {
+              // 1. If it's a transition buffer, don't label it at all
+              if (isTransitionBuffer) {
+                return (
+                  <div className="h-full w-full opacity-30" />
+                );
+              }
+
+              // 2. If it's a course-related event, prioritize Course Name (e.g. "HIST 305")
+              if (courseName) {
+                displayTitle = courseName;
+              } else {
+                // 3. Shorten "Work on: [Title]" to just "[Title]"
+                displayTitle = displayTitle.replace(/^Work on:\s*/i, "");
+                // 4. Remove session numbers "(Session 1)"
+                displayTitle = displayTitle.replace(/\s*\(Session\s+\d+\)$/i, "");
+              }
+            }
+
             return (
               <div className={cn(
-                "p-2.5 h-full flex flex-col gap-1.5 transition-opacity",
+                "p-2 h-full flex flex-col gap-1 transition-opacity overflow-hidden",
                 isCompleted && "opacity-50"
               )}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider opacity-70">
-                    {category}
-                  </span>
-                  {isCompleted && <span className="text-brand-mint text-[14px]">✓</span>}
+                <div className="flex items-center justify-between gap-1">
+                  {/* Hide category label for transition buffers in crowded views */}
+                  {(!isTransitionBuffer || currentView === 'timeGridDay') && (
+                    <span className="text-[9px] md:text-[10px] font-semibold uppercase tracking-wider opacity-70 truncate">
+                      {category}
+                    </span>
+                  )}
+                  {isCompleted && <span className="text-brand-mint text-[12px]">✓</span>}
                 </div>
-                {timeText && (
-                  <div className="text-[11px] font-medium text-brand-muted">{timeText}</div>
+                {timeText && currentView !== 'dayGridMonth' && (
+                  <div className="text-[9px] md:text-[10px] font-medium text-brand-muted truncate">{timeText}</div>
                 )}
                 <div className={cn(
-                  "font-bold text-[14px] md:text-[15px] leading-snug",
+                  "font-bold text-[12px] md:text-[13px] leading-tight break-words",
                   isCompleted && "line-through"
                 )}>
-                  {eventInfo.event.title}
+                  {displayTitle}
                 </div>
               </div>
             );
