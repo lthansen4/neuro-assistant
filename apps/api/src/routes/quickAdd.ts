@@ -685,8 +685,20 @@ quickAddRoute.post("/confirm", async (c) => {
       return c.json({ error: "assignment_draft.title is required" }, 400);
     }
 
-    const draft = body.assignment_draft;
+    let draft = { ...body.assignment_draft };
     const userTz = body.user_tz || "America/Chicago";
+    
+    // If a course is selected in confirm, align due time to class start for that day
+    if (draft.due_at && draft.course_id) {
+      const classStart = await getClassStartTimeForDate(userId, draft.course_id, draft.due_at, userTz);
+      if (classStart) {
+        const [hours, minutes] = classStart.split(":").map(Number);
+        const dueDateLocal = DateTime.fromISO(draft.due_at, { zone: "utc" })
+          .setZone(userTz)
+          .set({ hour: hours, minute: minutes, second: 0 });
+        draft.due_at = dueDateLocal.toUTC().toISO()!;
+      }
+    }
     
     
     // If user provided description/answers and we have a due date, use AI to optimize the Focus block
@@ -959,64 +971,118 @@ Use their specific context to make the BEST scheduling decision.`,
         recovery_forced_warning: recoveryForcedWarning,
       });
     } else if (optimizedFocusBlock) {
-      // Create single Focus block (original logic)
+      // Create focus block(s) based on user answers (today/time-of-day/sessions)
       const focusDraft = optimizedFocusBlock;
-      const startAt = new Date(focusDraft.start_at);
-      const endAt = new Date(startAt.getTime() + focusDraft.duration_minutes * 60 * 1000);
+      const totalMinutes = Math.max(20, Math.round(
+        draft.estimated_duration || focusDraft.duration_minutes || 60
+      ));
+      const prefs = deriveSchedulingPrefs(body.smart_answers, totalMinutes);
+      const dueDateTime = draft.due_at
+        ? DateTime.fromISO(draft.due_at, { zone: "utc" }).setZone(userTz)
+        : DateTime.now().setZone(userTz).plus({ days: 7 });
+      const preferredWindow = getPreferredWindow(prefs.timeOfDay);
+      
+      // Determine initial search time
+      const nowInUserTz = DateTime.now().setZone(userTz);
+      let searchStart = DateTime.fromISO(focusDraft.start_at, { zone: "utc" }).setZone(userTz);
+      if (prefs.startDay === "today") {
+        searchStart = nowInUserTz.set({ hour: preferredWindow.defaultHour, minute: 0, second: 0 });
+      } else if (prefs.startDay === "tomorrow") {
+        searchStart = nowInUserTz.plus({ days: 1 }).set({ hour: preferredWindow.defaultHour, minute: 0, second: 0 });
+      }
+      
+      // Ensure at least 1 hour in the future
+      const minStart = nowInUserTz.plus({ hours: 1 });
+      if (searchStart < minStart) {
+        searchStart = minStart.set({ minute: 0, second: 0 });
+      }
 
-      const [evt] = await db
-        .insert(schema.calendarEventsNew)
-        .values({
+      const durations = prefs.sessionDurations.length > 0 ? prefs.sessionDurations : [totalMinutes];
+      const eventsToCreate = [];
+      let lastStart = await findFirstAvailableSlot(
+        userId,
+        searchStart,
+        durations[0],
+        dueDateTime,
+        userTz,
+        preferredWindow
+      );
+      
+      for (let i = 0; i < durations.length; i++) {
+        const duration = durations[i];
+        if (i > 0) {
+          const nextSearch = lastStart.plus({ minutes: durations[i - 1] + 120 });
+          lastStart = await findFirstAvailableSlot(
+            userId,
+            nextSearch,
+            duration,
+            dueDateTime,
+            userTz,
+            preferredWindow
+          );
+        }
+        
+        const startAt = new Date(lastStart.toUTC().toISO()!);
+        const endAt = new Date(startAt.getTime() + duration * 60 * 1000);
+        const sessionLabel = durations.length > 1 ? ` (Session ${i + 1})` : "";
+        
+        eventsToCreate.push({
           userId,
-          title: focusDraft.title,
-          description: draft.description || null, // Consistent description
+          title: `${focusDraft.title}${sessionLabel}`,
+          description: draft.description || null,
           eventType: focusDraft.category as any,
           startAt,
           endAt,
           isMovable: true,
           linkedAssignmentId: assignment.id,
           metadata: {
-            dueDate: assignment.dueDate?.toISOString(), // PRIORITY 2: For due date validation
+            dueDate: assignment.dueDate?.toISOString(),
+            sessionIndex: i,
+            totalSessions: durations.length,
+            splitReason: prefs.splitReason || "default",
           }
-        })
-        .returning();
-      focusEvents = [evt];
+        });
+      }
       
-      // ADHD TRANSITION TAX: Add 15-minute buffer after non-class events
-      console.log('[QuickAdd] Adding 15-min transition buffer after Focus event');
-      const bufferStart = endAt;
-      const bufferEnd = new Date(bufferStart.getTime() + 15 * 60 * 1000);
-      
-      const [bufferEvent] = await db
+      const createdFocusEvents = await db
         .insert(schema.calendarEventsNew)
-        .values({
-          userId,
-          title: 'Transition Buffer',
-          eventType: 'Chill', // Low-cog recovery time
-          startAt: bufferStart,
-          endAt: bufferEnd,
-          isMovable: true, // User can move/delete it if needed
-          linkedAssignmentId: assignment.id,
-          metadata: {
-            transitionTax: true,
-            linkedToEvent: evt.id,
-            purpose: 'Context switching recovery - prevents mental fatigue'
-          }
-        })
+        .values(eventsToCreate)
         .returning();
+      focusEvents = createdFocusEvents;
       
-      focusEvents.push(bufferEvent);
-      console.log(`[QuickAdd] Created transition buffer: ${bufferStart.toISOString()} - ${bufferEnd.toISOString()}`);
+      // ADHD TRANSITION TAX: Add 15-minute buffer after each Focus event
+      for (const event of createdFocusEvents) {
+        const bufferStart = new Date(event.endAt);
+        const bufferEnd = new Date(bufferStart.getTime() + 15 * 60 * 1000);
+        const [bufferEvent] = await db
+          .insert(schema.calendarEventsNew)
+          .values({
+            userId,
+            title: 'Transition Buffer',
+            eventType: 'Chill',
+            startAt: bufferStart,
+            endAt: bufferEnd,
+            isMovable: true,
+            linkedAssignmentId: assignment.id,
+            metadata: {
+              transitionTax: true,
+              linkedToEvent: event.id,
+              purpose: 'Context switching recovery - prevents mental fatigue'
+            }
+          })
+          .returning();
+        focusEvents.push(bufferEvent);
+      }
       
       // PRIORITY 2: Automatic Deep Work Tracking (Recovery Forcing)
       try {
         const ADHDGuardian = await import('../lib/adhd-guardian');
-        const durationMinutes = focusDraft.duration_minutes;
-        await ADHDGuardian.default.trackDeepWork(userId, startAt, durationMinutes);
-        console.log(`[Recovery Forcing] Tracked ${durationMinutes}min deep work for ${startAt.toLocaleDateString()}`);
+        for (const event of createdFocusEvents) {
+          const durationMinutes = Math.floor((new Date(event.endAt).getTime() - new Date(event.startAt).getTime()) / (1000 * 60));
+          await ADHDGuardian.default.trackDeepWork(userId, new Date(event.startAt), durationMinutes);
+        }
       } catch (trackError) {
         console.error('[Recovery Forcing] Failed to track deep work:', trackError);
-        // Don't fail the whole request if tracking fails
       }
       
       // COMPREHENSIVE OPTIMIZATION: Trigger after Quick Add
@@ -1115,12 +1181,122 @@ interface ChunkOptions {
 }
 
 // Helper function to find the first available time slot (avoids conflicts)
+type TimeOfDayPreference = 'early_morning' | 'morning' | 'afternoon' | 'evening' | null;
+
+interface PreferredWindow {
+  startHour: number;
+  endHour: number;
+  defaultHour: number;
+}
+
+function getPreferredWindow(timeOfDay: TimeOfDayPreference): PreferredWindow {
+  if (timeOfDay === 'early_morning') return { startHour: 8, endHour: 10, defaultHour: 8 };
+  if (timeOfDay === 'morning') return { startHour: 9, endHour: 12, defaultHour: 9 };
+  if (timeOfDay === 'afternoon') return { startHour: 12, endHour: 17, defaultHour: 14 };
+  if (timeOfDay === 'evening') return { startHour: 17, endHour: 20, defaultHour: 18 };
+  return { startHour: 8, endHour: 22, defaultHour: 14 };
+}
+
+function deriveSchedulingPrefs(
+  smartAnswers: Record<string, any> | undefined,
+  totalMinutes: number
+): {
+  startDay: 'today' | 'tomorrow' | null;
+  timeOfDay: TimeOfDayPreference;
+  sessionDurations: number[];
+  splitReason: string | null;
+} {
+  const answers = Object.values(smartAnswers || {})
+    .filter(Boolean)
+    .map((val) => String(val).toLowerCase());
+
+  let startDay: 'today' | 'tomorrow' | null = null;
+  if (answers.some((a) => a.includes('today'))) startDay = 'today';
+  else if (answers.some((a) => a.includes('tomorrow'))) startDay = 'tomorrow';
+
+  let timeOfDay: TimeOfDayPreference = null;
+  if (answers.some((a) => a.includes('early morning'))) timeOfDay = 'early_morning';
+  else if (answers.some((a) => a.includes('morning'))) timeOfDay = 'morning';
+  else if (answers.some((a) => a.includes('afternoon'))) timeOfDay = 'afternoon';
+  else if (answers.some((a) => a.includes('evening') || a.includes('night'))) timeOfDay = 'evening';
+
+  const minChunk = 20;
+  const safeTotal = Math.max(minChunk, Math.round(totalMinutes));
+  let sessionDurations: number[] = [];
+  let splitReason: string | null = null;
+
+  if (answers.some((a) => a.includes('two blocks of 30') || a.includes('two 30'))) {
+    if (safeTotal >= 60) {
+      sessionDurations = [30, 30];
+      splitReason = 'two_30';
+    }
+  } else if (answers.some((a) => a.includes('mix') || a.includes('both'))) {
+    const first = Math.max(minChunk, Math.round(safeTotal * 0.65));
+    const second = Math.max(minChunk, safeTotal - first);
+    sessionDurations = [first, second];
+    splitReason = 'mix';
+  } else if (answers.some((a) => a.includes('short bursts'))) {
+    const sessions = Math.min(3, Math.max(2, Math.round(safeTotal / 30)));
+    const base = Math.max(minChunk, Math.floor(safeTotal / sessions));
+    sessionDurations = Array.from({ length: sessions }, (_, i) =>
+      i === sessions - 1 ? safeTotal - base * (sessions - 1) : base
+    );
+    splitReason = 'short_bursts';
+  } else if (answers.some((a) => a.includes('two sessions'))) {
+    const first = Math.max(minChunk, Math.round(safeTotal / 2));
+    sessionDurations = [first, Math.max(minChunk, safeTotal - first)];
+    splitReason = 'two_sessions';
+  } else if (answers.some((a) => a.includes('one long') || a.includes('single'))) {
+    sessionDurations = [safeTotal];
+    splitReason = 'single';
+  }
+
+  return { startDay, timeOfDay, sessionDurations, splitReason };
+}
+
+async function getClassStartTimeForDate(
+  userId: string,
+  courseId: string,
+  dueAtISO: string,
+  userTz: string
+): Promise<string | null> {
+  const dueDate = DateTime.fromISO(dueAtISO, { zone: "utc" }).setZone(userTz);
+  const dayOfWeek = dueDate.weekdayLong;
+  if (!dayOfWeek) return null;
+
+  try {
+    const result: any = await db.execute(
+      sql`SELECT start_time_local, day_of_week FROM calendar_event_templates 
+          WHERE user_id = ${userId} 
+          AND course_id = ${courseId} 
+          AND event_type = 'Class'`
+    );
+    const rows = result.rows || [];
+    const dayMap: Record<string, number> = {
+      Sunday: 0,
+      Monday: 1,
+      Tuesday: 2,
+      Wednesday: 3,
+      Thursday: 4,
+      Friday: 5,
+      Saturday: 6
+    };
+    const targetDayNum = dayMap[dayOfWeek];
+    const classEvent = rows.find((e: any) => e.day_of_week === targetDayNum) || null;
+    return classEvent?.start_time_local || null;
+  } catch (err: any) {
+    console.error('[QuickAdd] Failed to fetch class time:', err.message);
+    return null;
+  }
+}
+
 async function findFirstAvailableSlot(
   userId: string,
   startSearchFrom: DateTime,
   durationMinutes: number,
   dueDate: DateTime,
-  userTz: string
+  userTz: string,
+  preferredWindow?: PreferredWindow
 ): Promise<DateTime> {
   // Fetch all existing events for the user
   const existingEvents = await db.query.calendarEventsNew.findMany({
@@ -1131,22 +1307,26 @@ async function findFirstAvailableSlot(
   console.log(`[Scheduling] Search range: ${startSearchFrom.toFormat('MMM dd h:mma')} to ${dueDate.toFormat('MMM dd h:mma')}`);
   console.log(`[Scheduling] Checking against ${existingEvents.length} existing events`);
   
-  // Define work hours: 8 AM - 10 PM
-  const WORK_START_HOUR = 8;
-  const WORK_END_HOUR = 22;
+  const window = preferredWindow || getPreferredWindow(null);
   
   let currentSlot = startSearchFrom.set({ minute: 0, second: 0 });
-  if (currentSlot.hour < WORK_START_HOUR) {
-    currentSlot = currentSlot.set({ hour: WORK_START_HOUR });
+  if (currentSlot.hour < window.startHour) {
+    currentSlot = currentSlot.set({ hour: window.startHour });
   }
   
   // Search for up to 14 days
   const maxSearchDate = currentSlot.plus({ days: 14 });
   
   while (currentSlot < dueDate && currentSlot < maxSearchDate) {
-    // Move to next day if past work hours
-    if (currentSlot.hour >= WORK_END_HOUR) {
-      currentSlot = currentSlot.plus({ days: 1 }).set({ hour: WORK_START_HOUR, minute: 0 });
+    // Move to next day if past preferred window
+    if (currentSlot.hour >= window.endHour) {
+      currentSlot = currentSlot.plus({ days: 1 }).set({ hour: window.startHour, minute: 0 });
+      continue;
+    }
+    
+    // Snap to preferred window if earlier than allowed
+    if (currentSlot.hour < window.startHour) {
+      currentSlot = currentSlot.set({ hour: window.startHour, minute: 0 });
       continue;
     }
     
