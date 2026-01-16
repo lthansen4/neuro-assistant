@@ -121,7 +121,7 @@ const migrations = [
       COMMENT ON COLUMN assignments.reading_questions IS 'Array of [{text: string, createdAt: string}] questions for the professor';
     `
   }
-],
+];
 
 export async function run() {
   console.log('🚀 [Migration Runner] Starting...');
