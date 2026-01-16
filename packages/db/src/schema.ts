@@ -76,6 +76,7 @@ export const assignments = pgTable("assignments", {
   userId: uuid("user_id").references(() => users.id).notNull(),
   courseId: uuid("course_id").references(() => courses.id),
   title: text("title").notNull(),
+  description: text("description"), // Migration 0029: User's original input/notes
   dueDate: timestamp("due_date", { withTimezone: true }),
   category: text("category"),
   effortEstimateMinutes: integer("effort_estimate_minutes"),

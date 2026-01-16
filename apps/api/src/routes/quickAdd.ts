@@ -546,6 +546,7 @@ quickAddRoute.post("/commit", async (c) => {
           userId,
           courseId: body.parsed.courseId ?? null,
           title: body.parsed.title,
+          description: body.rawInput, // Save the original user input as description
           category: body.parsed.category ?? null,
           dueDate: due,
           effortEstimateMinutes: body.parsed.effortMinutes ?? null,

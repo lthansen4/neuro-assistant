@@ -10,6 +10,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API
 export interface AssignmentEditData {
   id: string;
   title: string;
+  description?: string | null;
   dueDate: string | null;
   category: string | null;
   effortEstimateMinutes: number | null;
@@ -38,6 +39,7 @@ export function AssignmentEditModal({
   onDeleted: () => void;
 }) {
   const [title, setTitle] = useState(assignment.title);
+  const [description, setDescription] = useState(assignment.description || "");
   const [dueDate, setDueDate] = useState(toLocalDateTimeValue(assignment.dueDate));
   const [category, setCategory] = useState(assignment.category || "");
   const [effortMinutes, setEffortMinutes] = useState<string>(
@@ -62,6 +64,7 @@ export function AssignmentEditModal({
     try {
       const payload = {
         title: title.trim(),
+        description: description.trim() || null,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         category: category || null,
         effortEstimateMinutes: effortMinutes ? Number(effortMinutes) : null,
@@ -188,6 +191,18 @@ export function AssignmentEditModal({
               className="w-full border border-brand-border rounded-2xl px-4 py-2 text-sm"
             />
           </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-brand-text">Description / Notes</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Your original input or notes about this assignment..."
+              rows={3}
+              className="w-full border border-brand-border rounded-2xl px-4 py-2 text-sm resize-none"
+            />
+          </div>
+          
           <div className="space-y-2">
             <label className="text-sm font-semibold text-brand-text">Due date</label>
             <input

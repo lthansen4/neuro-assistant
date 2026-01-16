@@ -126,6 +126,7 @@ assignmentsRoute.put('/:id', async (c) => {
 
     const updatePayload: Partial<typeof assignments.$inferInsert> = {};
     if (typeof body.title === 'string') updatePayload.title = body.title.trim();
+    if (typeof body.description === 'string' || body.description === null) updatePayload.description = body.description || null;
     if (typeof body.category === 'string' || body.category === null) updatePayload.category = body.category || null;
     if (typeof body.effortEstimateMinutes === 'number' || body.effortEstimateMinutes === null) {
       updatePayload.effortEstimateMinutes = body.effortEstimateMinutes ?? null;
