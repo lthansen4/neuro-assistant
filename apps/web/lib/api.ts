@@ -1,5 +1,5 @@
 // lib/api.ts - API client utilities
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://neuroapi-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gesso-api-production.up.railway.app";
 
 export async function fetchDashboardSummary(userId: string, range: "day" | "week" = "week") {
   try {
