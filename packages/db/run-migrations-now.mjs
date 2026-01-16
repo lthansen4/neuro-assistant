@@ -214,21 +214,30 @@ export async function run() {
       console.log('Next steps:');
       console.log('1. Redeploy the API service on Railway');
       console.log('2. The app should now work with description fields');
+      process.exit(0);
     } else {
       console.log('⚠️  Some migrations may have failed. Check errors above.');
+      process.exit(1);
     }
 
   } catch (err) {
     console.error('❌ Connection failed:', err.message);
     process.exit(1);
   } finally {
-    await client.end();
+    try {
+      await client.end();
+    } catch (e) {
+      // Ignore end errors
+    }
   }
 }
 
 // Only run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  run();
+  run().catch(err => {
+    console.error('Unhandled error in migration runner:', err);
+    process.exit(1);
+  });
 }
 
 

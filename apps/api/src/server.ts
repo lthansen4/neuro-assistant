@@ -17,18 +17,9 @@ process.on('unhandledRejection', (err: any) => {
 });
 
 async function startServer() {
-  console.log('🚀🚀🚀 [API] STARTING SERVER VERSION 0.0.9 (Trigger: Robust fix v4) 🚀🚀🚀');
+  console.log('🚀🚀🚀 [API] STARTING SERVER VERSION 0.1.0 (Fix: Initialization hang) 🚀🚀🚀');
   console.log(`[API] Starting on port ${port}...`);
   
-  // Run migrations on startup
-  console.log('[API] Running database migrations...');
-  try {
-    await runMigrations();
-    console.log('[API] Database migrations completed successfully.');
-  } catch (error: any) {
-    console.error('[API] Database migrations failed:', error);
-  }
-
   console.log('[API] ENV check:', {
     hasDatabase: !!process.env.DATABASE_URL,
     hasOpenAI: !!process.env.OPENAI_API_KEY,
