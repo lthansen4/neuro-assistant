@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db, schema } from "../lib/db";
 import { and, eq } from "drizzle-orm";
-import { getUserId } from "./dashboard";
+import { getUserId } from "../lib/auth-utils";
 
 export const sessionsRoute = new Hono();
 
