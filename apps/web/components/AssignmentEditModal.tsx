@@ -44,6 +44,7 @@ export function AssignmentEditModal({
   );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
@@ -101,6 +102,28 @@ export function AssignmentEditModal({
     } catch (err: any) {
       setError(err.message || "Failed to delete assignment.");
       setDeleting(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    setCompleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/adhd/complete/${assignment.id}`, {
+        method: "POST",
+        headers: {
+          "x-clerk-user-id": userId,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to mark assignment complete.");
+      }
+      onUpdated();
+    } catch (err: any) {
+      setError(err.message || "Failed to mark assignment complete.");
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -173,22 +196,32 @@ export function AssignmentEditModal({
           </div>
         </div>
 
-        <div className="flex flex-col-reverse md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-col gap-3">
           <Button
-            variant="ghost"
-            className={cn("text-rose-600 hover:text-rose-700", deleting && "opacity-60")}
-            onClick={handleDelete}
-            disabled={deleting}
+            className="w-full bg-brand-mint text-white hover:brightness-110"
+            onClick={handleComplete}
+            disabled={completing}
           >
-            {deleting ? "Deleting..." : "Delete"}
+            {completing ? "Marking..." : "Done"}
           </Button>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
+
+          <div className="flex flex-col-reverse md:flex-row md:items-center justify-between gap-3">
+            <Button
+              variant="ghost"
+              className={cn("text-rose-600 hover:text-rose-700", deleting && "opacity-60")}
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save changes"}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
