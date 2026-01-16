@@ -328,6 +328,8 @@ Current Assignment:
 ${contextSummary}
 
 IMPORTANT: For EVERY question, provide 2-4 suggested answer options. The UI will show these in a dropdown with "Other" as the last option.
+If you ask about splitting work time, make options that match the estimated duration.
+Example: if estimated duration is 90 minutes, options should sum to ~90 minutes (e.g., "One go (90 minutes)", "Two sessions (45 minutes each)", "Three sessions (30 minutes each)").
 
 Generate questions that are:
 1. SPECIFIC to their context (reference specific events/deadlines you see)
@@ -348,6 +350,9 @@ Options: ["Yes, perfect", "No, prefer morning", "No, prefer evening"]
 
 Q: "How many problems/pages/questions is this?"
 Options: ["1-5", "6-10", "11-20", "20+"]
+
+Q: "Do you want to tackle this in one go or split it up?"
+Options: ["One go (90 minutes)", "Two sessions (45 minutes each)", "Three sessions (30 minutes each)"]
 
 Examples of BAD questions:
 - No options provided (always provide options!)
