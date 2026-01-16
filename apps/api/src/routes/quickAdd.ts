@@ -819,7 +819,7 @@ Use their specific context to make the BEST scheduling decision.`,
         .values({
           userId,
           title: `📌 DUE: ${draft.title}`,
-          eventType: "Other", // Use "Other" type for deadline markers
+          eventType: "DueDate", // Use "DueDate" type for deadline markers
           startAt: dueDate,
           endAt: dueEndTime,
           isMovable: false, // Due dates shouldn't move

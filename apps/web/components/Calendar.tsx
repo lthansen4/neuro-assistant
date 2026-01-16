@@ -6,6 +6,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { ChecklistViewerModal } from "./ChecklistViewerModal";
 import { EventDetailsModal } from "./EventDetailsModal";
+import { AssignmentEditModal, AssignmentEditData } from "./AssignmentEditModal";
 import { cn } from "../lib/utils";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
@@ -62,6 +63,9 @@ export function Calendar({
   const [selectedChecklistEvent, setSelectedChecklistEvent] = useState<any>(null);
   const [eventDetailsModalOpen, setEventDetailsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<AssignmentEditData | null>(null);
+  const [highlightedEventIds, setHighlightedEventIds] = useState<Set<string>>(new Set());
   
   // Responsive view switching
   useEffect(() => {
@@ -77,6 +81,17 @@ export function Calendar({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [currentView]);
+
+  useEffect(() => {
+    const handleHighlight = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { eventIds?: string[] } | undefined;
+      const ids = detail?.eventIds || [];
+      setHighlightedEventIds(new Set(ids.map(String)));
+    };
+
+    window.addEventListener("highlightFocusBlocks", handleHighlight as EventListener);
+    return () => window.removeEventListener("highlightFocusBlocks", handleHighlight as EventListener);
+  }, []);
   
   // Custom navigation handlers to keep state in sync
   const handleViewChange = (view: string) => {
@@ -184,6 +199,10 @@ export function Calendar({
           
           eventDrop={(info) => onMove(info.event.id, info.event.start!, info.event.end!)}
           eventResize={(info) => onMove(info.event.id, info.event.start!, info.event.end!)}
+          eventClassNames={(eventInfo) => {
+            const id = String(eventInfo.event.id);
+            return highlightedEventIds.has(id) ? ["focus-block-highlight"] : [];
+          }}
           
           eventContent={(eventInfo) => {
             const isCompleted = eventInfo.event.extendedProps?.metadata?.isCompleted;
@@ -214,18 +233,49 @@ export function Calendar({
             );
           }}
           
-          eventClick={(clickInfo) => {
+          eventClick={async (clickInfo) => {
             const event = clickInfo.event;
+            const eventType = event.extendedProps?.eventType || 'Other';
+            const linkedAssignmentId = event.extendedProps?.linkedAssignmentId || event.extendedProps?.assignmentId;
+            const isDueDate = eventType === 'DueDate' || event.title?.includes('📌 DUE:') || event.title?.includes('DUE');
+
+            // If it's a Due Date or Focus block linked to an assignment, show Assignment details
+            if ((isDueDate || eventType === 'Focus') && linkedAssignmentId && userId) {
+              try {
+                const res = await fetch(`${API_BASE}/api/assignments/${linkedAssignmentId}/details`, {
+                  headers: { "x-clerk-user-id": userId }
+                });
+                const data = await res.json();
+                if (data.ok && data.assignment) {
+                  setSelectedAssignment({
+                    id: data.assignment.id,
+                    title: data.assignment.title,
+                    description: data.assignment.description,
+                    dueDate: data.assignment.dueDate,
+                    category: data.assignment.category,
+                    effortEstimateMinutes: data.assignment.effortEstimateMinutes,
+                    status: data.assignment.status,
+                    courseName: data.assignment.courseName || null
+                  });
+                  setAssignmentModalOpen(true);
+                  return;
+                }
+              } catch (err) {
+                console.error('[Calendar] Failed to fetch assignment details:', err);
+              }
+            }
+
+            // Fallback to standard event details
             setSelectedEvent({
               id: event.id,
               title: event.title,
-              description: event.extendedProps?.description || null, // User notes from Quick Add
+              description: event.extendedProps?.description || null,
               start: event.start!,
               end: event.end!,
-              eventType: event.extendedProps?.eventType || 'Other',
+              eventType: eventType,
               isMovable: event.extendedProps?.isMovable ?? false,
               metadata: event.extendedProps?.metadata,
-              linkedAssignmentId: event.extendedProps?.linkedAssignmentId
+              linkedAssignmentId: linkedAssignmentId
             });
             setEventDetailsModalOpen(true);
           }}
@@ -243,6 +293,27 @@ export function Calendar({
           onDeleted={() => {
             setEventDetailsModalOpen(false);
             setSelectedEvent(null);
+            calendarRef.current?.getApi().refetchEvents();
+          }}
+        />
+      )}
+
+      {assignmentModalOpen && selectedAssignment && userId && (
+        <AssignmentEditModal
+          assignment={selectedAssignment}
+          userId={userId}
+          onClose={() => {
+            setAssignmentModalOpen(false);
+            setSelectedAssignment(null);
+          }}
+          onUpdated={() => {
+            setAssignmentModalOpen(false);
+            setSelectedAssignment(null);
+            calendarRef.current?.getApi().refetchEvents();
+          }}
+          onDeleted={() => {
+            setAssignmentModalOpen(false);
+            setSelectedAssignment(null);
             calendarRef.current?.getApi().refetchEvents();
           }}
         />

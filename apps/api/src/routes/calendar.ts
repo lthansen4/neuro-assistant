@@ -165,6 +165,7 @@ calendarRoute.get('/events', async (c) => {
             endAt: schema.calendarEventsNew.endAt,
             eventType: schema.calendarEventsNew.eventType,
             isMovable: schema.calendarEventsNew.isMovable,
+            assignmentId: schema.calendarEventsNew.assignmentId,
             linkedAssignmentId: schema.calendarEventsNew.linkedAssignmentId, // ✅ PRIORITY 2: For deferral tracking
             metadata: schema.calendarEventsNew.metadata,
           })
@@ -219,6 +220,7 @@ calendarRoute.get('/events', async (c) => {
               endAt: endDate,
               eventType: evt.eventType,
               isMovable: evt.isMovable ?? false,
+              assignmentId: evt.assignmentId,
               linkedAssignmentId: evt.linkedAssignmentId, // PRIORITY 2: For deferral tracking
               metadata: evt.metadata,
             });
@@ -285,6 +287,7 @@ calendarRoute.get('/events', async (c) => {
           endAt: schema.calendarEventsNew.endAt,
           eventType: schema.calendarEventsNew.eventType,
           isMovable: schema.calendarEventsNew.isMovable,
+          assignmentId: schema.calendarEventsNew.assignmentId,
           linkedAssignmentId: schema.calendarEventsNew.linkedAssignmentId, // PRIORITY 2: Needed for deferral tracking
           metadata: schema.calendarEventsNew.metadata,
         })

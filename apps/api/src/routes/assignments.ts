@@ -237,9 +237,23 @@ assignmentsRoute.get('/:id/details', async (c) => {
     }
 
     const assignmentId = c.req.param('id');
-    const assignment = await db.query.assignments.findFirst({
-      where: and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)),
-    });
+    const [assignment] = await db
+      .select({
+        id: assignments.id,
+        userId: assignments.userId,
+        courseId: assignments.courseId,
+        title: assignments.title,
+        description: assignments.description,
+        dueDate: assignments.dueDate,
+        category: assignments.category,
+        effortEstimateMinutes: assignments.effortEstimateMinutes,
+        status: assignments.status,
+        courseName: courses.name,
+      })
+      .from(assignments)
+      .leftJoin(courses, eq(assignments.courseId, courses.id))
+      .where(and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)))
+      .limit(1);
 
     if (!assignment) {
       return c.json({ error: 'Assignment not found' }, 404);
