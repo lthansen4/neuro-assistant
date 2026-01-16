@@ -18,6 +18,7 @@ export function Toaster() {
           fontWeight: 600,
           boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
           fontFamily: "var(--font-inter), sans-serif",
+          zIndex: 9999, // Always on top
         },
         className: "cozy-toast",
       }}
