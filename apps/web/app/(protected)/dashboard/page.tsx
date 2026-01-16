@@ -16,6 +16,7 @@ import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
 import { EventDetailsModal } from "../../../components/EventDetailsModal";
 import { FocusTimerModal } from "../../../components/FocusTimerModal";
 import { Button } from "../../../components/ui/button";
+import { CircularProgress } from "../../../components/ui/CircularProgress";
 
 interface Assignment {
   id: string;
@@ -253,16 +254,31 @@ export default function DashboardPage() {
       {/* Sticky Quick Add (Top) */}
       <div className="sticky top-0 z-30 bg-brand-gesso/80 backdrop-blur-md pt-8 pb-4 px-6 md:px-12">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center">
             <div className="flex-1">
               <QuickAddInput />
             </div>
-            <Button
-              onClick={() => setFocusTarget({ title: "Focus session", assignmentId: null })}
-              className="rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.2em]"
-            >
-              Lock In
-            </Button>
+            <div className="bg-brand-surface rounded-[2rem] cozy-border shadow-soft px-6 py-4 flex items-center gap-4">
+              <CircularProgress
+                value={0}
+                max={60}
+                size={72}
+                strokeWidth={8}
+                color="#6D5EF7"
+                backgroundColor="#F6F2EA"
+              >
+                <span className="text-xs font-black text-brand-text">0m</span>
+              </CircularProgress>
+              <div className="flex flex-col gap-2">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-brand-muted">Focus</div>
+                <Button
+                  onClick={() => setFocusTarget({ title: "Focus session", assignmentId: null })}
+                  className="rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em]"
+                >
+                  Lock In
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
