@@ -292,6 +292,11 @@ export function EventDetailsModal({
         throw new Error(data.error || 'Failed to delete event');
       }
 
+      const data = await response.json().catch(() => ({}));
+      if ((event.metadata as any)?.linkedAssignmentId && data?.deletedAssignment === false) {
+        alert("Removed from calendar. The assignment is still in your list because it has other events.");
+      }
+
       // Success - call onDeleted to refresh calendar
       onDeleted();
     } catch (error: any) {
