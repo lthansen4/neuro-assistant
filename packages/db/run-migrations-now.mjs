@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Triggering redeploy to apply fixed migration 0032
 /**
  * Quick migration runner for Railway
  * 
