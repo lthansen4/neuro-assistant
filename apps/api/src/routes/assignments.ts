@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db, schema } from '../lib/db';
 import { assignments, courses } from '../../../../packages/db/src/schema';
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq, or, sql } from 'drizzle-orm';
 
 export const assignmentsRoute = new Hono();
 
@@ -167,15 +167,53 @@ assignmentsRoute.delete('/:id', async (c) => {
       return c.json({ error: 'Assignment not found' }, 404);
     }
 
-    await db.delete(schema.calendarEventsNew).where(
-      and(
+    const assignmentEvents = await db.query.calendarEventsNew.findMany({
+      where: and(
         eq(schema.calendarEventsNew.userId, userId),
         or(
           eq(schema.calendarEventsNew.assignmentId, assignmentId),
-          eq(schema.calendarEventsNew.linkedAssignmentId, assignmentId)
+          eq(schema.calendarEventsNew.linkedAssignmentId, assignmentId),
+          sql`${schema.calendarEventsNew.metadata} ->> 'assignmentId' = ${assignmentId}`
         )
       )
-    );
+    });
+
+    const eventIds = assignmentEvents.map((evt) => evt.id);
+    if (eventIds.length > 0) {
+      // Delete any linked transition buffers for these events
+      await db.delete(schema.calendarEventsNew).where(
+        and(
+          eq(schema.calendarEventsNew.userId, userId),
+          sql`(${schema.calendarEventsNew.metadata} ->> 'linkedToEvent')::uuid in (${sql.join(
+            eventIds.map((id) => sql`${id}::uuid`),
+            sql`,`
+          )})`
+        )
+      );
+
+      // Delete assignment-related events (including due date markers)
+      await db.delete(schema.calendarEventsNew).where(
+        and(
+          eq(schema.calendarEventsNew.userId, userId),
+          sql`${schema.calendarEventsNew.id} in (${sql.join(
+            eventIds.map((id) => sql`${id}::uuid`),
+            sql`,`
+          )})`
+        )
+      );
+    } else {
+      // Fallback: delete by assignment linkage in case metadata wasn't captured in query
+      await db.delete(schema.calendarEventsNew).where(
+        and(
+          eq(schema.calendarEventsNew.userId, userId),
+          or(
+            eq(schema.calendarEventsNew.assignmentId, assignmentId),
+            eq(schema.calendarEventsNew.linkedAssignmentId, assignmentId),
+            sql`${schema.calendarEventsNew.metadata} ->> 'assignmentId' = ${assignmentId}`
+          )
+        )
+      );
+    }
 
     await db.delete(assignments).where(and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)));
 
