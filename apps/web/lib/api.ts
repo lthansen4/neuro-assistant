@@ -86,3 +86,22 @@ export async function fetchCalendarEvents(userId: string, start: Date, end: Date
   return res.json();
 }
 
+export async function createSession(
+  userId: string,
+  payload: { type: "Focus" | "Chill"; startTime: string; endTime: string; assignmentId?: string | null }
+) {
+  const res = await fetch(`${API_BASE}/api/sessions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-clerk-user-id": userId,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => res.statusText);
+    throw new Error(`Failed to create session: ${res.status} ${errorText}`);
+  }
+  return res.json();
+}
+

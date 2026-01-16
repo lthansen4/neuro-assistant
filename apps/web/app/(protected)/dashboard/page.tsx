@@ -14,6 +14,7 @@ import { WeekSummary } from "../../../components/WeekSummary";
 import { cn } from "../../../lib/utils";
 import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
 import { EventDetailsModal } from "../../../components/EventDetailsModal";
+import { FocusTimerModal } from "../../../components/FocusTimerModal";
 
 interface Assignment {
   id: string;
@@ -76,6 +77,10 @@ export default function DashboardPage() {
     isMovable: boolean;
     metadata?: any;
     linkedAssignmentId?: string;
+  } | null>(null);
+  const [focusTarget, setFocusTarget] = useState<{
+    assignmentId?: string | null;
+    title?: string;
   } | null>(null);
   const [topTab, setTopTab] = useState<"top" | "today" | "week" | "all">("top");
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
@@ -285,6 +290,12 @@ export default function DashboardPage() {
                 linkedAssignmentId: item.linkedAssignmentId,
               });
             }}
+            onLockIn={(item) => {
+              setFocusTarget({
+                assignmentId: item.linkedAssignmentId || item.metadata?.assignmentId || null,
+                title: item.title,
+              });
+            }}
           />
         </div>
 
@@ -418,6 +429,19 @@ export default function DashboardPage() {
             onClose={() => setSelectedEvent(null)}
             onDeleted={() => {
               setSelectedEvent(null);
+              loadDashboard(false);
+            }}
+          />
+        )}
+
+        {focusTarget && user && (
+          <FocusTimerModal
+            userId={user.id}
+            assignmentId={focusTarget.assignmentId}
+            title={focusTarget.title}
+            onClose={() => setFocusTarget(null)}
+            onLogged={() => {
+              setFocusTarget(null);
               loadDashboard(false);
             }}
           />

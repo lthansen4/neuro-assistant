@@ -22,9 +22,10 @@ interface FlowItem {
 interface TodayFlowProps {
   items: FlowItem[];
   onSelect?: (item: FlowItem) => void;
+  onLockIn?: (item: FlowItem) => void;
 }
 
-export function TodayFlow({ items, onSelect }: TodayFlowProps) {
+export function TodayFlow({ items, onSelect, onLockIn }: TodayFlowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
 
@@ -91,6 +92,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
           const start = new Date(item.startTime);
           const end = new Date(item.endTime);
           const isNow = now >= start && now <= end;
+          const showLockIn = item.category !== "due";
 
           return (
             <div 
@@ -128,13 +130,30 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
                   </span>
                   
                   {isNow && (
-                    <Button size="sm" className="bg-category-reset-fg hover:bg-category-reset-fg/90 text-white rounded-full px-6">
-                      Take it
-                    </Button>
+                    showLockIn && (
+                      <Button
+                        size="sm"
+                        className="bg-category-reset-fg hover:bg-category-reset-fg/90 text-white rounded-full px-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onLockIn?.(item);
+                        }}
+                      >
+                        Lock in
+                      </Button>
+                    )
                   )}
                   {item.category === "deep" && !isNow && (
-                    <Button size="sm" variant="outline" className="border-category-deep-fg text-category-deep-fg hover:bg-category-deep-bg rounded-full px-6">
-                      Start
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-category-deep-fg text-category-deep-fg hover:bg-category-deep-bg rounded-full px-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onLockIn?.(item);
+                      }}
+                    >
+                      Lock in
                     </Button>
                   )}
                 </div>

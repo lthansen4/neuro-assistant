@@ -11,6 +11,7 @@ import { userRoute } from './routes/user';
 import energyRoute from './routes/energy';
 import { nudgesRoute } from './routes/nudges';
 import adhdFeaturesRoute from './routes/adhd-features';
+import { sessionsRoute } from './routes/sessions';
 
 const app = new Hono();
 
@@ -62,6 +63,7 @@ app.route('/api/user', userRoute);
 app.route('/api/energy', energyRoute);
 app.route('/api/nudges', nudgesRoute);
 app.route('/api/adhd', adhdFeaturesRoute); // Priority 2 ADHD features
+app.route('/api/sessions', sessionsRoute);
 
 // Simple health check
 app.get('/health', (c) => c.text('ok'));
