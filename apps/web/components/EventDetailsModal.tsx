@@ -9,6 +9,7 @@ interface EventDetailsModalProps {
   event: {
     id: string;
     title: string;
+    description?: string | null; // User notes from Quick Add
     start: Date;
     end: Date;
     eventType: string;
@@ -371,6 +372,16 @@ export function EventDetailsModal({
         <div className="space-y-3 mb-6">
           {!isEditing ? (
             <>
+              {/* Description/Notes (if present) */}
+              {event.description && (
+                <div className="mb-4 p-3 bg-brand-surface-2 rounded-xl border border-brand-border">
+                  <p className="text-sm font-medium text-brand-muted mb-1">Notes</p>
+                  <p className="text-sm text-brand-text whitespace-pre-wrap">
+                    {event.description}
+                  </p>
+                </div>
+              )}
+              
               <div>
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Start Time</p>
                 <p className="text-base text-gray-900 dark:text-white">

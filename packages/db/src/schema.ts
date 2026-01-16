@@ -162,6 +162,7 @@ export const calendarEventsNew = pgTable("calendar_events_new", {
   templateId: uuid("template_id").references(() => calendarEventTemplates.id), // Link to template
   linkedAssignmentId: uuid("linked_assignment_id").references(() => assignments.id), // PRIORITY 2: For deferral tracking
   title: text("title").notNull(),
+  description: text("description"), // Migration 0030: Assignment description/notes
   eventType: eventTypeEnum("event_type").notNull(),
   startAt: timestamp("start_at", { withTimezone: true }).notNull(), // Changed from startTime for clarity
   endAt: timestamp("end_at", { withTimezone: true }).notNull(), // Changed from endTime for clarity

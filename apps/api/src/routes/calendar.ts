@@ -160,6 +160,7 @@ calendarRoute.get('/events', async (c) => {
           .select({
             id: schema.calendarEventsNew.id,
             title: schema.calendarEventsNew.title,
+            description: schema.calendarEventsNew.description, // User notes/details
             startAt: schema.calendarEventsNew.startAt,
             endAt: schema.calendarEventsNew.endAt,
             eventType: schema.calendarEventsNew.eventType,
@@ -213,6 +214,7 @@ calendarRoute.get('/events', async (c) => {
             events.push({
               id: evt.id,
               title: evt.title,
+              description: evt.description, // User notes/details
               startAt: startDate,
               endAt: endDate,
               eventType: evt.eventType,
@@ -278,6 +280,7 @@ calendarRoute.get('/events', async (c) => {
         .select({
           id: schema.calendarEventsNew.id,
           title: schema.calendarEventsNew.title,
+          description: schema.calendarEventsNew.description, // User notes/details
           startAt: schema.calendarEventsNew.startAt,
           endAt: schema.calendarEventsNew.endAt,
           eventType: schema.calendarEventsNew.eventType,
@@ -368,6 +371,7 @@ calendarRoute.get('/events', async (c) => {
       return {
         id: evt.id,
         title: evt.title,
+        description: (evt as any).description || null, // User notes from Quick Add
         start: startDate.toISOString(), // FullCalendar prefers ISO strings
         end: endDate.toISOString(),
         extendedProps: {

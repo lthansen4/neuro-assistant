@@ -116,7 +116,9 @@ quickAddRoute.post("/parse", async (c) => {
         category: z.enum(["Homework", "Exam", "Reading", "Study Session"]).describe("Type of assignment"),
         due_date: z.string().nullable().describe("Due date in ISO format (YYYY-MM-DD) or null if not mentioned"),
         due_time: z.string().nullable().describe("Due time in 24h format (HH:MM) or null if not mentioned"),
-        estimated_duration: z.number().describe("Estimated time needed in minutes"),
+        estimated_duration: z.number().describe("Estimated time needed in minutes. MUST include time for any prerequisites mentioned (e.g., 'read chapter 2 first' = add 20-30 min)"),
+        has_prerequisites: z.boolean().describe("True if user mentions steps that must happen first (e.g., 'read chapter 2 first', 'need to review notes', 'watch lecture first')"),
+        prerequisites_summary: z.string().nullable().describe("Brief summary of what needs to be done first, if has_prerequisites is true (e.g., 'Read chapter 2'). Null otherwise."),
         has_study_intent: z.boolean().describe("True if user wants to schedule study/work time"),
         preferred_work_time: z.string().nullable().describe("If user specified WHEN to work on it (e.g., 'today at 3pm', 'tomorrow morning'), extract the time. Null if they only mentioned due date."),
         requires_chunking: z.boolean().describe("True if this is a long-form task requiring multiple work sessions (paper, large project, thesis)"),
@@ -138,6 +140,15 @@ Extract:
   * For example, if today is Thursday and user says "next Friday", that's TOMORROW. If today is Thursday and user says "next Monday", that's 4 days from now.
 - Due time (default to 17:00 if not specified, unless user says "today" then default to 23:59)
 - Estimated duration in minutes
+- **CRITICAL: Check for prerequisites or prep work**
+  * If user says "I need to X first", "after reading Y", "once I finish Z", "need to review W" → has_prerequisites = true
+  * Extract what needs to be done first into prerequisites_summary
+  * ADD time for prerequisites to estimated_duration
+    Examples:
+    - "read chapter 2 first" → add 20-30 min
+    - "review lecture notes" → add 15-20 min  
+    - "watch the video first" → add 30-45 min
+    - "need to outline first" → add 30-45 min
 - Preferred work time: If user says WHEN they want to work on it (e.g., "work on math today at 3pm", "do homework tomorrow morning"), extract that. 
   Examples: "today at 3pm" → "today at 15:00", "tomorrow morning" → "tomorrow morning", "friday afternoon" → "friday afternoon"
   If they ONLY mention due date (e.g., "math homework due friday"), set to null
@@ -568,6 +579,7 @@ quickAddRoute.post("/commit", async (c) => {
             assignmentId: assignment.id,
             type: "Focus",
             title: `Focus: ${body.parsed.title}`,
+            description: body.rawInput, // Pass the user's original input to the event
             startTime: start,
             endTime: end,
             isMovable: true,

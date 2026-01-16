@@ -108,6 +108,10 @@ export function Calendar({
             backgroundColor: colors.backgroundColor,
             borderColor: colors.borderColor,
             textColor: colors.textColor,
+            extendedProps: {
+              ...evt.extendedProps,
+              description: evt.description || null, // Pass description through
+            }
           };
         });
       }
@@ -215,6 +219,7 @@ export function Calendar({
             setSelectedEvent({
               id: event.id,
               title: event.title,
+              description: event.extendedProps?.description || null, // User notes from Quick Add
               start: event.start!,
               end: event.end!,
               eventType: event.extendedProps?.eventType || 'Other',
