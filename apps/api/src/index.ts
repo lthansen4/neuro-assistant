@@ -1,13 +1,14 @@
 /**
  * Gesso API Server
- * v1.2.0 - Fixed description column in all calendar queries
- * Build: 2026-01-16T00:00:00Z
+ * v1.3.0 - Fixed quickAdd to use calendarEventsNew table
+ * Build: 2026-01-16T15:50:00Z
  */
 import { Hono } from 'hono';
 
-// Startup log to verify deployment version
-console.log('[Gesso API] Starting server v1.2.0 (Build: 2026-01-16)');
+// Startup log to verify deployment version - UNIQUE BUILD ID: BUILD_20260116_1550
+console.log('[Gesso API] Starting server v1.3.0 (Build: 2026-01-16T15:50)');
 console.log('[Gesso API] Description field support: ENABLED');
+console.log('[Gesso API] Using calendarEventsNew for all calendar operations');
 import { cors } from 'hono/cors';
 import { coursesRoute } from './routes/courses';
 import { assignmentsRoute } from './routes/assignments';
