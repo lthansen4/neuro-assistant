@@ -34,6 +34,8 @@ Every interaction with Gesso should make the AI smarter about THIS student. We'r
 - ❌ Risk prediction & early warnings
 - ❌ Energy-aware scheduling
 - ❌ Insights dashboard
+- ❌ Smart question regeneration on edits (duration/course/due date)
+- ❌ Context-aware question enrichment for known works/topics
 
 ---
 
@@ -195,6 +197,36 @@ Every interaction with Gesso should make the AI smarter about THIS student. We'r
 **So I can start immediately without planning overhead**
 
 **Note:** This is complex because it requires understanding assignment context (syllabus, rubric, etc.). Parking for now.
+
+---
+
+### 10. **Smart Question Regeneration** (HIGH PRIORITY)
+**As a student, I want smart questions to update when I edit duration/course/due date**  
+**So the suggested session splits and scheduling options always match my changes**
+
+**Acceptance Criteria:**
+- [ ] Editing estimated duration refreshes smart questions
+- [ ] Editing course or due date refreshes smart questions
+- [ ] Regeneration is debounced and does not block the UI
+
+**Technical Requirements:**
+- Add endpoint to regenerate smart questions from the current draft
+- Frontend debounce and refresh logic on edited fields
+
+---
+
+### 11. **Context-Aware Question Enrichment** (MEDIUM PRIORITY)
+**As a student, I want questions to reflect known works/topics (e.g., "Infinite Jest")**  
+**So scheduling advice reflects task difficulty and scope**
+
+**Acceptance Criteria:**
+- [ ] Detect common books/works/topics from assignment titles
+- [ ] Enrich prompt with brief context to improve questions
+- [ ] Fall back gracefully when context is unknown
+
+**Technical Requirements:**
+- Lightweight context lookup (curated list or heuristic enrichment)
+- Inject enrichment into smart-question generation prompt
 
 ---
 
