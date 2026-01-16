@@ -52,40 +52,77 @@ body {
   font-family: var(--font-inter), sans-serif !important;
 }
 
+/* Larger time slots for better event visibility */
 .fc-timegrid-slot {
-  height: 3.5rem !important;
+  height: 4rem !important;
 }
 
+@media (max-width: 768px) {
+  .fc-timegrid-slot {
+    height: 5rem !important;
+  }
+}
+
+/* Time labels: clear, readable */
 .fc-timegrid-slot-label {
   font-size: 13px !important;
   font-weight: 600 !important;
   color: #5C5C5C !important;
+  padding: 0 8px !important;
 }
 
+@media (max-width: 768px) {
+  .fc-timegrid-slot-label {
+    font-size: 14px !important;
+  }
+}
+
+/* Day headers: bold and clear */
 .fc-col-header-cell {
   padding: 1rem 0.5rem !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 700 !important;
   color: #151515 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
 }
 
+@media (max-width: 768px) {
+  .fc-col-header-cell {
+    font-size: 14px !important;
+    padding: 0.75rem 0.25rem !important;
+  }
+}
+
+/* Events: high contrast, clean */
 .fc-event {
   border: none !important;
-  border-radius: 12px !important;
-  padding: 4px !important;
+  border-radius: 14px !important;
+  padding: 6px 8px !important;
   font-size: 14px !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.10) !important;
+  margin: 0 2px !important;
+}
+
+@media (max-width: 768px) {
+  .fc-event {
+    border-radius: 12px !important;
+    padding: 8px 10px !important;
+    font-size: 15px !important;
+    margin: 0 1px !important;
+  }
 }
 
 .fc-daygrid-event {
-  border-radius: 8px !important;
-  padding: 4px 6px !important;
+  border-radius: 10px !important;
+  padding: 6px 8px !important;
 }
 
 .fc-timegrid-event {
-  border-radius: 10px !important;
+  border-radius: 12px !important;
 }
 
+/* Buttons: cozy style */
 .fc .fc-button {
   border-radius: 12px !important;
   padding: 0.5rem 1rem !important;
@@ -93,6 +130,35 @@ body {
   font-size: 14px !important;
 }
 
+/* Event spacing in time grid */
 .fc-direction-ltr .fc-timegrid-col-events {
-  margin: 0 4px !important;
+  margin: 0 3px !important;
+}
+
+@media (max-width: 768px) {
+  .fc-direction-ltr .fc-timegrid-col-events {
+    margin: 0 2px !important;
+  }
+}
+
+/* Now indicator: more visible */
+.fc-timegrid-now-indicator-line {
+  border-color: #FF4D8D !important;
+  border-width: 2px !important;
+}
+
+.fc-timegrid-now-indicator-arrow {
+  border-color: #FF4D8D !important;
+  border-width: 6px !important;
+}
+
+/* Grid lines: softer */
+.fc-timegrid-slot-lane {
+  border-color: rgba(20, 20, 20, 0.06) !important;
+}
+
+.fc-col-header-cell,
+.fc-timegrid-axis,
+.fc-timegrid-slot {
+  border-color: rgba(20, 20, 20, 0.08) !important;
 }

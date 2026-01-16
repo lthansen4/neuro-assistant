@@ -10,6 +10,9 @@ import { cn } from "../lib/utils";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
 
+// Detect if mobile
+const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 768;
+
 // New Cozy 2026 Category Colors (Tinted surfaces)
 const CATEGORY_COLORS: Record<string, { bg: string, border: string, text: string }> = {
   Class: { bg: "rgba(47,107,255,0.10)", border: "rgba(47,107,255,0.20)", text: "#2F6BFF" },
@@ -53,11 +56,27 @@ export function Calendar({
   userId?: string;
 }) {
   const calendarRef = useRef<FullCalendar>(null);
-  const [currentView, setCurrentView] = useState("timeGridWeek");
+  // Adaptive default: Day view on mobile, Week on desktop
+  const [currentView, setCurrentView] = useState(() => isMobile() ? "timeGridDay" : "timeGridWeek");
   const [checklistModalOpen, setChecklistModalOpen] = useState(false);
   const [selectedChecklistEvent, setSelectedChecklistEvent] = useState<any>(null);
   const [eventDetailsModalOpen, setEventDetailsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  
+  // Responsive view switching
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = isMobile();
+      const newView = mobile ? "timeGridDay" : "timeGridWeek";
+      if (currentView !== newView) {
+        setCurrentView(newView);
+        calendarRef.current?.getApi().changeView(newView);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [currentView]);
   
   // Custom navigation handlers to keep state in sync
   const handleViewChange = (view: string) => {
@@ -138,11 +157,11 @@ export function Calendar({
         </div>
       </div>
 
-      <div className="bg-brand-surface rounded-[2.5rem] p-4 md:p-8 cozy-border shadow-soft min-h-[70vh] md:min-h-[75vh]">
+      <div className="bg-brand-surface rounded-[2.5rem] p-3 md:p-8 cozy-border shadow-soft min-h-[70vh] md:min-h-[75vh]">
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
+          initialView={isMobile() ? "timeGridDay" : "timeGridWeek"}
           headerToolbar={false} // Using our custom header
           timeZone="local"
           height="auto"
@@ -151,6 +170,8 @@ export function Calendar({
           slotMaxTime="24:00:00"
           nowIndicator={true}
           events={userId ? fetchEvents : events}
+          dayHeaderFormat={{ weekday: 'short', month: 'numeric', day: 'numeric' }}
+          slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
           
           // Logic Split: Month = Editable Planner, Week/Day = Review Mode
           editable={currentView === 'dayGridMonth'} 
