@@ -100,37 +100,37 @@ export function Calendar({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       {/* Custom Cozy Header */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6 px-4">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 px-2 md:px-4">
         <div className="flex items-center gap-2 bg-brand-surface-2 p-1 rounded-full cozy-border">
           <button onClick={handlePrev} className="p-2 hover:bg-brand-surface rounded-full transition-colors">←</button>
-          <button onClick={handleToday} className="px-6 py-2 bg-brand-surface text-[12px] font-black uppercase tracking-widest rounded-full shadow-soft">today</button>
+          <button onClick={handleToday} className="px-4 md:px-6 py-2 bg-brand-surface text-[11px] md:text-[12px] font-black uppercase tracking-widest rounded-full shadow-soft">today</button>
           <button onClick={handleNext} className="p-2 hover:bg-brand-surface rounded-full transition-colors">→</button>
         </div>
 
-        <h2 className="text-4xl font-serif font-black text-brand-text italic">
+        <h2 className="text-2xl md:text-4xl font-serif font-black text-brand-text italic">
           {calendarRef.current?.getApi().view.title}
         </h2>
 
         <div className="flex items-center gap-2 bg-brand-surface-2 p-1 rounded-full cozy-border">
           <button 
             onClick={() => handleViewChange('dayGridMonth')}
-            className={cn("px-6 py-2 text-[12px] font-black uppercase tracking-widest rounded-full transition-all", 
+            className={cn("px-4 md:px-6 py-2 text-[11px] md:text-[12px] font-black uppercase tracking-widest rounded-full transition-all", 
               currentView === 'dayGridMonth' ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted")}
           >
             month
           </button>
           <button 
             onClick={() => handleViewChange('timeGridWeek')}
-            className={cn("px-6 py-2 text-[12px] font-black uppercase tracking-widest rounded-full transition-all", 
+            className={cn("px-4 md:px-6 py-2 text-[11px] md:text-[12px] font-black uppercase tracking-widest rounded-full transition-all", 
               currentView === 'timeGridWeek' ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted")}
           >
             week
           </button>
           <button 
             onClick={() => handleViewChange('timeGridDay')}
-            className={cn("px-6 py-2 text-[12px] font-black uppercase tracking-widest rounded-full transition-all", 
+            className={cn("px-4 md:px-6 py-2 text-[11px] md:text-[12px] font-black uppercase tracking-widest rounded-full transition-all", 
               currentView === 'timeGridDay' ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted")}
           >
             day
@@ -138,13 +138,15 @@ export function Calendar({
         </div>
       </div>
 
-      <div className="bg-brand-surface rounded-[2.5rem] p-8 cozy-border shadow-soft overflow-hidden">
+      <div className="bg-brand-surface rounded-[2.5rem] p-4 md:p-8 cozy-border shadow-soft min-h-[70vh] md:min-h-[75vh]">
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="timeGridWeek"
           headerToolbar={false} // Using our custom header
           timeZone="local"
+          height="auto"
+          contentHeight="auto"
           slotMinTime="06:00:00"
           slotMaxTime="24:00:00"
           nowIndicator={true}

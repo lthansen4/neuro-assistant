@@ -33,12 +33,6 @@ const NAV_ITEMS = [
 export function BottomNav() {
   const pathname = usePathname();
 
-  const handleQuickAddClick = () => {
-    document.getElementById('quick-add-input')?.focus();
-    // If the input isn't on the current page or visible, we might need a different trigger
-    // But for now, let's assume TopNav is always there
-  };
-
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-6 pb-8 pt-4">
       <div className="bg-white/80 backdrop-blur-2xl border border-slate-100 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] px-4 py-2 max-w-md mx-auto relative flex items-center justify-between">
@@ -71,12 +65,13 @@ export function BottomNav() {
         })}
 
         {/* Central FAB */}
-        <button
-          onClick={handleQuickAddClick}
+        <Link
+          href="/quick-add"
+          aria-label="Quick add"
           className="w-16 h-16 bg-brand-green text-white rounded-full shadow-2xl shadow-brand-green/40 flex items-center justify-center -translate-y-8 active:scale-90 transition-transform duration-300 border-4 border-white"
         >
           <Plus size={32} strokeWidth={3} />
-        </button>
+        </Link>
 
         {NAV_ITEMS.slice(2).map((item) => {
           const isActive = pathname === item.href;

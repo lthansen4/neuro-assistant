@@ -7,11 +7,12 @@ import { StuckAssignmentModal } from "../../../components/StuckAssignmentModal";
 import { OptimizeScheduleButton } from "../../../components/OptimizeScheduleButton";
 import { useUser } from "@clerk/nextjs";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
 export default function CalendarPage() {
   const { user, isLoaded } = useUser();
   const [error, setError] = useState<string>("");
+  const [showLegend, setShowLegend] = useState(false);
   const [proposalPanelOpen, setProposalPanelOpen] = useState(false);
   const [hasProposal, setHasProposal] = useState(false);
   const [appliedProposal, setAppliedProposal] = useState<{ id: string; timeRemainingMinutes: number } | null>(null);
@@ -274,9 +275,17 @@ export default function CalendarPage() {
 
   return (
     <main className="p-4 relative">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Calendar</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold">Calendar</h1>
+          <button
+            onClick={() => setShowLegend((prev) => !prev)}
+            className="px-3 py-1 text-xs font-semibold rounded-full border border-brand-border text-brand-muted hover:text-brand-text hover:bg-brand-surface"
+          >
+            {showLegend ? "Hide legend" : "Show legend"}
+          </button>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
           {hasProposal && !appliedProposal && (
             <button
               onClick={() => setProposalPanelOpen(true)}
@@ -297,9 +306,6 @@ export default function CalendarPage() {
               }
             }}
           />
-          <div className="px-4 py-2 text-sm text-gray-500 italic">
-            💡 Use the Quick Add input in the top nav (Alt+Q)
-          </div>
         </div>
       </div>
       
@@ -338,9 +344,11 @@ export default function CalendarPage() {
         </div>
       )}
 
-      <div className="mb-4">
-        <CalendarLegend />
-      </div>
+      {showLegend && (
+        <div className="mb-4">
+          <CalendarLegend />
+        </div>
+      )}
 
       <Calendar events={[]} onMove={onMove} userId={user.id} />
       

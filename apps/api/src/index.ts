@@ -18,17 +18,32 @@ const app = new Hono();
 const allowedOrigins = [
   'http://localhost:3000',
   'https://neuroweb-production.up.railway.app',
+  'https://gessoweb-production.up.railway.app',
+  'https://gesso-web-production.up.railway.app',
 ];
-const railwayRegex = /\.up\.railway\.app$/;
+const envOrigins = (process.env.CORS_ALLOW_ORIGINS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const isRailwayOrigin = (origin: string) => {
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname.endsWith('.up.railway.app');
+  } catch {
+    return false;
+  }
+};
 
 app.use('*', cors({
   origin: (origin) => {
     if (!origin) {
       // Fallback for same-origin requests in server contexts
-      return 'https://neuroweb-production.up.railway.app';
+      return allowedOrigins[0];
     }
+    if (envOrigins.includes(origin)) return origin;
     if (allowedOrigins.includes(origin)) return origin;
-    if (railwayRegex.test(origin)) return origin;
+    if (isRailwayOrigin(origin)) return origin;
     return ''; // block everything else
   },
   allowHeaders: ['Content-Type', 'Authorization', 'x-clerk-user-id'],
