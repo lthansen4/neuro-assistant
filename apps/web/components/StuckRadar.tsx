@@ -7,7 +7,7 @@ import { cn } from "../lib/utils";
 interface StuckAssignment {
   id: string;
   title: string;
-  deferralCount: number;
+  deferralCount?: number;
 }
 
 interface StuckRadarProps {
@@ -15,7 +15,7 @@ interface StuckRadarProps {
 }
 
 export function StuckRadar({ assignments }: StuckRadarProps) {
-  const stuckItems = assignments.filter(a => a.deferralCount >= 3);
+  const stuckItems = assignments.filter(a => (a.deferralCount || 0) >= 3);
 
   return (
     <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full space-y-6">
