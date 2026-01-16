@@ -15,6 +15,7 @@ import { cn } from "../../../lib/utils";
 import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
 import { EventDetailsModal } from "../../../components/EventDetailsModal";
 import { FocusTimerModal } from "../../../components/FocusTimerModal";
+import { Button } from "../../../components/ui/button";
 
 interface Assignment {
   id: string;
@@ -252,7 +253,17 @@ export default function DashboardPage() {
       {/* Sticky Quick Add (Top) */}
       <div className="sticky top-0 z-30 bg-brand-gesso/80 backdrop-blur-md pt-8 pb-4 px-6 md:px-12">
         <div className="max-w-7xl mx-auto">
-          <QuickAddInput />
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex-1">
+              <QuickAddInput />
+            </div>
+            <Button
+              onClick={() => setFocusTarget({ title: "Focus session", assignmentId: null })}
+              className="rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.2em]"
+            >
+              Lock In
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -288,12 +299,6 @@ export default function DashboardPage() {
                 isMovable: item.isMovable ?? true,
                 metadata: item.metadata,
                 linkedAssignmentId: item.linkedAssignmentId,
-              });
-            }}
-            onLockIn={(item) => {
-              setFocusTarget({
-                assignmentId: item.linkedAssignmentId || item.metadata?.assignmentId || null,
-                title: item.title,
               });
             }}
           />

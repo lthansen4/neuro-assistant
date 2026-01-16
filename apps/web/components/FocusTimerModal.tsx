@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "./ui/button";
+import { CircularProgress } from "./ui/CircularProgress";
 import { createSession } from "../lib/api";
 
 export function FocusTimerModal({
@@ -29,6 +30,7 @@ export function FocusTimerModal({
 
   const elapsedMs = now.getTime() - startTime.getTime();
   const elapsedMinutes = Math.max(1, Math.round(elapsedMs / 60000));
+  const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000));
 
   const formatted = useMemo(() => {
     const minutes = Math.floor(elapsedMs / 60000);
@@ -74,8 +76,22 @@ export function FocusTimerModal({
           </button>
         </div>
 
-        <div className="flex flex-col items-center gap-3">
-          <div className="text-5xl font-serif font-black text-brand-text">{formatted}</div>
+        <div className="flex flex-col items-center gap-4">
+          <CircularProgress
+            value={elapsedSeconds % 60}
+            max={60}
+            size={180}
+            strokeWidth={12}
+            color="#6D5EF7"
+            backgroundColor="#F6F2EA"
+          >
+            <div className="flex flex-col items-center">
+              <span className="text-4xl font-serif font-black text-brand-text">{formatted}</span>
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-brand-muted mt-1">
+                Focus
+              </span>
+            </div>
+          </CircularProgress>
           <div className="text-sm text-brand-muted">
             {elapsedMinutes} minute{elapsedMinutes === 1 ? "" : "s"} logged
           </div>
