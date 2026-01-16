@@ -16,6 +16,7 @@ import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
 import { EventDetailsModal } from "../../../components/EventDetailsModal";
 import { FocusTimerModal } from "../../../components/FocusTimerModal";
 import { Button } from "../../../components/ui/button";
+import { CircularProgress } from "../../../components/ui/CircularProgress";
 
 interface Assignment {
   id: string;
