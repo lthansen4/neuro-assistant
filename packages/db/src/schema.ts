@@ -90,8 +90,10 @@ export const assignments = pgTable("assignments", {
   requiresChunking: boolean("requires_chunking").default(false), // Migration 0018: Auto-chunking for long-form work
   deferralCount: integer("deferral_count").default(0).notNull(), // Migration 0022: Wall of Awful tracking
   isStuck: boolean("is_stuck").default(false).notNull(), // Migration 0022: Flagged as stuck after 3 deferrals
-  lastDeferredAt: timestamp("last_deferred_at", { withTimezone: true }), // Migration 0022: Most recent deferral timestamp
   stuckInterventionShown: boolean("stuck_intervention_shown").default(false).notNull(), // Migration 0022: Intervention prompt shown
+  totalPages: integer("total_pages"), // Migration 0032: Reading progress
+  pagesCompleted: integer("pages_completed"), // Migration 0032: Reading progress
+  readingQuestions: jsonb("reading_questions"), // Migration 0032: Captured questions
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 }, (t) => ({
   idx_user_due: index("idx_assignments_user_due").on(t.userId, t.dueDate),

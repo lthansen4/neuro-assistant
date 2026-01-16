@@ -32,6 +32,8 @@ interface Assignment {
   submittedAt?: string | null;
   deferralCount?: number;
   isStuck?: boolean;
+  totalPages?: number | null;
+  pagesCompleted?: number | null;
 }
 
 interface DashboardData {
@@ -84,6 +86,9 @@ export default function DashboardPage() {
   const [focusTarget, setFocusTarget] = useState<{
     assignmentId?: string | null;
     title?: string;
+    category?: string | null;
+    totalPages?: number | null;
+    pagesCompleted?: number | null;
   } | null>(null);
   const [topTab, setTopTab] = useState<"top" | "today" | "week" | "all">("top");
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
@@ -484,6 +489,9 @@ export default function DashboardPage() {
             userId={user.id}
             assignmentId={focusTarget.assignmentId}
             title={focusTarget.title}
+            category={focusTarget.category}
+            currentPagesCompleted={focusTarget.pagesCompleted}
+            totalPages={focusTarget.totalPages}
             onClose={() => setFocusTarget(null)}
             onLogged={() => {
               setFocusTarget(null);

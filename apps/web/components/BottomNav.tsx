@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, GraduationCap, User, Plus } from "lucide-react";
+import { LayoutDashboard, Calendar, GraduationCap, User, Plus, ClipboardList } from "lucide-react";
 import { cn } from "../lib/utils";
 
 const NAV_ITEMS = [
@@ -20,14 +20,14 @@ const NAV_ITEMS = [
   },
   // We'll insert the FAB here
   {
+    label: "Planner",
+    href: "/planner",
+    icon: ClipboardList,
+  },
+  {
     label: "Courses",
     href: "/courses",
     icon: GraduationCap,
-  },
-  {
-    label: "Profile",
-    href: "/profile",
-    icon: User,
   },
 ];
 

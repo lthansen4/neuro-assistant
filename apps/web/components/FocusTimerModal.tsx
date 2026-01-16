@@ -5,17 +5,24 @@ import { Button } from "./ui/button";
 import { CircularProgress } from "./ui/CircularProgress";
 import { createSession } from "../lib/api";
 import { toast } from "./ui/Toast";
+import { ReadingProgressModal } from "./Planner/ReadingProgressModal";
 
 export function FocusTimerModal({
   userId,
   assignmentId,
   title,
+  category,
+  currentPagesCompleted,
+  totalPages,
   onClose,
   onLogged,
 }: {
   userId: string;
   assignmentId?: string | null;
   title?: string;
+  category?: string | null;
+  currentPagesCompleted?: number | null;
+  totalPages?: number | null;
   onClose: () => void;
   onLogged: () => void;
 }) {
@@ -23,6 +30,7 @@ export function FocusTimerModal({
   const [now, setNow] = useState<Date>(new Date());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showReadingPrompt, setShowReadingPrompt] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -52,7 +60,13 @@ export function FocusTimerModal({
         assignmentId: assignmentId || null,
       });
       toast.success(`Focus session logged! ${minutes}m earned 🔥`);
-      onLogged();
+      
+      // If it's a reading assignment, show the reading progress prompt
+      if (assignmentId && category === "Reading") {
+        setShowReadingPrompt(true);
+      } else {
+        onLogged();
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to log session");
       setError(err.message || "Failed to log focus session.");
@@ -60,6 +74,26 @@ export function FocusTimerModal({
       setSaving(false);
     }
   };
+
+  if (showReadingPrompt && assignmentId) {
+    return (
+      <ReadingProgressModal
+        userId={userId}
+        assignmentId={assignmentId}
+        title={title || "Reading Assignment"}
+        currentPagesCompleted={currentPagesCompleted || null}
+        totalPages={totalPages || null}
+        onClose={() => {
+          setShowReadingPrompt(false);
+          onLogged();
+        }}
+        onSaved={() => {
+          setShowReadingPrompt(false);
+          onLogged();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[120]" onClick={onClose}>

@@ -7,13 +7,25 @@ import { StuckAssignmentModal } from "../../../components/StuckAssignmentModal";
 import { OptimizeScheduleButton } from "../../../components/OptimizeScheduleButton";
 import { QuickAddInput } from "../../../components/QuickAddInput";
 import { useUser } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
 import { cn } from "../../../lib/utils";
 import { BentoTileSkeleton } from "../../../components/ui/Skeleton";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
-export default function CalendarPage() {
+import { QuickAddInput } from "../../../components/QuickAddInput";
+import { useUser } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
+import { cn } from "../../../lib/utils";
+import { BentoTileSkeleton } from "../../../components/ui/Skeleton";
+import { Suspense } from "react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
+
+function CalendarPageContent() {
   const { user, isLoaded } = useUser();
+  const searchParams = useSearchParams();
+  const assignmentId = searchParams.get("assignmentId");
   const [error, setError] = useState<string>("");
   const [showLegend, setShowLegend] = useState(false);
   const [proposalPanelOpen, setProposalPanelOpen] = useState(false);
@@ -22,6 +34,35 @@ export default function CalendarPage() {
   const [stuckModalOpen, setStuckModalOpen] = useState(false);
   const [stuckAssignmentId, setStuckAssignmentId] = useState<string | null>(null);
   const [stuckEventId, setStuckEventId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id || !assignmentId) return;
+
+    const highlightAssignment = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/assignments/${assignmentId}/details`, {
+          headers: { "x-clerk-user-id": user.id },
+        });
+        const data = await res.json();
+        if (data.ok && data.focusBlocks) {
+          const eventIds = data.focusBlocks.map((b: any) => b.id);
+          window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+            detail: { eventIds }
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch assignment details for highlighting:", err);
+      }
+    };
+
+    highlightAssignment();
+
+    return () => {
+      window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+        detail: { eventIds: [] }
+      }));
+    };
+  }, [user?.id, assignmentId]);
 
   useEffect(() => {
     if (isLoaded && user?.id) {
@@ -261,5 +302,17 @@ export default function CalendarPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function CalendarPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-brand-gesso flex items-center justify-center">
+        <Loader2 className="animate-spin text-brand-primary" size={40} />
+      </div>
+    }>
+      <CalendarPageContent />
+    </Suspense>
   );
 }

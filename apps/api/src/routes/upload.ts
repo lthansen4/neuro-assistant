@@ -302,7 +302,7 @@ uploadRoute.post('/commit', async (c) => {
       course: { name: string; professor?: string | null; credits?: number | null; grade_weights?: Record<string, number> | null };
       schedule?: { day: string; start: string; end: string; location?: string | null }[];
       office_hours?: { day: string; start: string; end: string; location?: string | null }[];
-      assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null }[];
+      assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null }[];
     }>();
 
     console.log('[Commit API] Received commit request:', {

@@ -11,11 +11,12 @@ type ParsedSyllabus = {
     office_hours?: { day: string; start: string; end: string; location?: string | null }[] | null;
     grade_weights?: Record<string, number> | null;
   };
-  assignments: {
+    assignments: {
     title: string;
     due_date?: string | null;
     category?: string | null;
     effort_estimate_minutes?: number | null;
+    total_pages?: number | null;
   }[];
 };
 
@@ -67,6 +68,7 @@ export function SyllabusReview({
       due_date: a.due_date || "",
       category: a.category || "",
       effort_estimate_minutes: a.effort_estimate_minutes ?? "",
+      total_pages: a.total_pages ?? "",
       confidence: parsed.confidence ?? 0.5,
     }))
   );
@@ -137,11 +139,12 @@ export function SyllabusReview({
         office_hours: officeHours.filter((o) => o.include).map(({ day, start, end, location }) => ({ day, start, end, location })),
         assignments: assignments
           .filter((a) => a.include && a.title.trim())
-          .map(({ title, due_date, category, effort_estimate_minutes }) => ({
+          .map(({ title, due_date, category, effort_estimate_minutes, total_pages }) => ({
             title: title.trim(),
             due_date: due_date || null,
             category: category || null,
             effort_estimate_minutes: effort_estimate_minutes === "" ? null : Number(effort_estimate_minutes),
+            total_pages: total_pages === "" ? null : Number(total_pages),
           })),
       };
 
@@ -268,6 +271,19 @@ export function SyllabusReview({
                       }
                     />
                   </div>
+                  {a.category === "Reading" && (
+                    <div>
+                      <div className="text-xs text-gray-600">Total Pages</div>
+                      <input
+                        type="number"
+                        className="w-full border rounded px-3 py-2"
+                        value={a.total_pages}
+                        onChange={(e) =>
+                          setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, total_pages: e.target.value } : x)))
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -328,6 +344,19 @@ export function SyllabusReview({
                       }
                     />
                   </div>
+                  {a.category === "Reading" && (
+                    <div>
+                      <div className="text-xs text-gray-600">Total Pages</div>
+                      <input
+                        type="number"
+                        className="w-full border rounded px-3 py-2"
+                        value={a.total_pages}
+                        onChange={(e) =>
+                          setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, total_pages: e.target.value } : x)))
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

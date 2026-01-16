@@ -91,6 +91,29 @@ const migrations = [
       FOR EACH ROW
       EXECUTE FUNCTION calculate_accuracy_ratio();
     `
+  },
+  {
+    name: '0032: Add reading tracking to assignments',
+    sql: `
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'assignments' AND column_name = 'total_pages'
+        ) THEN
+          ALTER TABLE assignments 
+          ADD COLUMN total_pages INTEGER,
+          ADD COLUMN pages_completed INTEGER,
+          ADD COLUMN reading_questions JSONB DEFAULT '[]'::jsonb;
+          
+          COMMENT ON COLUMN assignments.total_pages IS 'Total number of pages in the reading assignment';
+          COMMENT ON COLUMN assignments.pages_completed IS 'Number of pages student has finished';
+          COMMENT ON COLUMN assignments.reading_questions IS 'Array of [{text: string, createdAt: string}] questions for the professor';
+          
+          RAISE NOTICE 'Added reading tracking columns to assignments';
+        END IF;
+      END $$;
+    `
   }
 ];
 
@@ -158,6 +181,13 @@ async function run() {
         EXISTS (
           SELECT 1 FROM information_schema.tables 
           WHERE table_name = 'assignment_time_logs'
+        )
+      UNION ALL
+      SELECT 
+        'assignments.total_pages',
+        EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'assignments' AND column_name = 'total_pages'
         )
     `);
 

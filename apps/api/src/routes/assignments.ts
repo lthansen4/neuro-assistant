@@ -134,6 +134,15 @@ assignmentsRoute.put('/:id', async (c) => {
     if (typeof body.dueDate === 'string' || body.dueDate === null) {
       updatePayload.dueDate = body.dueDate ? new Date(body.dueDate) : null;
     }
+    if (typeof body.totalPages === 'number' || body.totalPages === null) {
+      updatePayload.totalPages = body.totalPages ?? null;
+    }
+    if (typeof body.pagesCompleted === 'number' || body.pagesCompleted === null) {
+      updatePayload.pagesCompleted = body.pagesCompleted ?? null;
+    }
+    if (Array.isArray(body.readingQuestions) || body.readingQuestions === null) {
+      updatePayload.readingQuestions = body.readingQuestions ?? null;
+    }
 
     const [updated] = await db
       .update(assignments)

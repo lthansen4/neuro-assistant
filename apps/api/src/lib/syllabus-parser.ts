@@ -37,6 +37,7 @@ const SyllabusSchema = z.object({
     due_date: z.string().nullable(),
     category: z.string().nullable(),
     effort_estimate_minutes: z.number().nullable(),
+    total_pages: z.number().nullable().describe('For reading assignments, the total number of pages to read'),
   })),
 });
 
@@ -204,6 +205,7 @@ export class SyllabusParser {
           'Output must conform to the schema.',
           'Normalize times to 24h HH:mm strings; use the provided timezone context for any inferred dates.',
           'Prefer exact values present in the text; if unsure, omit fields.',
+          'For reading assignments (category="Reading"), look for total pages or chapter/page ranges and try to estimate total_pages (e.g., "Read pp. 10-40" -> total_pages: 30).',
           `Timezone: ${timezone}`,
           'Text:',
           '----',

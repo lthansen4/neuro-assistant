@@ -110,6 +110,7 @@ interface CommitPayload {
     due_date?: string | null;
     category?: string | null;
     effort_estimate_minutes?: number | null;
+    total_pages?: number | null;
   }[];
 }
 
@@ -249,6 +250,7 @@ export class SyllabusCommitService {
             dueDate,
             category: item.category ?? null,
             effortEstimateMinutes: item.effort_estimate_minutes ?? null,
+            totalPages: item.total_pages ?? null,
             priorityScore,
             status: 'Scheduled', // Auto-schedule syllabus imports (ADHD-friendly: no manual approval needed)
           } as any).returning();
