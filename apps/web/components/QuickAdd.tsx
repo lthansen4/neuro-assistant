@@ -1,9 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 
-// TEMP: Set your seeded DB user UUID (printed by seed script).
-// Replace with Clerk->DB mapping once available.
-const USER_UUID = process.env.NEXT_PUBLIC_DEBUG_USER_ID || ""; // fill for dev
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
 type Suggestion =
@@ -26,7 +24,7 @@ type ParseResponse = {
 };
 
 export function QuickAdd() {
-  const [userId, setUserId] = useState<string>(USER_UUID);
+  const { user, isLoaded } = useUser();
   const [text, setText] = useState("");
   const [timezone, setTimezone] = useState("");
   const [isParsing, setIsParsing] = useState(false);
@@ -85,9 +83,8 @@ export function QuickAdd() {
     e.preventDefault();
     setError(null);
     setCommitResult(null);
-
-    if (!userId) {
-      setError("Missing userId (DB UUID). For dev, set NEXT_PUBLIC_DEBUG_USER_ID or type one below.");
+    if (!user?.id) {
+      setError("Please sign in to use Quick Add.");
       return;
     }
     if (!text.trim()) {
@@ -98,7 +95,7 @@ export function QuickAdd() {
       setIsParsing(true);
       const res = await fetch(`${API_BASE}/api/quick-add/parse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", "x-clerk-user-id": user.id },
         body: JSON.stringify({ text, timezone }),
       });
       const data: ParseResponse = await res.json();
@@ -118,8 +115,8 @@ export function QuickAdd() {
     setError(null);
     setCommitResult(null);
 
-    if (!userId) {
-      setError("Missing userId.");
+    if (!user?.id) {
+      setError("Please sign in to use Quick Add.");
       return;
     }
     if (!title.trim()) {
@@ -147,7 +144,7 @@ export function QuickAdd() {
 
       const res = await fetch(`${API_BASE}/api/quick-add/commit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", "x-clerk-user-id": user.id },
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -166,19 +163,16 @@ export function QuickAdd() {
     }
   }
 
+  if (!isLoaded) {
+    return <div className="text-sm text-brand-muted">Loading...</div>;
+  }
+
+  if (!user) {
+    return <div className="text-sm text-brand-muted">Sign in to use Quick Add.</div>;
+  }
+
   return (
     <div className="space-y-4">
-      {/* Dev-only userId input until Clerk->DB mapping is wired */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium">User ID (DB UUID, dev)</label>
-        <input
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          placeholder="paste users.id from seed output"
-          className="w-full border rounded px-3 py-2"
-        />
-      </div>
-
       <form onSubmit={onParse} className="space-y-3">
         <div className="space-y-1">
           <label className="text-sm font-medium">Quick Add text</label>

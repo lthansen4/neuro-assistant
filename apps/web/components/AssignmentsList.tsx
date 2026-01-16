@@ -25,6 +25,7 @@ interface AssignmentsListProps {
   title: string;
   emptyMessage?: string;
   hideHeader?: boolean;
+  onSelect?: (assignment: Assignment) => void;
 }
 
 function formatDate(dateString: string | null): string {
@@ -70,7 +71,13 @@ function formatEffort(minutes: number | null): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
-export function AssignmentsList({ assignments, title, emptyMessage = "No assignments", hideHeader = false }: AssignmentsListProps) {
+export function AssignmentsList({
+  assignments,
+  title,
+  emptyMessage = "No assignments",
+  hideHeader = false,
+  onSelect,
+}: AssignmentsListProps) {
   if (assignments.length === 0) {
     const seniorPeerEmptyMessages: Record<string, string> = {
       "Capture": "Scanning for chaos... Okay, your mind is clear. 🕊️",
@@ -116,6 +123,7 @@ export function AssignmentsList({ assignments, title, emptyMessage = "No assignm
                 wallOfAwful && "bg-category-wall-bg ring-1 ring-category-wall-fg/20 shadow-aura-violet",
                 isOverdue && !wallOfAwful && "bg-rose-50/30 border-rose-100"
               )}
+              onClick={() => onSelect?.(assignment)}
             >
               <div className="flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-4">

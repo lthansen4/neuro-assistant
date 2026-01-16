@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import { db } from '../lib/db';
+import { db, schema } from '../lib/db';
 import { assignments, courses } from '../../../../packages/db/src/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 
 export const assignmentsRoute = new Hono();
 
@@ -100,5 +100,88 @@ assignmentsRoute.post('/quick-add', async (c) => {
   } catch (error: any) {
     console.error('[Assignments API] Error in quick-add:', error);
     return c.json({ error: error.message || 'Failed to create assignment' }, 500);
+  }
+});
+
+/**
+ * PUT /api/assignments/:id
+ * Update assignment fields
+ */
+assignmentsRoute.put('/:id', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const assignmentId = c.req.param('id');
+    const body = await c.req.json();
+    const existing = await db.query.assignments.findFirst({
+      where: and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)),
+    });
+
+    if (!existing) {
+      return c.json({ error: 'Assignment not found' }, 404);
+    }
+
+    const updatePayload: Partial<typeof assignments.$inferInsert> = {};
+    if (typeof body.title === 'string') updatePayload.title = body.title.trim();
+    if (typeof body.category === 'string' || body.category === null) updatePayload.category = body.category || null;
+    if (typeof body.effortEstimateMinutes === 'number' || body.effortEstimateMinutes === null) {
+      updatePayload.effortEstimateMinutes = body.effortEstimateMinutes ?? null;
+    }
+    if (typeof body.dueDate === 'string' || body.dueDate === null) {
+      updatePayload.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+    }
+
+    const [updated] = await db
+      .update(assignments)
+      .set(updatePayload)
+      .where(and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)))
+      .returning();
+
+    return c.json({ ok: true, assignment: updated });
+  } catch (error: any) {
+    console.error('[Assignments API] Error updating assignment:', error);
+    return c.json({ error: error.message || 'Failed to update assignment' }, 500);
+  }
+});
+
+/**
+ * DELETE /api/assignments/:id
+ * Delete assignment and related calendar events
+ */
+assignmentsRoute.delete('/:id', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const assignmentId = c.req.param('id');
+    const existing = await db.query.assignments.findFirst({
+      where: and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)),
+    });
+
+    if (!existing) {
+      return c.json({ error: 'Assignment not found' }, 404);
+    }
+
+    await db.delete(schema.calendarEventsNew).where(
+      and(
+        eq(schema.calendarEventsNew.userId, userId),
+        or(
+          eq(schema.calendarEventsNew.assignmentId, assignmentId),
+          eq(schema.calendarEventsNew.linkedAssignmentId, assignmentId)
+        )
+      )
+    );
+
+    await db.delete(assignments).where(and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)));
+
+    return c.json({ ok: true, deletedAssignmentId: assignmentId });
+  } catch (error: any) {
+    console.error('[Assignments API] Error deleting assignment:', error);
+    return c.json({ error: error.message || 'Failed to delete assignment' }, 500);
   }
 });

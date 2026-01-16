@@ -12,6 +12,7 @@ import { QuickAddInput } from "../../../components/QuickAddInput";
 import { StuckRadar } from "../../../components/StuckRadar";
 import { WeekSummary } from "../../../components/WeekSummary";
 import { cn } from "../../../lib/utils";
+import { AssignmentEditModal } from "../../../components/AssignmentEditModal";
 
 interface Assignment {
   id: string;
@@ -50,6 +51,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<"day" | "week">("week");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
   const loadDashboard = async (showLoader = true) => {
     if (!user) return;
@@ -228,6 +230,7 @@ export default function DashboardPage() {
                 title=""
                 hideHeader
                 emptyMessage={topTab === "top" ? "Nothing on deck right now." : "No assignments yet."}
+                onSelect={(assignment) => setSelectedAssignment(assignment)}
               />
             </div>
           </div>
@@ -256,6 +259,22 @@ export default function DashboardPage() {
           <ProductivitySummary daily={data.daily || []} weekly={data.weekly} range={range} />
           {data.preferences?.showGradeForecast !== false && <GradeForecast forecasts={data.forecasts || []} />}
         </div>
+
+        {selectedAssignment && user && (
+          <AssignmentEditModal
+            assignment={selectedAssignment}
+            userId={user.id}
+            onClose={() => setSelectedAssignment(null)}
+            onUpdated={() => {
+              setSelectedAssignment(null);
+              loadDashboard(false);
+            }}
+            onDeleted={() => {
+              setSelectedAssignment(null);
+              loadDashboard(false);
+            }}
+          />
+        )}
       </main>
     </div>
   );
