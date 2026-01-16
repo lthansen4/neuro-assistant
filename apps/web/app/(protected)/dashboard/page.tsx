@@ -52,7 +52,7 @@ export default function DashboardPage() {
   const [range, setRange] = useState<"day" | "week">("week");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
-  const [topTab, setTopTab] = useState<"top" | "all">("top");
+  const [topTab, setTopTab] = useState<"top" | "today" | "week" | "all">("top");
 
   const loadDashboard = async (showLoader = true) => {
     if (!user) return;
@@ -148,8 +148,38 @@ export default function DashboardPage() {
     for (const item of merged) {
       if (!seen.has(item.id)) seen.set(item.id, item);
     }
-    return Array.from(seen.values());
+    return Array.from(seen.values()).sort((a, b) => {
+      const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+      const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    });
   })();
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+
+  const top3Assignments = (data.assignments?.scheduled || [])
+    .slice()
+    .sort((a, b) => {
+      const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+      const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    })
+    .slice(0, 3);
+
+  const todayAssignments = allAssignments.filter((a) => {
+    if (!a.dueDate) return false;
+    const due = new Date(a.dueDate);
+    return due >= startOfToday && due < endOfToday;
+  });
+
+  const weekAssignments = allAssignments.filter((a) => {
+    if (!a.dueDate) return false;
+    const due = new Date(a.dueDate);
+    return due >= startOfToday && due < endOfWeek;
+  });
 
   return (
     <div className="min-h-screen bg-brand-gesso selection:bg-brand-primary/10 selection:text-brand-primary">
@@ -186,52 +216,82 @@ export default function DashboardPage() {
         {/* Bento Grid (Bottom) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8">
-            <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full space-y-8">
-              <div className="flex items-start justify-between gap-6">
-                <div className="space-y-2">
-                  <h3 className="card-title text-brand-text italic">
-                    {topTab === "top" ? "The Top 3" : "All Assignments"}
-                  </h3>
-                  <span className="meta-label text-brand-muted">
-                    {topTab === "top" ? "Focus Priority" : "Everything in your system"}
-                  </span>
+            <div className="bg-brand-surface p-8 rounded-[2.5rem] cozy-border shadow-soft h-full">
+              <div className="flex flex-col md:flex-row gap-8">
+                <div className="flex md:flex-col gap-2 md:min-w-[140px]">
+                  {[
+                    { id: "top", label: "Top 3", hint: "Next up" },
+                    { id: "today", label: "Today", hint: "Due today" },
+                    { id: "week", label: "This week", hint: "Next 7 days" },
+                    { id: "all", label: "All", hint: "Everything" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setTopTab(tab.id as typeof topTab)}
+                      className={cn(
+                        "flex flex-col items-start rounded-2xl border px-4 py-3 text-left transition-all",
+                        topTab === tab.id
+                          ? "bg-brand-surface-2 border-brand-border shadow-soft"
+                          : "border-transparent text-brand-muted hover:text-brand-text hover:bg-brand-surface-2/60"
+                      )}
+                    >
+                      <span className="text-[12px] font-black uppercase tracking-[0.2em]">
+                        {tab.label}
+                      </span>
+                      <span className="text-[11px] font-medium text-brand-muted">
+                        {tab.hint}
+                      </span>
+                    </button>
+                  ))}
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <button
-                    onClick={() => setTopTab("top")}
-                    className={cn(
-                      "px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all",
+
+                <div className="flex-1 space-y-6">
+                  <div className="space-y-2">
+                    <h3 className="card-title text-brand-text italic">
+                      {topTab === "top"
+                        ? "The Top 3"
+                        : topTab === "today"
+                        ? "Due Today"
+                        : topTab === "week"
+                        ? "This Week"
+                        : "All Assignments"}
+                    </h3>
+                    <span className="meta-label text-brand-muted">
+                      {topTab === "top"
+                        ? "Focus Priority"
+                        : topTab === "today"
+                        ? "What needs you today"
+                        : topTab === "week"
+                        ? "Upcoming deadlines"
+                        : "Everything in your system"}
+                    </span>
+                  </div>
+
+                  <AssignmentsList
+                    assignments={
                       topTab === "top"
-                        ? "bg-brand-surface-2 text-brand-text shadow-soft"
-                        : "text-brand-muted hover:text-brand-text"
-                    )}
-                  >
-                    Top 3
-                  </button>
-                  <button
-                    onClick={() => setTopTab("all")}
-                    className={cn(
-                      "px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all",
-                      topTab === "all"
-                        ? "bg-brand-surface-2 text-brand-text shadow-soft"
-                        : "text-brand-muted hover:text-brand-text"
-                    )}
-                  >
-                    All
-                  </button>
+                        ? top3Assignments
+                        : topTab === "today"
+                        ? todayAssignments
+                        : topTab === "week"
+                        ? weekAssignments
+                        : allAssignments
+                    }
+                    title=""
+                    hideHeader
+                    emptyMessage={
+                      topTab === "top"
+                        ? "Nothing on deck right now."
+                        : topTab === "today"
+                        ? "Nothing due today."
+                        : topTab === "week"
+                        ? "Nothing due this week."
+                        : "No assignments yet."
+                    }
+                    onSelect={(assignment) => setSelectedAssignment(assignment)}
+                  />
                 </div>
               </div>
-              <AssignmentsList
-                assignments={
-                  topTab === "top"
-                    ? (data.assignments?.scheduled || []).slice(0, 3)
-                    : allAssignments
-                }
-                title=""
-                hideHeader
-                emptyMessage={topTab === "top" ? "Nothing on deck right now." : "No assignments yet."}
-                onSelect={(assignment) => setSelectedAssignment(assignment)}
-              />
             </div>
           </div>
 
