@@ -92,6 +92,14 @@ export function Calendar({
     window.addEventListener("highlightFocusBlocks", handleHighlight as EventListener);
     return () => window.removeEventListener("highlightFocusBlocks", handleHighlight as EventListener);
   }, []);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      calendarRef.current?.getApi().refetchEvents();
+    };
+    window.addEventListener('refreshCalendar', handleRefresh);
+    return () => window.removeEventListener('refreshCalendar', handleRefresh);
+  }, []);
   
   // Custom navigation handlers to keep state in sync
   const handleViewChange = (view: string) => {
@@ -225,10 +233,11 @@ export function Calendar({
               if (courseName) {
                 displayTitle = courseName;
               } else {
-                // 3. Shorten "Work on: [Title]" to just "[Title]"
-                displayTitle = displayTitle.replace(/^Work on:\s*/i, "");
-                // 4. Remove session numbers "(Session 1)"
-                displayTitle = displayTitle.replace(/\s*\(Session\s+\d+\)$/i, "");
+                // 3. Shorten titles
+                displayTitle = displayTitle
+                  .replace(/^Work on:\s*/i, "")
+                  .replace(/^📌\s*DUE:\s*/i, "")
+                  .replace(/\s*\(Session\s+\d+\)$/i, "");
               }
             }
 

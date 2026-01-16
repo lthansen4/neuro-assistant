@@ -7,26 +7,7 @@ import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { DateTime } from "luxon";
-
-// Helper: get userId (UUID) from header or query - supports Clerk user ID lookup
-async function getUserId(c: any): Promise<string> {
-  const uid = c.req.header("x-user-id") || c.req.header("x-clerk-user-id") || c.req.query("userId") || c.req.query("clerkUserId");
-  if (!uid) throw new Error("Missing userId (header x-user-id or x-clerk-user-id, or query ?userId=...)");
-  
-  // If it looks like a Clerk user ID (starts with user_ or is not a UUID format), look up the database user
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
-  if (!isUUID || uid.startsWith("user_")) {
-    const dbUser = await db.query.users.findFirst({
-      where: eq(schema.users.clerkUserId, uid),
-    });
-    if (!dbUser) {
-      throw new Error(`No database user found for Clerk ID: ${uid}. Make sure the user exists in the database.`);
-    }
-    return dbUser.id;
-  }
-  
-  return uid;
-}
+import { getUserId } from "../lib/auth-utils";
 
 // Very light heuristic parser (stub) — replace with Vercel AI SDK later
 function heuristicParse(input: string) {
@@ -540,6 +521,16 @@ quickAddRoute.post("/commit", async (c) => {
       // Optional focus session event
       let createdEventId: string | null = null;
       if (body.parsed.createFocusSession && body.parsed.sessionStartISO && body.parsed.sessionEndISO) {
+        // Fetch course name if we have a courseId for metadata consistency
+        let courseNameMetadata = null;
+        if (body.parsed.courseId) {
+          const course = await tx.query.courses.findFirst({
+            where: eq(schema.courses.id, body.parsed.courseId),
+            columns: { name: true }
+          });
+          courseNameMetadata = course?.name || null;
+        }
+
         const start = new Date(body.parsed.sessionStartISO);
         const end = new Date(body.parsed.sessionEndISO);
         const [evt] = await tx
@@ -554,6 +545,9 @@ quickAddRoute.post("/commit", async (c) => {
             startAt: start,
             endAt: end,
             isMovable: true,
+            metadata: {
+              courseName: courseNameMetadata // Add courseName to metadata
+            }
           } as any)
           .returning();
         createdEventId = (evt as any).id;
@@ -805,6 +799,15 @@ Use their specific context to make the BEST scheduling decision.`,
       })
       .returning();
       
+    // Fetch course name if we have a courseId for metadata consistency
+    let courseName = null;
+    if (draft.course_id) {
+      const course = await db.query.courses.findFirst({
+        where: eq(schema.courses.id, draft.course_id),
+        columns: { name: true }
+      });
+      courseName = course?.name || null;
+    }
 
     // Create a "due date marker" event on the calendar at the assignment's due time
     let dueDateEvent = null;
@@ -825,6 +828,9 @@ Use their specific context to make the BEST scheduling decision.`,
           endAt: dueEndTime,
           isMovable: false, // Due dates shouldn't move
           linkedAssignmentId: assignment.id,
+          metadata: {
+            courseName: courseName // Add courseName to metadata for calendar view consistency
+          }
         })
         .returning();
       dueDateEvent = dueDateEvt;
@@ -861,6 +867,7 @@ Use their specific context to make the BEST scheduling decision.`,
             chunkType: chunk.type,
             durationMinutes: chunk.durationMinutes,
             dueDate: assignment.dueDate?.toISOString(), // PRIORITY 2: For due date validation
+            courseName: courseName // Add courseName to metadata
           }
         });
         
@@ -881,7 +888,8 @@ Use their specific context to make the BEST scheduling decision.`,
             metadata: { 
               transitionTax: true,
               afterChunkIndex: idx,
-              purpose: 'Context switching recovery - prevents mental fatigue'
+              purpose: 'Context switching recovery - prevents mental fatigue',
+              courseName: courseName // Add courseName to metadata
             }
           });
           
@@ -896,7 +904,7 @@ Use their specific context to make the BEST scheduling decision.`,
       
       console.log(`[QuickAdd Confirm] Created ${focusEvents.length} events (chunks + transition buffers)`);
       
-      // PRIORITY 2: Automatic Deep Work Tracking (Recovery Forcing)
+      // ... rest of the branch ...
       try {
         const ADHDGuardian = await import('../lib/adhd-guardian');
         
@@ -1001,6 +1009,7 @@ Use their specific context to make the BEST scheduling decision.`,
         
         eventsToCreate.push({
           userId,
+          courseId: draft.course_id || null, // Include courseId
           title: `${focusDraft.title}${sessionLabel}`,
           description: draft.description || null,
           eventType: focusDraft.category as any,
@@ -1013,6 +1022,7 @@ Use their specific context to make the BEST scheduling decision.`,
             sessionIndex: i,
             totalSessions: durations.length,
             splitReason: prefs.splitReason || "default",
+            courseName: courseName // Add courseName to metadata
           }
         });
       }
@@ -1031,6 +1041,7 @@ Use their specific context to make the BEST scheduling decision.`,
           .insert(schema.calendarEventsNew)
           .values({
             userId,
+            courseId: draft.course_id || null, // Include courseId
             title: 'Transition Buffer',
             eventType: 'Chill',
             startAt: bufferStart,
@@ -1040,7 +1051,8 @@ Use their specific context to make the BEST scheduling decision.`,
             metadata: {
               transitionTax: true,
               linkedToEvent: event.id,
-              purpose: 'Context switching recovery - prevents mental fatigue'
+              purpose: 'Context switching recovery - prevents mental fatigue',
+              courseName: courseName // Add courseName to metadata
             }
           })
           .returning();

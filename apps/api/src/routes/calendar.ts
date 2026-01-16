@@ -209,8 +209,6 @@ calendarRoute.get('/events', async (c) => {
           const startDate = evt.startAt instanceof Date ? evt.startAt : new Date(evt.startAt);
           const endDate = evt.endAt instanceof Date ? evt.endAt : new Date(evt.endAt);
           
-          console.log(`[Calendar] Checking direct event: ${evt.title}, start: ${startDate.toISOString()}, range: ${start.toISOString()} to ${end.toISOString()}`);
-          
           // Check if this event was moved from a template instance
           const evtMetadata = evt.metadata as any || {};
           if (evtMetadata.movedFromTemplate && evtMetadata.originalEventId) {
@@ -221,7 +219,6 @@ calendarRoute.get('/events', async (c) => {
           
           // Only add if it's within the requested date range
           if (startDate >= start && startDate <= end) {
-            console.log(`[Calendar] ✓ Adding direct event: ${evt.title} at ${startDate.toISOString()}`);
             events.push({
               id: evt.id,
               title: evt.title,
@@ -233,11 +230,15 @@ calendarRoute.get('/events', async (c) => {
               assignmentId: evt.assignmentId,
               linkedAssignmentId: evt.linkedAssignmentId, // PRIORITY 2: For deferral tracking
               metadata: evt.metadata,
-              courseName: evt.courseName || evt.assignmentCourseName,
+              courseName: evt.courseName || evt.assignmentCourseName || (evt.metadata as any)?.courseName,
             });
           } else {
-            console.log(`[Calendar] ✗ Skipping direct event ${evt.title} - outside date range`);
-            console.log(`[Calendar]   Event start: ${startDate.toISOString()}, Range: ${start.toISOString()} to ${end.toISOString()}`);
+            // Silently skip if it's far outside range to reduce log noise
+            const daysDiff = Math.abs(startDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysDiff < 7) {
+              console.log(`[Calendar] ✗ Skipping direct event ${evt.title} - outside date range`);
+              console.log(`[Calendar]   Event start: ${startDate.toISOString()}, Range: ${start.toISOString()} to ${end.toISOString()}`);
+            }
           }
         });
         

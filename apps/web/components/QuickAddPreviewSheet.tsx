@@ -130,7 +130,7 @@ export function QuickAddPreviewSheet({
       window.dispatchEvent(new CustomEvent('assignmentCreated', {
         detail: {
           assignment: result.assignment,
-          focusBlocks: result.calendar_events || [],
+          focusBlocks: result.focus_events || [], // Fixed: result.focus_events instead of result.calendar_events
           parseResult: parseResult
         }
       }));
