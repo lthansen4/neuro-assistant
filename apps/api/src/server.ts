@@ -1,7 +1,6 @@
 import { config } from 'dotenv';
 import { serve } from '@hono/node-server';
 import app from './index';
-import { runMigrations } from './lib/migrations';
 
 // Load environment variables
 config();
