@@ -396,6 +396,5 @@ export function AssignmentEditModal({
       </DialogContent>
     </Dialog>
   );
-  );
 }
 
