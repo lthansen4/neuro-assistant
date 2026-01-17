@@ -86,7 +86,7 @@ assignmentsRoute.post('/:id/schedule-reminder', async (c) => {
       if (dbUser?.clerkUserId) {
         await OneSignalService.sendNotification({
           userId: dbUser.clerkUserId,
-          title: `Ask ${assignment.course?.name || 'Professor'}?`,
+          title: `Ask ${course?.name || 'Professor'}?`,
           message: `You have questions for ${assignment.title}. Class starts in 10 minutes!`,
           sendAfter: sendTime.toJSDate().toISOString(),
           data: { type: 'professor_question', assignmentId, nudgeId: nudge.id }
