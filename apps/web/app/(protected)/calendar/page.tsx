@@ -245,12 +245,10 @@ function CalendarPageContent() {
             </button>
             <OptimizeScheduleButton
               userId={user.id}
-              onOptimizationComplete={(proposalId, movesCount) => {
-                if (movesCount > 0) {
-                  setAppliedProposal(null);
-                  setHasProposal(true);
-                  setProposalPanelOpen(true);
-                }
+              onOptimizationComplete={(_proposalId, movesCount) => {
+                setAppliedProposal(null);
+                setHasProposal(movesCount > 0);
+                setProposalPanelOpen(true);
               }}
             />
           </div>
