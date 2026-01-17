@@ -7,24 +7,19 @@
 
 import { Hono } from 'hono';
 import { db } from '../lib/db';
-import { assignments, calendarEventsNew, users } from '../../../../packages/db/src/schema';
+import { assignments, calendarEventsNew } from '../../../../packages/db/src/schema';
 import { eq, and, ne, gte, lte, desc, sql } from 'drizzle-orm';
 import { calculateComprehensivePriority } from '../lib/adhd-guardian';
+import { getUserId } from '../lib/auth-utils';
 
 const rescueRoute = new Hono();
 
-/**
- * Helper to get database user ID from Clerk user ID
- */
-async function getUserId(c: any): Promise<string | null> {
-  const clerkUserId = c.req.header('x-clerk-user-id') || c.req.header('x-user-id');
-  if (!clerkUserId) return null;
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.clerkUserId, clerkUserId),
-  });
-
-  return user?.id || null;
+function isAuthError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes('Missing userId') ||
+    error.message.includes('No database user found')
+  );
 }
 
 /**
@@ -36,9 +31,6 @@ async function getUserId(c: any): Promise<string | null> {
 rescueRoute.get('/priority', async (c) => {
   try {
     const userId = await getUserId(c);
-    if (!userId) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
 
     console.log(`[RescueMode] Getting priority assignment for user ${userId.substring(0, 8)}...`);
 
@@ -149,6 +141,9 @@ rescueRoute.get('/priority', async (c) => {
 
   } catch (error) {
     console.error('[RescueMode] Error getting priority:', error);
+    if (isAuthError(error)) {
+      return c.json({ ok: false, error: 'Unauthorized' }, 401);
+    }
     return c.json({ 
       ok: false,
       error: error instanceof Error ? error.message : 'Failed to get priority assignment' 
@@ -165,9 +160,6 @@ rescueRoute.get('/priority', async (c) => {
 rescueRoute.post('/complete/:id', async (c) => {
   try {
     const userId = await getUserId(c);
-    if (!userId) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
 
     const assignmentId = c.req.param('id');
     
@@ -273,6 +265,9 @@ rescueRoute.post('/complete/:id', async (c) => {
 
   } catch (error) {
     console.error('[RescueMode] Error completing assignment:', error);
+    if (isAuthError(error)) {
+      return c.json({ ok: false, error: 'Unauthorized' }, 401);
+    }
     return c.json({ 
       ok: false,
       error: error instanceof Error ? error.message : 'Failed to complete assignment' 
@@ -290,9 +285,6 @@ rescueRoute.post('/complete/:id', async (c) => {
 rescueRoute.get('/should-suggest', async (c) => {
   try {
     const userId = await getUserId(c);
-    if (!userId) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
 
     const now = new Date();
     const todayStart = new Date(now);
@@ -368,6 +360,9 @@ rescueRoute.get('/should-suggest', async (c) => {
 
   } catch (error) {
     console.error('[RescueMode] Error checking suggestion:', error);
+    if (isAuthError(error)) {
+      return c.json({ ok: false, error: 'Unauthorized' }, 401);
+    }
     return c.json({ 
       ok: false,
       error: error instanceof Error ? error.message : 'Failed to check suggestion' 
