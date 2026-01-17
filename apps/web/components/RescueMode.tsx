@@ -452,21 +452,35 @@ export function RescueModeTrigger({ userId, onActivate, autoSuggest = true, clas
           const data = await res.json();
           if (data.ok && data.shouldSuggest) {
             setShouldSuggest(true);
-            setSuggestReason(data.reason);
+            setSuggestReason(data.reason || "You have several urgent tasks.");
+          } else {
+            setShouldSuggest(false);
           }
         }
       } catch (e) {
         // Silently fail
+        setShouldSuggest(false);
       }
     };
 
     checkSuggestion();
   }, [userId, autoSuggest, dismissed]);
 
-  // Auto-suggest banner
-  if (shouldSuggest && !dismissed) {
+  // Only show if we have an auto-suggestion to display
+  // If autoSuggest mode but nothing to suggest, render nothing
+  if (autoSuggest && !shouldSuggest) {
+    return null;
+  }
+  
+  // If dismissed, render nothing
+  if (dismissed) {
+    return null;
+  }
+
+  // Auto-suggest banner (only shows when API says to suggest)
+  if (shouldSuggest) {
     return (
-      <div className={`bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-4 shadow-lg ${className}`}>
+      <div className={`bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-4 shadow-lg animate-in slide-in-from-bottom-4 duration-500 ${className}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -496,15 +510,7 @@ export function RescueModeTrigger({ userId, onActivate, autoSuggest = true, clas
     );
   }
 
-  // Standard trigger button
-  return (
-    <button
-      onClick={onActivate}
-      className={`flex items-center gap-2 px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium rounded-full transition-colors ${className}`}
-    >
-      <LifebuoyIcon />
-      <span>Help me focus</span>
-    </button>
-  );
+  // Fallback: render nothing if no conditions met
+  return null;
 }
 
