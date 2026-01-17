@@ -13,6 +13,7 @@ interface ReadingAssignment {
   courseName: string | null;
   totalPages: number | null;
   pagesCompleted: number | null;
+  completionPercentage?: number;
 }
 
 interface ReadingViewProps {
@@ -71,7 +72,11 @@ export function ReadingView({ data, onSelect, onFocus }: ReadingViewProps) {
 }
 
 function ReadingCard({ item, onClick, onFocus }: { item: ReadingAssignment; onClick: () => void; onFocus: () => void }) {
-  const progress = item.totalPages ? Math.round(((item.pagesCompleted || 0) / item.totalPages) * 100) : 0;
+  // Calculate progress: prioritize completionPercentage
+  let progress = item.completionPercentage || 0;
+  if (!item.completionPercentage && item.totalPages) {
+    progress = Math.round(((item.pagesCompleted || 0) / item.totalPages) * 100);
+  }
   
   return (
     <div 

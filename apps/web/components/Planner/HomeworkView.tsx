@@ -4,6 +4,7 @@
 import { cn } from "../../lib/utils";
 import { ClipboardList, Clock, Calendar, AlertCircle, CalendarRange } from "lucide-react";
 import Link from "next/link";
+import { Progress } from "../ui/progress";
 
 interface HomeworkAssignment {
   id: string;
@@ -11,6 +12,9 @@ interface HomeworkAssignment {
   dueDate: string | null;
   courseName: string | null;
   category: string | null;
+  completionPercentage?: number;
+  totalProblems?: number;
+  problemsCompleted?: number;
 }
 
 interface HomeworkViewProps {
@@ -75,6 +79,12 @@ export function HomeworkView({ data, onSelect, onFocus }: HomeworkViewProps) {
 }
 
 function HomeworkCard({ item, onClick, onFocus, isOverdue }: { item: HomeworkAssignment; onClick: () => void; onFocus: () => void; isOverdue?: boolean }) {
+  // Calculate progress
+  let progress = item.completionPercentage || 0;
+  if (!item.completionPercentage && item.totalProblems) {
+    progress = Math.round(((item.problemsCompleted || 0) / item.totalProblems) * 100);
+  }
+
   return (
     <div 
       className={cn(
@@ -99,6 +109,16 @@ function HomeworkCard({ item, onClick, onFocus, isOverdue }: { item: HomeworkAss
             {isOverdue ? <AlertCircle size={20} /> : <ClipboardList size={20} />}
           </div>
         </div>
+
+        {(progress > 0 || item.totalProblems) && (
+          <div className="space-y-2" onClick={onClick}>
+            <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-brand-muted">
+              <span>Progress</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-1.5 bg-brand-surface-2" />
+          </div>
+        )}
 
         <div className="flex items-center justify-between pt-3 border-t border-brand-border/20">
           <div className="text-[10px] font-bold uppercase tracking-widest">

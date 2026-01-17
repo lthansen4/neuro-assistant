@@ -75,7 +75,15 @@ function SimpleAssignmentCard({ item, onClick, onFocus }: { item: any; onClick: 
       ? "text-category-deep-fg bg-category-deep-bg" 
       : "text-brand-primary bg-brand-surface-2";
   
-  const progress = item.totalPages ? Math.round(((item.pagesCompleted || 0) / item.totalPages) * 100) : null;
+  // Calculate progress: prioritize completionPercentage, then fallback to pages/problems
+  let progress = item.completionPercentage || 0;
+  if (!item.completionPercentage) {
+    if (isReading && item.totalPages) {
+      progress = Math.round(((item.pagesCompleted || 0) / item.totalPages) * 100);
+    } else if (item.totalProblems) {
+      progress = Math.round(((item.problemsCompleted || 0) / item.totalProblems) * 100);
+    }
+  }
 
   return (
     <div className="group relative p-6 rounded-[2rem] bg-brand-surface border border-brand-border/40 shadow-soft hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden">
@@ -94,13 +102,13 @@ function SimpleAssignmentCard({ item, onClick, onFocus }: { item: any; onClick: 
           </div>
         </div>
 
-        {isReading && item.totalPages && (
+        {(progress > 0 || (isReading && item.totalPages) || item.totalProblems) && (
           <div className="space-y-2" onClick={onClick}>
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-brand-muted">
               <span>Progress</span>
               <span>{progress}%</span>
             </div>
-            <Progress value={progress || 0} className="h-1.5 bg-brand-surface-2" />
+            <Progress value={progress} className="h-1.5 bg-brand-surface-2" />
           </div>
         )}
 

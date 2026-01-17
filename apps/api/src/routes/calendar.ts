@@ -422,6 +422,93 @@ calendarRoute.get('/events', async (c) => {
   }
 });
 
+// GET /api/calendar/overlap-assignments
+// Returns assignments linked to events that overlap with the given window
+calendarRoute.get('/overlap-assignments', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const startParam = c.req.query('start');
+    const endParam = c.req.query('end');
+
+    if (!startParam || !endParam) {
+      return c.json({ error: 'Missing start or end query parameters' }, 400);
+    }
+
+    const start = new Date(startParam);
+    const end = new Date(endParam);
+
+    console.log(`[Calendar] Finding overlapping assignments for user ${userId} from ${start.toISOString()} to ${end.toISOString()}`);
+
+    // Find all events in this window that have a linked assignment
+    const overlappingEvents = await db
+      .select({
+        linkedAssignmentId: schema.calendarEventsNew.linkedAssignmentId,
+        assignmentId: schema.calendarEventsNew.assignmentId,
+      })
+      .from(schema.calendarEventsNew)
+      .where(
+        and(
+          eq(schema.calendarEventsNew.userId, userId),
+          or(
+            and(
+              gte(schema.calendarEventsNew.startAt, start),
+              lte(schema.calendarEventsNew.startAt, end)
+            ),
+            and(
+              gte(schema.calendarEventsNew.endAt, start),
+              lte(schema.calendarEventsNew.endAt, end)
+            ),
+            and(
+              lte(schema.calendarEventsNew.startAt, start),
+              gte(schema.calendarEventsNew.endAt, end)
+            )
+          ),
+          or(
+            sql`${schema.calendarEventsNew.linkedAssignmentId} IS NOT NULL`,
+            sql`${schema.calendarEventsNew.assignmentId} IS NOT NULL`
+          )
+        )
+      );
+
+    const assignmentIds = Array.from(new Set(
+      overlappingEvents
+        .map(e => e.linkedAssignmentId || e.assignmentId)
+        .filter(Boolean) as string[]
+    ));
+
+    if (assignmentIds.length === 0) {
+      return c.json({ ok: true, assignments: [] });
+    }
+
+    // Fetch the full assignment details
+    const assignmentDetails = await db
+      .select({
+        id: schema.assignments.id,
+        title: schema.assignments.title,
+        category: schema.assignments.category,
+        totalPages: schema.assignments.totalPages,
+        pagesCompleted: schema.assignments.pagesCompleted,
+        totalProblems: schema.assignments.totalProblems,
+        problemsCompleted: schema.assignments.problemsCompleted,
+        completionPercentage: schema.assignments.completionPercentage,
+        courseName: schema.courses.name,
+      })
+      .from(schema.assignments)
+      .leftJoin(schema.courses, eq(schema.assignments.courseId, schema.courses.id))
+      .where(
+        and(
+          eq(schema.assignments.userId, userId),
+          sql`${schema.assignments.id} IN (${sql.join(assignmentIds.map(id => sql`${id}::uuid`), sql`,`)})`
+        )
+      );
+
+    return c.json({ ok: true, assignments: assignmentDetails });
+  } catch (error: any) {
+    console.error('[Calendar] Error fetching overlap assignments:', error);
+    return c.json({ error: error.message || 'Failed to fetch overlapping assignments' }, 500);
+  }
+});
+
 calendarRoute.post('/event-drop', async (c) => {
   try {
     const userId = await getUserId(c);

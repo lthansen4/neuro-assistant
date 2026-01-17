@@ -86,6 +86,50 @@ export async function fetchCalendarEvents(userId: string, start: Date, end: Date
   return res.json();
 }
 
+export async function fetchOverlappingAssignments(userId: string, start: string, end: string) {
+  const res = await fetch(`${API_BASE}/api/calendar/overlap-assignments?start=${start}&end=${end}`, {
+    headers: { "x-clerk-user-id": userId },
+  });
+  if (!res.ok) throw new Error("Failed to fetch overlapping assignments");
+  return res.json();
+}
+
+export async function searchAssignments(userId: string, query: string) {
+  const res = await fetch(`${API_BASE}/api/assignments/search?q=${encodeURIComponent(query)}`, {
+    headers: { "x-clerk-user-id": userId },
+  });
+  if (!res.ok) throw new Error("Failed to search assignments");
+  return res.json();
+}
+
+export async function updateAssignment(
+  userId: string,
+  assignmentId: string,
+  data: {
+    title?: string;
+    description?: string;
+    category?: string;
+    dueDate?: string;
+    pagesCompleted?: number;
+    totalPages?: number;
+    problemsCompleted?: number;
+    totalProblems?: number;
+    completionPercentage?: number;
+    status?: string;
+  }
+) {
+  const res = await fetch(`${API_BASE}/api/assignments/${assignmentId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "x-clerk-user-id": userId,
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update assignment");
+  return res.json();
+}
+
 export async function createSession(
   userId: string,
   payload: { type: "Focus" | "Chill"; startTime: string; endTime: string; assignmentId?: string | null }

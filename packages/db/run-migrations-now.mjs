@@ -120,6 +120,29 @@ const migrations = [
       COMMENT ON COLUMN assignments.last_deferred_at IS 'When this assignment was last deferred';
       COMMENT ON COLUMN assignments.reading_questions IS 'Array of [{text: string, createdAt: string}] questions for the professor';
     `
+  },
+  {
+    name: '0033: Add homework progress and global percentage',
+    sql: `
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'total_problems') THEN
+          ALTER TABLE assignments ADD COLUMN total_problems INTEGER;
+        END IF;
+        
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'problems_completed') THEN
+          ALTER TABLE assignments ADD COLUMN problems_completed INTEGER;
+        END IF;
+        
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'completion_percentage') THEN
+          ALTER TABLE assignments ADD COLUMN completion_percentage INTEGER DEFAULT 0;
+        END IF;
+      END $$;
+
+      COMMENT ON COLUMN assignments.total_problems IS 'Total number of problems in the homework assignment';
+      COMMENT ON COLUMN assignments.problems_completed IS 'Number of problems student has finished';
+      COMMENT ON COLUMN assignments.completion_percentage IS 'Overall completion progress from 0 to 100';
+    `
   }
 ];
 
@@ -197,6 +220,13 @@ export async function run() {
         EXISTS (
           SELECT 1 FROM information_schema.columns 
           WHERE table_name = 'assignments' AND column_name = 'last_deferred_at'
+        )
+      UNION ALL
+      SELECT 
+        'assignments.completion_percentage',
+        EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'assignments' AND column_name = 'completion_percentage'
         )
     `);
 

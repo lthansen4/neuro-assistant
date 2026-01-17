@@ -94,6 +94,9 @@ export const assignments = pgTable("assignments", {
   stuckInterventionShown: boolean("stuck_intervention_shown").default(false).notNull(), // Migration 0022: Intervention prompt shown
   totalPages: integer("total_pages"), // Migration 0032: Reading progress
   pagesCompleted: integer("pages_completed"), // Migration 0032: Reading progress
+  totalProblems: integer("total_problems"), // Migration 0033: Homework progress
+  problemsCompleted: integer("problems_completed"), // Migration 0033: Homework progress
+  completionPercentage: integer("completion_percentage").default(0), // Migration 0033: Global progress
   readingQuestions: jsonb("reading_questions"), // Migration 0032: Captured questions
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 }, (t) => ({

@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { CircularProgress } from "./ui/CircularProgress";
 import { createSession } from "../lib/api";
 import { toast } from "./ui/Toast";
-import { ReadingProgressModal } from "./Planner/ReadingProgressModal";
+import { PostSessionSummaryModal } from "./PostSessionSummaryModal";
 
 export function FocusTimerModal({
   userId,
@@ -30,7 +30,8 @@ export function FocusTimerModal({
   const [now, setNow] = useState<Date>(new Date());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showReadingPrompt, setShowReadingPrompt] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [sessionData, setSessionData] = useState<{ start: string; end: string; minutes: number } | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -50,47 +51,41 @@ export function FocusTimerModal({
   const handleStop = async () => {
     setSaving(true);
     setError(null);
+    const endTime = new Date();
     const minutes = Math.round(elapsedMs / 60000);
     
     try {
       await createSession(userId, {
         type: "Focus",
         startTime: startTime.toISOString(),
-        endTime: new Date().toISOString(),
+        endTime: endTime.toISOString(),
         assignmentId: assignmentId || null,
       });
-      toast.success(`Focus session logged! ${minutes}m earned 🔥`);
       
-      // If it's a reading assignment, show the reading progress prompt
-      if (assignmentId && category === "Reading") {
-        setShowReadingPrompt(true);
-      } else {
-        onLogged();
-      }
+      setSessionData({
+        start: startTime.toISOString(),
+        end: endTime.toISOString(),
+        minutes
+      });
+      setShowSummary(true);
     } catch (err: any) {
       toast.error(err.message || "Failed to log session");
       setError(err.message || "Failed to log focus session.");
-    } finally {
       setSaving(false);
     }
   };
 
-  if (showReadingPrompt && assignmentId) {
+  if (showSummary && sessionData) {
     return (
-      <ReadingProgressModal
-        userId={userId}
-        assignmentId={assignmentId}
-        title={title || "Reading Assignment"}
-        currentPagesCompleted={currentPagesCompleted || null}
-        totalPages={totalPages || null}
+      <PostSessionSummaryModal
+        isOpen={true}
         onClose={() => {
-          setShowReadingPrompt(false);
+          setShowSummary(false);
           onLogged();
         }}
-        onSaved={() => {
-          setShowReadingPrompt(false);
-          onLogged();
-        }}
+        startTime={sessionData.start}
+        endTime={sessionData.end}
+        actualMinutes={sessionData.minutes}
       />
     );
   }

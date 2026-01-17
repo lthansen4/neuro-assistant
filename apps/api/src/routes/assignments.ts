@@ -128,6 +128,23 @@ assignmentsRoute.put('/:id', async (c) => {
     if (typeof body.pagesCompleted === 'number' || body.pagesCompleted === null) {
       updatePayload.pagesCompleted = body.pagesCompleted ?? null;
     }
+    if (typeof body.totalProblems === 'number' || body.totalProblems === null) {
+      updatePayload.totalProblems = body.totalProblems ?? null;
+    }
+    if (typeof body.problemsCompleted === 'number' || body.problemsCompleted === null) {
+      updatePayload.problemsCompleted = body.problemsCompleted ?? null;
+    }
+    if (typeof body.completionPercentage === 'number' || body.completionPercentage === null) {
+      updatePayload.completionPercentage = body.completionPercentage ?? 0;
+      
+      // Auto-complete status logic
+      if (updatePayload.completionPercentage === 100) {
+        updatePayload.status = 'Completed';
+        updatePayload.submittedAt = new Date();
+      } else if (updatePayload.completionPercentage > 0 && existing.status === 'Inbox') {
+        updatePayload.status = 'Scheduled';
+      }
+    }
     if (Array.isArray(body.readingQuestions) || body.readingQuestions === null) {
       updatePayload.readingQuestions = body.readingQuestions ?? null;
     }
@@ -219,6 +236,53 @@ assignmentsRoute.delete('/:id', async (c) => {
   } catch (error: any) {
     console.error('[Assignments API] Error deleting assignment:', error);
     return c.json({ error: error.message || 'Failed to delete assignment' }, 500);
+  }
+});
+
+/**
+ * GET /api/assignments/search
+ * Search assignments by title or course name
+ */
+assignmentsRoute.get('/search', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const query = c.req.query('q') || '';
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    console.log(`[Assignments API] Searching assignments for user ${userId}, query: "${query}"`);
+
+    const results = await db
+      .select({
+        id: assignments.id,
+        title: assignments.title,
+        category: assignments.category,
+        totalPages: assignments.totalPages,
+        pagesCompleted: assignments.pagesCompleted,
+        totalProblems: assignments.totalProblems,
+        problemsCompleted: assignments.problemsCompleted,
+        completionPercentage: assignments.completionPercentage,
+        courseName: courses.name,
+      })
+      .from(assignments)
+      .leftJoin(courses, eq(assignments.courseId, courses.id))
+      .where(
+        and(
+          eq(assignments.userId, userId),
+          or(
+            sql`${assignments.title} ILIKE ${'%' + query + '%'}`,
+            sql`${courses.name} ILIKE ${'%' + query + '%'}`
+          )
+        )
+      )
+      .limit(10);
+
+    return c.json({ ok: true, assignments: results });
+  } catch (error: any) {
+    console.error('[Assignments API] Search error:', error);
+    return c.json({ error: error.message || 'Failed to search assignments' }, 500);
   }
 });
 
