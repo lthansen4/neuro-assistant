@@ -871,6 +871,8 @@ Use their specific context to make the BEST scheduling decision.`,
           }
         });
         
+        /* 
+        // DISABLED: Transition buffers were causing clutter
         // TRANSITION TAX: Add 15m buffer AFTER each Focus block (except the last one)
         if (idx < chunks.length - 1 || chunks.length === 1) {
           const bufferStart = new Date(chunk.endAt);
@@ -895,6 +897,7 @@ Use their specific context to make the BEST scheduling decision.`,
           
           console.log(`[QuickAdd] Added 15m transition buffer after ${chunk.label}`);
         }
+        */
       }
       
       focusEvents = await db
@@ -1033,6 +1036,8 @@ Use their specific context to make the BEST scheduling decision.`,
         .returning();
       focusEvents = createdFocusEvents;
       
+      /*
+      // DISABLED: Transition buffers were causing clutter
       // ADHD TRANSITION TAX: Add 15-minute buffer after each Focus event
       for (const event of createdFocusEvents) {
         const bufferStart = new Date(event.endAt);
@@ -1058,6 +1063,7 @@ Use their specific context to make the BEST scheduling decision.`,
           .returning();
         focusEvents.push(bufferEvent);
       }
+      */
       
       // PRIORITY 2: Automatic Deep Work Tracking (Recovery Forcing)
       try {
