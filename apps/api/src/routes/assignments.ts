@@ -495,7 +495,7 @@ assignmentsRoute.get('/:id/details', async (c) => {
       return c.json({ error: 'Assignment not found' }, 404);
     }
 
-    const focusBlocks = await db
+    const allLinkedEvents = await db
       .select({
         id: schema.calendarEventsNew.id,
         title: schema.calendarEventsNew.title,
@@ -508,10 +508,6 @@ assignmentsRoute.get('/:id/details', async (c) => {
       .where(and(
         eq(schema.calendarEventsNew.userId, userId),
         or(
-          eq(schema.calendarEventsNew.eventType, 'Focus'),
-          eq(schema.calendarEventsNew.eventType, 'Studying')
-        ),
-        or(
           eq(schema.calendarEventsNew.linkedAssignmentId, assignmentId),
           eq(schema.calendarEventsNew.assignmentId, assignmentId),
           sql`${schema.calendarEventsNew.metadata} ->> 'assignmentId' = ${assignmentId}`
@@ -522,7 +518,7 @@ assignmentsRoute.get('/:id/details', async (c) => {
     return c.json({
       ok: true,
       assignment,
-      focusBlocks,
+      focusBlocks: allLinkedEvents, // Return everything linked (due dates + focus blocks)
     });
   } catch (error: any) {
     console.error('[Assignments API] Error fetching details:', error);

@@ -90,11 +90,24 @@ export class SlotMatcher {
       });
       
       if (assignment && assignment.dueDate) {
-        // End search 1 day before due date (to avoid last-minute cramming)
-        const assignmentDeadline = new Date(assignment.dueDate.getTime() - 24 * 60 * 60 * 1000);
-        if (assignmentDeadline < endDate) {
-          endDate = assignmentDeadline;
-          console.log(`[SlotMatcher] Constraining search to ${endDate.toISOString()} (1 day before due)`);
+        // Use the assignment due date as the hard deadline
+        const assignmentDeadline = new Date(assignment.dueDate.getTime());
+        
+        // If the deadline is in the future, we must finish before it
+        if (assignmentDeadline > now) {
+          // If deadline is more than 24h away, try to finish 4h before (buffer)
+          // otherwise just finish before the deadline itself
+          const hoursUntilDue = (assignmentDeadline.getTime() - now.getTime()) / (1000 * 60 * 60);
+          const bufferMs = hoursUntilDue > 24 ? 4 * 60 * 60 * 1000 : 0;
+          
+          const adjustedDeadline = new Date(assignmentDeadline.getTime() - bufferMs);
+          if (adjustedDeadline < endDate) {
+            endDate = adjustedDeadline;
+            console.log(`[SlotMatcher] Constraining search to ${endDate.toISOString()} (before due date)`);
+          }
+        } else {
+          // Deadline is in the past or right now, use 14 days lookahead but log it
+          console.log(`[SlotMatcher] Assignment deadline is in the past, using standard lookahead`);
         }
       }
     }

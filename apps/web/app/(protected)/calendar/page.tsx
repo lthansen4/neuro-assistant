@@ -27,6 +27,8 @@ function CalendarPageContent() {
   const [stuckAssignmentId, setStuckAssignmentId] = useState<string | null>(null);
   const [stuckEventId, setStuckEventId] = useState<string | null>(null);
 
+  const [assignmentTitle, setAssignmentTitle] = useState<string | null>(null);
+
   useEffect(() => {
     if (!user?.id || !assignmentId) return;
 
@@ -36,11 +38,14 @@ function CalendarPageContent() {
           headers: { "x-clerk-user-id": user.id },
         });
         const data = await res.json();
-        if (data.ok && data.focusBlocks) {
-          const eventIds = data.focusBlocks.map((b: any) => b.id);
-          window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
-            detail: { eventIds }
-          }));
+        if (data.ok && data.assignment) {
+          setAssignmentTitle(data.assignment.title);
+          if (data.focusBlocks) {
+            const eventIds = data.focusBlocks.map((b: any) => b.id);
+            window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+              detail: { eventIds }
+            }));
+          }
         }
       } catch (err) {
         console.error("Failed to fetch assignment details for highlighting:", err);
@@ -209,6 +214,37 @@ function CalendarPageContent() {
             />
           </div>
         </div>
+
+        {assignmentId && assignmentTitle && (
+          <div className="bg-brand-primary/10 border-2 border-brand-primary/30 rounded-[2rem] p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-aura-green animate-in fade-in slide-in-from-top-4 duration-700">
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-2xl bg-brand-primary text-white flex items-center justify-center shadow-lg animate-pulse">
+                <span className="text-2xl">🎯</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-brand-text font-black text-xl italic leading-none">
+                  Rescheduling: {assignmentTitle}
+                </p>
+                <p className="text-brand-muted font-medium text-sm">
+                  We've highlighted your existing blocks. Drag one to a new spot or add a new one!
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete("assignmentId");
+                url.searchParams.delete("reschedule");
+                window.history.replaceState({}, '', url.toString());
+                setAssignmentTitle(null);
+                window.dispatchEvent(new CustomEvent("highlightFocusBlocks", { detail: { eventIds: [] } }));
+              }}
+              className="bg-white text-brand-text px-8 py-3 rounded-full text-[11px] font-black uppercase tracking-widest shadow-soft hover:bg-brand-surface-2 transition-all border border-brand-border/40"
+            >
+              Done Rescheduling
+            </button>
+          </div>
+        )}
 
         {hasProposal && !proposalPanelOpen && !appliedProposal && (
           <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-[1.5rem] p-6 flex items-center justify-between shadow-soft animate-fade-in">

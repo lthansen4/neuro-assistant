@@ -86,12 +86,53 @@ export function Calendar({
     const handleHighlight = (e: Event) => {
       const detail = (e as CustomEvent).detail as { eventIds?: string[] } | undefined;
       const ids = detail?.eventIds || [];
-      setHighlightedEventIds(new Set(ids.map(String)));
+      const idSet = new Set(ids.map(String));
+      setHighlightedEventIds(idSet);
+
+      // SCROLL TO FIRST HIGHLIGHTED EVENT
+      if (ids.length > 0) {
+        // We need to wait a tiny bit for the calendar to render/fetch if it just changed
+        setTimeout(() => {
+          const calendarApi = calendarRef.current?.getApi();
+          if (!calendarApi) return;
+
+          // Find the earliest start time among the highlighted events
+          let earliestEvent: any = null;
+          
+          ids.forEach(id => {
+            const ev = calendarApi.getEventById(String(id));
+            if (ev && ev.start) {
+              if (!earliestEvent || ev.start < earliestEvent.start) {
+                earliestEvent = ev;
+              }
+            }
+          });
+
+          if (earliestEvent) {
+            console.log(`[Calendar] Scrolling to highlighted event: ${earliestEvent.title} at ${earliestEvent.start}`);
+            
+            // 1. Move to the date
+            calendarApi.gotoDate(earliestEvent.start);
+            
+            // 2. Scroll to the time (if in timeGrid view)
+            if (currentView.startsWith('timeGrid')) {
+              // FullCalendar doesn't have a direct "scrollToTime" on the API, 
+              // but we can use the scrollTime property if we were re-rendering,
+              // or use the internal scroll functions if available.
+              // A reliable way is to find the element and scroll into view.
+              const el = document.querySelector('.focus-block-highlight');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }
+          }
+        }, 500);
+      }
     };
 
     window.addEventListener("highlightFocusBlocks", handleHighlight as EventListener);
     return () => window.removeEventListener("highlightFocusBlocks", handleHighlight as EventListener);
-  }, []);
+  }, [currentView]);
 
   useEffect(() => {
     const handleRefresh = () => {
