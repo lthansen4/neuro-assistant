@@ -322,18 +322,29 @@ export default function DashboardPage() {
           <TodayFlow
             items={(flowFromCalendar.length > 0 ? flowFromCalendar : (flowItems as any))}
             onSelect={(item) => {
-              const fallbackStart = new Date(item.startTime);
-              const fallbackEnd = new Date(item.endTime);
-              setSelectedEvent({
-                id: item.id,
-                title: item.title,
-                start: fallbackStart,
-                end: fallbackEnd,
-                eventType: item.eventType || "Other",
-                isMovable: item.isMovable ?? true,
-                metadata: item.metadata,
-                linkedAssignmentId: item.linkedAssignmentId,
-              });
+              // If it's a focus block/deep work, or has a linked assignment, trigger the Lock In modal
+              if (item.category === "deep" || item.linkedAssignmentId) {
+                setFocusTarget({
+                  assignmentId: item.linkedAssignmentId,
+                  title: item.title,
+                  category: item.eventType || "Focus",
+                  // We don't have totalPages/pagesCompleted here easily, 
+                  // but FocusTimerModal will handle it or we can fetch it if needed.
+                });
+              } else {
+                const fallbackStart = new Date(item.startTime);
+                const fallbackEnd = new Date(item.endTime);
+                setSelectedEvent({
+                  id: item.id,
+                  title: item.title,
+                  start: fallbackStart,
+                  end: fallbackEnd,
+                  eventType: item.eventType || "Other",
+                  isMovable: item.isMovable ?? true,
+                  metadata: item.metadata,
+                  linkedAssignmentId: item.linkedAssignmentId,
+                });
+              }
             }}
           />
         </div>
@@ -431,6 +442,7 @@ export default function DashboardPage() {
                 usedMinutes={usedChill}
                 targetRatio={3.0}
                 onSessionLogged={() => loadDashboard(false)}
+                onLockIn={() => setFocusTarget({})}
               />
             )}
           </div>

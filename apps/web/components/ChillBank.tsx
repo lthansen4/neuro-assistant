@@ -14,6 +14,7 @@ interface ChillBankProps {
   usedMinutes: number;
   targetRatio?: number;
   onSessionLogged?: () => void;
+  onLockIn?: () => void;
 }
 
 export function ChillBank({
@@ -22,6 +23,7 @@ export function ChillBank({
   usedMinutes,
   targetRatio = 3.0,
   onSessionLogged,
+  onLockIn,
 }: ChillBankProps) {
   const {
     focusRunning,
@@ -79,7 +81,7 @@ export function ChillBank({
               </div>
             </CircularProgress>
             <Button
-              onClick={focusRunning ? () => stopFocus(userId).then(() => onSessionLogged?.()) : () => startFocus()}
+              onClick={focusRunning ? () => stopFocus(userId).then(() => onSessionLogged?.()) : (onLockIn || (() => startFocus()))}
               className={cn(
                 "rounded-full px-8 py-3 text-[11px] font-black uppercase tracking-[0.2em] shadow-soft hover:brightness-110 transition-all",
                 focusRunning ? "bg-brand-rose text-white" : "bg-brand-primary text-white"
