@@ -327,6 +327,42 @@ assignmentsRoute.put('/:id', async (c) => {
       .where(and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)))
       .returning();
 
+    // UX: Sync title changes to associated calendar events
+    if (typeof body.title === 'string' && body.title.trim() !== existing.title) {
+      const newTitle = body.title.trim();
+      console.log(`[Assignments API] Title changed from "${existing.title}" to "${newTitle}". Syncing to calendar...`);
+      
+      const relatedEvents = await db.query.calendarEventsNew.findMany({
+        where: and(
+          eq(schema.calendarEventsNew.userId, userId),
+          or(
+            eq(schema.calendarEventsNew.assignmentId, assignmentId),
+            eq(schema.calendarEventsNew.linkedAssignmentId, assignmentId)
+          )
+        )
+      });
+
+      for (const event of relatedEvents) {
+        let updatedEventTitle = event.title;
+        
+        // If it was "Work on: Old Title (Session 1)", update it
+        if (event.title.includes(existing.title)) {
+          updatedEventTitle = event.title.replace(existing.title, newTitle);
+        } else if (event.title === `Work on: ${existing.title}`) {
+          updatedEventTitle = `Work on: ${newTitle}`;
+        } else if (event.eventType === 'Focus' && !event.title.includes(newTitle)) {
+          // Fallback for focus blocks that might have lost sync
+          updatedEventTitle = `Work on: ${newTitle}`;
+        }
+
+        if (updatedEventTitle !== event.title) {
+          await db.update(schema.calendarEventsNew)
+            .set({ title: updatedEventTitle })
+            .where(eq(schema.calendarEventsNew.id, event.id));
+        }
+      }
+    }
+
     return c.json({ ok: true, assignment: updated });
   } catch (error: any) {
     console.error('[Assignments API] Error updating assignment:', error);

@@ -68,6 +68,7 @@ interface PostSessionSummaryModalProps {
   endTime: string; // ISO string
   actualMinutes: number;
   initialAssignmentId?: string | null; // Added initialAssignmentId
+  mode?: "session" | "manual"; // Added mode prop
 }
 
 export function PostSessionSummaryModal({
@@ -76,7 +77,8 @@ export function PostSessionSummaryModal({
   startTime,
   endTime,
   actualMinutes,
-  initialAssignmentId, // Added initialAssignmentId
+  initialAssignmentId,
+  mode = "session", // Default to session
 }: PostSessionSummaryModalProps) {
   const { user } = useUser();
   const [loading, setLoading] = useState(true);
@@ -115,7 +117,9 @@ export function PostSessionSummaryModal({
         initialList.map((a: any) => ({
           ...a,
           notes: "",
-          completionPercentage: a.completionPercentage || 0,
+          // UX: If manually completing, start at 100%
+          completionPercentage: (mode === "manual" && a.id === initialAssignmentId) ? 100 : (a.completionPercentage || 0),
+          isCompleted: (mode === "manual" && a.id === initialAssignmentId) ? true : (a.completionPercentage === 100),
           professorQuestions: a.professorQuestions || [],
           questionsTarget: a.questionsTarget || "Class",
           rescheduleMode: "none",
@@ -294,10 +298,14 @@ export function PostSessionSummaryModal({
               </div>
               <div>
                 <DialogTitle className="text-2xl font-serif font-black text-brand-text italic">
-                  Session Complete!
+                  {mode === "session" ? "Session Complete!" : "Assignment Wrap-up"}
                 </DialogTitle>
                 <DialogDescription className="text-brand-muted font-medium">
-                  You locked in for <span className="text-brand-primary font-bold">{actualMinutes}m</span>. What did you accomplish?
+                  {mode === "session" ? (
+                    <>You locked in for <span className="text-brand-primary font-bold">{actualMinutes}m</span>. What did you accomplish?</>
+                  ) : (
+                    "Capture any final notes or questions for the professor before closing this out."
+                  )}
                 </DialogDescription>
               </div>
             </div>

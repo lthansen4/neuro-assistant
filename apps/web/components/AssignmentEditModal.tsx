@@ -18,6 +18,7 @@ import { toast } from "./ui/Toast";
 import { GessoIcon } from "./ui/GessoIcon";
 import { Trash2, CheckCircle2, Save, X, Check } from "lucide-react";
 import { toggleCalendarEventCompletion } from "../lib/api";
+import { PostSessionSummaryModal } from "./PostSessionSummaryModal";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
@@ -73,6 +74,7 @@ export function AssignmentEditModal({
   const [error, setError] = useState<string | null>(null);
   const [focusBlocks, setFocusBlocks] = useState<FocusBlock[]>([]);
   const [loadingFocusBlocks, setLoadingFocusBlocks] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -183,32 +185,8 @@ export function AssignmentEditModal({
   };
 
   const handleComplete = async () => {
-    setCompleting(true);
-    setError(null);
-    
-    // Optimistic: close modal immediately
-    onClose();
-    toast.loading("Marking complete...");
-    
-    try {
-      const res = await fetch(`${API_BASE}/api/adhd/complete/${assignment.id}`, {
-        method: "POST",
-        headers: {
-          "x-clerk-user-id": userId,
-        },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Failed to mark assignment complete.");
-      }
-      toast.success(`"${assignment.title}" complete! 🎉`);
-      onUpdated();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to mark complete");
-      setError(err.message || "Failed to mark assignment complete.");
-    } finally {
-      setCompleting(false);
-    }
+    // UX: Instead of just marking done, open the summary wrap-up flow
+    setShowSummary(true);
   };
 
   const handleToggleBlockComplete = async (blockId: string) => {
@@ -228,6 +206,24 @@ export function AssignmentEditModal({
       console.error(err);
     }
   };
+
+  if (showSummary) {
+    return (
+      <PostSessionSummaryModal
+        isOpen={true}
+        onClose={() => {
+          setShowSummary(false);
+          onUpdated();
+          onClose();
+        }}
+        mode="manual"
+        startTime={new Date().toISOString()}
+        endTime={new Date().toISOString()}
+        actualMinutes={0}
+        initialAssignmentId={assignment.id}
+      />
+    );
+  }
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
