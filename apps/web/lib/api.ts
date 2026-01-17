@@ -194,3 +194,17 @@ export async function createSession(
   return res.json();
 }
 
+export async function toggleCalendarEventCompletion(userId: string, eventId: string) {
+  const res = await fetch(`${API_BASE}/api/calendar/events/${eventId}/toggle-complete`, {
+    method: "PATCH",
+    headers: {
+      "x-clerk-user-id": userId,
+    },
+  });
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => res.statusText);
+    throw new Error(`Failed to toggle event completion: ${res.status} ${errorText}`);
+  }
+  return res.json();
+}
+

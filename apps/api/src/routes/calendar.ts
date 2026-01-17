@@ -972,3 +972,48 @@ calendarRoute.put('/events/:id', async (c) => {
     return c.json({ error: error.message || 'Failed to update event' }, 500);
   }
 });
+
+// PATCH /api/calendar/events/:id/toggle-complete
+// Toggles the completion status of a calendar event
+calendarRoute.patch('/events/:id/toggle-complete', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const eventId = c.req.param('id');
+    
+    console.log(`[Calendar] Toggle complete request for event ${eventId} by user ${userId}`);
+    
+    // Fetch event to verify ownership
+    const event = await db.query.calendarEventsNew.findFirst({
+      where: and(
+        eq(schema.calendarEventsNew.id, eventId),
+        eq(schema.calendarEventsNew.userId, userId)
+      )
+    });
+    
+    if (!event) {
+      return c.json({ error: 'Event not found' }, 404);
+    }
+    
+    const currentMetadata = (event.metadata as any) || {};
+    const isCompleted = !!currentMetadata.isCompleted;
+    
+    const updatedMetadata = {
+      ...currentMetadata,
+      isCompleted: !isCompleted,
+      completedAt: !isCompleted ? new Date().toISOString() : null
+    };
+    
+    const [updatedEvent] = await db.update(schema.calendarEventsNew)
+      .set({
+        metadata: updatedMetadata,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.calendarEventsNew.id, eventId))
+      .returning();
+    
+    return c.json({ ok: true, isCompleted: !isCompleted, event: updatedEvent });
+  } catch (error: any) {
+    console.error('[Calendar] Toggle complete error:', error);
+    return c.json({ error: error.message || 'Failed to toggle completion' }, 500);
+  }
+});

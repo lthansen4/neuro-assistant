@@ -16,7 +16,8 @@ import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
 import { toast } from "./ui/Toast";
 import { GessoIcon } from "./ui/GessoIcon";
-import { Trash2, CheckCircle2, Save, X } from "lucide-react";
+import { Trash2, CheckCircle2, Save, X, Check } from "lucide-react";
+import { toggleCalendarEventCompletion } from "../lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
@@ -210,6 +211,24 @@ export function AssignmentEditModal({
     }
   };
 
+  const handleToggleBlockComplete = async (blockId: string) => {
+    try {
+      const res = await toggleCalendarEventCompletion(userId, blockId);
+      if (res.ok) {
+        setFocusBlocks(prev => prev.map(b => 
+          b.id === blockId 
+            ? { ...b, metadata: { ...b.metadata, isCompleted: res.isCompleted } } 
+            : b
+        ));
+        toast.success(res.isCompleted ? "Block marked done!" : "Block unmarked.");
+        onUpdated(); // Refresh parent views to show completion status
+      }
+    } catch (err: any) {
+      toast.error("Failed to update block status");
+      console.error(err);
+    }
+  };
+
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-brand-surface border-brand-border rounded-[2.5rem] p-0 gap-0">
@@ -321,10 +340,17 @@ export function AssignmentEditModal({
                 {focusBlocks.map((block) => {
                   const start = new Date(block.startAt);
                   const end = new Date(block.endAt);
+                  const isBlockCompleted = !!block.metadata?.isCompleted;
+
                   return (
                     <div
                       key={block.id}
-                      className="group relative p-5 rounded-3xl border border-brand-border/40 bg-brand-surface-2/50 hover:border-brand-primary/40 hover:bg-brand-surface transition-all duration-300"
+                      className={cn(
+                        "group relative p-5 rounded-3xl border border-brand-border/40 transition-all duration-300",
+                        isBlockCompleted 
+                          ? "bg-brand-mint/5 border-brand-mint/20 opacity-80" 
+                          : "bg-brand-surface-2/50 hover:border-brand-primary/40 hover:bg-brand-surface"
+                      )}
                       onMouseEnter={() => {
                         window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
                           detail: { eventIds: [block.id] }
@@ -336,17 +362,36 @@ export function AssignmentEditModal({
                         }));
                       }}
                     >
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="space-y-1">
-                          <div className="font-bold text-brand-text group-hover:text-brand-primary transition-colors">
+                      <div className="flex justify-between items-center gap-4">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className={cn(
+                            "font-bold truncate transition-colors",
+                            isBlockCompleted ? "text-brand-mint line-through" : "text-brand-text group-hover:text-brand-primary"
+                          )}>
                             {block.title}
                           </div>
                           <div className="text-[11px] font-medium text-brand-muted">
                             {start.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </div>
                         </div>
-                        <div className="w-8 h-8 rounded-xl bg-brand-surface flex items-center justify-center text-brand-muted group-hover:text-brand-primary shadow-sm transition-all group-hover:scale-110">
-                          <GessoIcon type="bolt" size={14} />
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleBlockComplete(block.id)}
+                            className={cn(
+                              "w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm hover:scale-110",
+                              isBlockCompleted 
+                                ? "bg-brand-mint text-white" 
+                                : "bg-brand-surface text-brand-muted hover:text-brand-mint hover:bg-brand-mint/10"
+                            )}
+                            title={isBlockCompleted ? "Unmark as done" : "Mark as done"}
+                          >
+                            <Check size={18} className={cn(isBlockCompleted && "animate-in zoom-in-50")} />
+                          </button>
+                          
+                          <div className="w-8 h-8 rounded-xl bg-brand-surface/50 flex items-center justify-center text-brand-muted opacity-40">
+                            <GessoIcon type="bolt" size={14} />
+                          </div>
                         </div>
                       </div>
                     </div>
