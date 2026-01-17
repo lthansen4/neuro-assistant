@@ -453,12 +453,11 @@ rebalancingRoute.post('/proposal/:id/reject', async (c) => {
 
     const proposalId = c.req.param('id');
 
-    // Update proposal status
+    // Update proposal status (use 'cancelled' - 'rejected' is not in DB constraint)
     const result = await db
       .update(rebalancingProposals)
       .set({
-        status: 'rejected',
-        rejectedAt: new Date()
+        status: 'cancelled'
       })
       .where(
         and(
