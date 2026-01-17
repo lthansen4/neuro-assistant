@@ -200,10 +200,10 @@ export function Calendar({
           dayHeaderFormat={{ weekday: 'short', month: 'numeric', day: 'numeric' }}
           slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
           
-          // Logic Split: Month = Editable Planner, Week/Day = Review Mode
-          editable={currentView === 'dayGridMonth'} 
-          eventStartEditable={currentView === 'dayGridMonth'}
-          eventDurationEditable={true} // Always allow duration adjustment
+          // Drag & Drop / Resizing Logic
+          editable={true} 
+          eventStartEditable={true}
+          eventDurationEditable={true}
           
           eventDrop={(info) => onMove(info.event.id, info.event.start!, info.event.end!)}
           eventResize={(info) => onMove(info.event.id, info.event.start!, info.event.end!)}
