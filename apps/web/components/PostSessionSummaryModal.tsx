@@ -208,7 +208,7 @@ export function PostSessionSummaryModal({
   const handleSave = async () => {
     if (!user?.id) return;
     setSaving(true);
-    let manualRescheduleUrl = null;
+    let manualRescheduleUrl: string | null = null;
 
     try {
       const promises = assignments.map(async (a) => {
