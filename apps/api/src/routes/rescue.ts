@@ -7,8 +7,8 @@
 
 import { Hono } from 'hono';
 import { db } from '../lib/db';
-import { assignments, calendarEventsNew } from '../../../../packages/db/src/schema';
-import { eq, and, ne, gte, lte, desc, sql } from 'drizzle-orm';
+import { assignments, calendarEventsNew, courses, assignmentChecklists } from '../../../../packages/db/src/schema';
+import { eq, and, ne, gte, lte } from 'drizzle-orm';
 import { calculateComprehensivePriority } from '../lib/adhd-guardian';
 import { getUserId } from '../lib/auth-utils';
 
@@ -75,17 +75,19 @@ rescueRoute.get('/priority', async (c) => {
     // Get course name if available
     let courseName = null;
     if (topPriority.courseId) {
-      const course = await db.query.courses.findFirst({
-        where: eq(sql`id`, topPriority.courseId)
-      });
+      const [course] = await db
+        .select({ name: courses.name })
+        .from(courses)
+        .where(eq(courses.id, topPriority.courseId));
       courseName = course?.name || null;
     }
 
     // Check if this assignment has a checklist (from Wall of Awful breakdown)
     // Checklist items are stored as JSONB in the items field
-    const checklist = await db.query.assignmentChecklists.findFirst({
-      where: eq(sql`assignment_id`, topPriority.id)
-    });
+    const [checklist] = await db
+      .select({ items: assignmentChecklists.items })
+      .from(assignmentChecklists)
+      .where(eq(assignmentChecklists.assignmentId, topPriority.id));
 
     // Parse checklist items from JSONB
     type ChecklistItem = { label: string; duration_minutes: number; completed: boolean };
@@ -218,12 +220,13 @@ rescueRoute.post('/complete/:id', async (c) => {
       
       // Get course name
       let courseName = null;
-      if (next.courseId) {
-        const course = await db.query.courses.findFirst({
-          where: eq(sql`id`, next.courseId)
-        });
-        courseName = course?.name || null;
-      }
+          if (next.courseId) {
+            const [course] = await db
+              .select({ name: courses.name })
+              .from(courses)
+              .where(eq(courses.id, next.courseId));
+            courseName = course?.name || null;
+          }
 
       const hoursUntilDue = next.dueDate 
         ? Math.round((next.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60))
