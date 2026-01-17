@@ -261,7 +261,12 @@ export class HeuristicEngine {
     
     // 3. Find the "Best Fit" slots while respecting Churn Caps
     const proposalId = randomUUID();
-    const moves = await this.calculateMoves(finalSchedule, trigger, energyMultiplier, proposalId);
+    // Cast metadata from unknown to expected type (jsonb columns return unknown in Drizzle)
+    const typedSchedule = finalSchedule.map(e => ({
+      ...e,
+      metadata: e.metadata as Record<string, any> | null | undefined
+    }));
+    const moves = await this.calculateMoves(typedSchedule, trigger, energyMultiplier, proposalId);
     
     console.log(`[HeuristicEngine] Generated ${moves.length} moves for proposal ${proposalId}`);
 

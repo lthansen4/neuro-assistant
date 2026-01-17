@@ -162,6 +162,10 @@ export function calculateUrgencyScore(
  */
 export async function hasExceededDeepWorkLimit(userId: string, date: Date): Promise<boolean> {
   const dateStr = DateTime.fromJSDate(date).toISODate();
+  if (!dateStr) {
+    console.error('[Recovery Forcing] Invalid date provided');
+    return false;
+  }
   
   // Get or create daily summary
   const summary = await db.query.dailyDeepWorkSummary.findFirst({
@@ -192,6 +196,10 @@ export async function hasExceededDeepWorkLimit(userId: string, date: Date): Prom
  */
 export async function trackDeepWork(userId: string, date: Date, durationMinutes: number) {
   const dateStr = DateTime.fromJSDate(date).toISODate();
+  if (!dateStr) {
+    console.error('[Recovery Forcing] Invalid date provided to trackDeepWork');
+    return;
+  }
   
   // Upsert daily summary
   const existing = await db.query.dailyDeepWorkSummary.findFirst({
@@ -236,6 +244,10 @@ export async function trackDeepWork(userId: string, date: Date, durationMinutes:
  */
 export async function getDeepWorkMinutes(userId: string, date: Date): Promise<number> {
   const dateStr = DateTime.fromJSDate(date).toISODate();
+  if (!dateStr) {
+    console.error('[Recovery Forcing] Invalid date provided to getDeepWorkMinutes');
+    return 0;
+  }
   
   const summary = await db.query.dailyDeepWorkSummary.findFirst({
     where: and(

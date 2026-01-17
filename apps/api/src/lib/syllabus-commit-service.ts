@@ -1,5 +1,5 @@
 import { db, schema } from './db';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { createHash } from 'crypto';
 
@@ -76,8 +76,14 @@ function buildOccurrencesForSemester(opts: {
       const endZt = d.set({ hour: eh || 0, minute: em || 0 });
 
       // Luxon handles DST in the zone; convert to UTC JS Date
-      const startUtc = new Date(startZt.toUTC().toISO());
-      const endUtc = new Date(endZt.toUTC().toISO());
+      const startIso = startZt.toUTC().toISO();
+      const endIso = endZt.toUTC().toISO();
+      if (!startIso || !endIso) {
+        console.warn('[buildOccurrences] Skipping event with invalid date');
+        continue;
+      }
+      const startUtc = new Date(startIso);
+      const endUtc = new Date(endIso);
 
       out.push({
         title: title(it),
@@ -1004,13 +1010,16 @@ export class SyllabusCommitService {
     eventType: string = 'Class'
   ): Promise<boolean> {
     if (useNewTable) {
+      const courseCondition = courseId 
+        ? eq(schema.calendarEventsNew.courseId, courseId)
+        : isNull(schema.calendarEventsNew.courseId);
       const existing = await tx
         .select()
         .from(schema.calendarEventsNew)
         .where(
           and(
             eq(schema.calendarEventsNew.userId, userId),
-            eq(schema.calendarEventsNew.courseId, courseId),
+            courseCondition,
             eq(schema.calendarEventsNew.eventType, eventType as any),
             eq(schema.calendarEventsNew.startAt, evt.startTime as any),
             eq(schema.calendarEventsNew.endAt, evt.endTime as any)
@@ -1019,13 +1028,16 @@ export class SyllabusCommitService {
         .limit(1);
       return existing.length > 0;
     } else {
+      const legacyCourseCondition = courseId 
+        ? eq(schema.calendarEvents.courseId, courseId)
+        : isNull(schema.calendarEvents.courseId);
       const existing = await tx
         .select()
         .from(schema.calendarEvents)
         .where(
           and(
             eq(schema.calendarEvents.userId, userId),
-            eq(schema.calendarEvents.courseId, courseId),
+            legacyCourseCondition,
             eq(schema.calendarEvents.type, eventType as any),
             eq(schema.calendarEvents.startTime, evt.startTime as any),
             eq(schema.calendarEvents.endTime, evt.endTime as any)

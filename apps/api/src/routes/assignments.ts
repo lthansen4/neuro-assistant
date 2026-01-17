@@ -307,7 +307,7 @@ assignmentsRoute.put('/:id', async (c) => {
       if (updatePayload.completionPercentage === 100) {
         updatePayload.status = 'Completed';
         updatePayload.submittedAt = new Date();
-      } else if (updatePayload.completionPercentage > 0 && existing.status === 'Inbox') {
+      } else if (updatePayload.completionPercentage != null && updatePayload.completionPercentage > 0 && existing.status === 'Inbox') {
         updatePayload.status = 'Scheduled';
       }
     }

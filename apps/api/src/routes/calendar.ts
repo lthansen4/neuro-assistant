@@ -124,8 +124,14 @@ calendarRoute.get('/events', async (c) => {
           const endZt = d.set({ hour: eh || 0, minute: em || 0, second: 0 });
           
           // Convert to UTC Date objects
-          const startUtc = new Date(startZt.toUTC().toISO());
-          const endUtc = new Date(endZt.toUTC().toISO());
+          const startIso = startZt.toUTC().toISO();
+          const endIso = endZt.toUTC().toISO();
+          if (!startIso || !endIso) {
+            console.warn('[Calendar] Skipping event with invalid date');
+            continue;
+          }
+          const startUtc = new Date(startIso);
+          const endUtc = new Date(endIso);
           
           // Get title from metadata or generate default
           const metadata = template.metadata || {};

@@ -267,8 +267,14 @@ function buildOccurrencesFor2Weeks(opts: {
       const endZt = d.set({ hour: eh || 0, minute: em || 0 });
 
       // Luxon handles DST in the zone; convert to UTC JS Date
-      const startUtc = new Date(startZ.toUTC().toISO());
-      const endUtc = new Date(endZt.toUTC().toISO());
+      const startIso = startZ.toUTC().toISO();
+      const endIso = endZt.toUTC().toISO();
+      if (!startIso || !endIso) {
+        console.warn('[Upload] Skipping event with invalid date');
+        continue;
+      }
+      const startUtc = new Date(startIso);
+      const endUtc = new Date(endIso);
 
       out.push({
         title: title(it),
