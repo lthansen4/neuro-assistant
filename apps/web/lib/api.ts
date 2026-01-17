@@ -116,6 +116,8 @@ export async function updateAssignment(
     totalProblems?: number;
     completionPercentage?: number;
     status?: string;
+    professorQuestions?: string[];
+    questionsTarget?: string;
   }
 ) {
   const res = await fetch(`${API_BASE}/api/assignments/${assignmentId}`, {
@@ -127,6 +129,41 @@ export async function updateAssignment(
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Failed to update assignment");
+  return res.json();
+}
+
+export async function scheduleProfessorReminder(
+  userId: string,
+  assignmentId: string,
+  questions: string[],
+  target: "Class" | "OfficeHours"
+) {
+  const res = await fetch(`${API_BASE}/api/assignments/${assignmentId}/schedule-reminder`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-clerk-user-id": userId,
+    },
+    body: JSON.stringify({ questions, target }),
+  });
+  if (!res.ok) throw new Error("Failed to schedule reminder");
+  return res.json();
+}
+
+export async function scheduleRemainingWork(
+  userId: string,
+  assignmentId: string,
+  minutesNeeded: number
+) {
+  const res = await fetch(`${API_BASE}/api/assignments/${assignmentId}/schedule-remaining`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-clerk-user-id": userId,
+    },
+    body: JSON.stringify({ minutesNeeded }),
+  });
+  if (!res.ok) throw new Error("Failed to schedule remaining work");
   return res.json();
 }
 

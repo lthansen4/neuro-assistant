@@ -24,12 +24,23 @@ import {
   Trash2,
   Clock,
   Check,
+  HelpCircle,
+  CalendarDays,
+  MessageSquare,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "../lib/utils";
-import { fetchOverlappingAssignments, searchAssignments, updateAssignment } from "../lib/api";
+import { 
+  fetchOverlappingAssignments, 
+  searchAssignments, 
+  updateAssignment,
+  scheduleProfessorReminder,
+  scheduleRemainingWork
+} from "../lib/api";
 import { useUser } from "@clerk/nextjs";
 import { Progress } from "./ui/progress";
 import { toast } from "sonner";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 
 interface AssignmentUpdate {
   id: string;
@@ -43,6 +54,10 @@ interface AssignmentUpdate {
   completionPercentage: number;
   notes: string;
   isCompleted?: boolean;
+  professorQuestions: string[];
+  questionsTarget: "Class" | "OfficeHours";
+  scheduleRemaining: boolean;
+  remainingMinutes: number;
 }
 
 interface PostSessionSummaryModalProps {
@@ -85,6 +100,10 @@ export function PostSessionSummaryModal({
             ...a,
             notes: "",
             completionPercentage: a.completionPercentage || 0,
+            professorQuestions: [],
+            questionsTarget: "Class",
+            scheduleRemaining: false,
+            remainingMinutes: 60,
           }))
         );
       }
@@ -104,7 +123,6 @@ export function PostSessionSummaryModal({
         try {
           const data = await searchAssignments(user.id, searchQuery);
           if (data.ok) {
-            // Filter out already added ones
             setSearchResults(
               data.assignments.filter(
                 (sa: any) => !assignments.find((a) => a.id === sa.id)
@@ -126,7 +144,15 @@ export function PostSessionSummaryModal({
   const addAssignment = (a: any) => {
     setAssignments((prev) => [
       ...prev,
-      { ...a, notes: "", completionPercentage: a.completionPercentage || 0 },
+      { 
+        ...a, 
+        notes: "", 
+        completionPercentage: a.completionPercentage || 0,
+        professorQuestions: [],
+        questionsTarget: "Class",
+        scheduleRemaining: false,
+        remainingMinutes: 60,
+      },
     ]);
     setSearchQuery("");
     setSearchResults([]);
@@ -142,7 +168,6 @@ export function PostSessionSummaryModal({
         if (a.id !== id) return a;
         const updated = { ...a, [field]: value };
         
-        // Auto-calculate percentage if pages or problems changed
         if (field === "pagesCompleted" && updated.totalPages) {
           updated.completionPercentage = Math.round(
             (updated.pagesCompleted! / updated.totalPages) * 100
@@ -151,12 +176,8 @@ export function PostSessionSummaryModal({
           updated.completionPercentage = Math.round(
             (updated.problemsCompleted! / updated.totalProblems) * 100
           );
-        } else if (field === "completionPercentage") {
-          // If user manually moves the slider, maybe update pages/problems?
-          // For now, let's keep them somewhat independent or prioritize the slider for "General"
         }
         
-        // Auto-mark completed if 100%
         if (updated.completionPercentage >= 100) {
           updated.isCompleted = true;
           updated.completionPercentage = 100;
@@ -173,19 +194,33 @@ export function PostSessionSummaryModal({
     if (!user?.id) return;
     setSaving(true);
     try {
-      const promises = assignments.map((a) =>
-        updateAssignment(user.id, a.id, {
+      const promises = assignments.map(async (a) => {
+        // 1. Update basic progress
+        await updateAssignment(user.id, a.id, {
           pagesCompleted: a.pagesCompleted,
           totalPages: a.totalPages,
           problemsCompleted: a.problemsCompleted,
           totalProblems: a.totalProblems,
           completionPercentage: a.completionPercentage,
-          description: a.notes ? a.notes : undefined, // Append or replace? For now replace description with progress notes
+          description: a.notes ? a.notes : undefined,
           status: a.completionPercentage === 100 ? "Completed" : undefined,
-        })
-      );
+          professorQuestions: a.professorQuestions,
+          questionsTarget: a.questionsTarget
+        });
+
+        // 2. Schedule professor reminder if questions exist
+        if (a.professorQuestions.length > 0) {
+          await scheduleProfessorReminder(user.id, a.id, a.professorQuestions, a.questionsTarget);
+        }
+
+        // 3. Schedule remaining work if requested
+        if (a.scheduleRemaining && a.completionPercentage < 100) {
+          await scheduleRemainingWork(user.id, a.id, a.remainingMinutes);
+        }
+      });
+
       await Promise.all(promises);
-      toast.success("Progress saved!");
+      toast.success("Progress and reminders saved!");
       onClose();
     } catch (error) {
       console.error("Save error:", error);
@@ -223,10 +258,7 @@ export function PostSessionSummaryModal({
               Add anything else you worked on
             </Label>
             <div className="relative">
-              <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted"
-                size={18}
-              />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted" size={18} />
               <Input
                 placeholder="Search by assignment or course name..."
                 className="pl-12 h-14 bg-brand-surface-2/50 border-brand-border/40 rounded-2xl focus:ring-brand-primary"
@@ -249,9 +281,7 @@ export function PostSessionSummaryModal({
                     className="w-full px-6 py-4 flex items-center justify-between hover:bg-brand-primary/5 transition-colors border-b border-brand-border/20 last:border-0"
                   >
                     <div className="flex flex-col items-start">
-                      <span className="text-sm font-bold text-brand-text">
-                        {result.title}
-                      </span>
+                      <span className="text-sm font-bold text-brand-text">{result.title}</span>
                       <span className="text-[10px] text-brand-muted uppercase tracking-wider font-bold">
                         {result.courseName || "General"}
                       </span>
@@ -280,7 +310,7 @@ export function PostSessionSummaryModal({
                 <p className="text-xs text-brand-muted/60 mt-1">Use the search bar above to add what you worked on.</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {assignments.map((assignment) => (
                   <AssignmentUpdateCard
                     key={assignment.id}
@@ -295,12 +325,7 @@ export function PostSessionSummaryModal({
         </div>
 
         <DialogFooter className="sticky bottom-0 z-20 bg-brand-surface/80 backdrop-blur-xl border-t border-brand-border/40 p-8">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="rounded-2xl font-bold"
-            disabled={saving}
-          >
+          <Button variant="ghost" onClick={onClose} className="rounded-2xl font-bold" disabled={saving}>
             Cancel
           </Button>
           <Button
@@ -325,6 +350,7 @@ function AssignmentUpdateCard({
   onUpdate: (field: keyof AssignmentUpdate, value: any) => void;
   onRemove: () => void;
 }) {
+  const [newQuestion, setNewQuestion] = useState("");
   const categoryStr = (assignment.category || "").toLowerCase();
   const isReading = categoryStr.includes("reading") || categoryStr.includes("book");
   const isHomework = categoryStr.includes("homework") || categoryStr.includes("assignment") || categoryStr.includes("prob");
@@ -336,8 +362,15 @@ function AssignmentUpdateCard({
       ? "text-brand-primary bg-brand-surface-2" 
       : "text-category-exam-fg bg-category-exam-bg";
 
+  const addQuestion = () => {
+    if (newQuestion.trim()) {
+      onUpdate("professorQuestions", [...assignment.professorQuestions, newQuestion.trim()]);
+      setNewQuestion("");
+    }
+  };
+
   return (
-    <div className="group relative p-6 rounded-3xl bg-brand-surface border border-brand-border/40 shadow-soft animate-in fade-in slide-in-from-bottom-2">
+    <div className="group relative p-6 rounded-[2.5rem] bg-brand-surface border border-brand-border/40 shadow-soft animate-in fade-in slide-in-from-bottom-2">
       <button
         onClick={onRemove}
         className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-brand-surface border border-brand-border shadow-md flex items-center justify-center text-brand-muted hover:text-red-500 hover:border-red-200 transition-all opacity-0 group-hover:opacity-100 z-10"
@@ -345,141 +378,214 @@ function AssignmentUpdateCard({
         <Trash2 size={14} />
       </button>
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-8">
+        {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider", colorClass)}>
               {assignment.category || "Assignment"}
             </span>
-            <h4 className="text-lg font-bold text-brand-text leading-tight">
-              {assignment.title}
-            </h4>
+            <h4 className="text-xl font-bold text-brand-text leading-tight">{assignment.title}</h4>
             {assignment.courseName && (
-              <p className="text-[10px] font-bold text-brand-muted uppercase tracking-widest">
-                {assignment.courseName}
-              </p>
+              <p className="text-[10px] font-bold text-brand-muted uppercase tracking-widest">{assignment.courseName}</p>
             )}
           </div>
-          <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0", colorClass)}>
+          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm", colorClass)}>
             {icon}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
-          {/* Specific Metric Inputs (Pages or Problems) */}
-          <div className="space-y-4">
-            {isReading ? (
-              <div className="flex items-center gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">
-                    Pages Completed
-                  </Label>
-                  <Input
-                    type="number"
-                    value={assignment.pagesCompleted || ""}
-                    onChange={(e) => onUpdate("pagesCompleted", parseInt(e.target.value) || 0)}
-                    className="h-10 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
-                  />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
+          {/* Progress Section */}
+          <div className="space-y-6">
+            <div className="space-y-4">
+              {isReading ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Pages Done</Label>
+                    <Input
+                      type="number"
+                      value={assignment.pagesCompleted || ""}
+                      onChange={(e) => onUpdate("pagesCompleted", parseInt(e.target.value) || 0)}
+                      className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold text-lg"
+                    />
+                  </div>
+                  <div className="text-brand-muted font-bold self-end mb-3 text-xl">/</div>
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Total</Label>
+                    <Input
+                      type="number"
+                      value={assignment.totalPages || ""}
+                      onChange={(e) => onUpdate("totalPages", parseInt(e.target.value) || 0)}
+                      className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold text-lg"
+                    />
+                  </div>
                 </div>
-                <div className="text-brand-muted font-bold self-end mb-2">/</div>
-                <div className="flex-1 space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">
-                    Total Pages
-                  </Label>
-                  <Input
-                    type="number"
-                    value={assignment.totalPages || ""}
-                    onChange={(e) => onUpdate("totalPages", parseInt(e.target.value) || 0)}
-                    className="h-10 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
-                  />
+              ) : isHomework ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Problems Done</Label>
+                    <Input
+                      type="number"
+                      value={assignment.problemsCompleted || ""}
+                      onChange={(e) => onUpdate("problemsCompleted", parseInt(e.target.value) || 0)}
+                      className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold text-lg"
+                    />
+                  </div>
+                  <div className="text-brand-muted font-bold self-end mb-3 text-xl">/</div>
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Total</Label>
+                    <Input
+                      type="number"
+                      value={assignment.totalProblems || ""}
+                      onChange={(e) => onUpdate("totalProblems", parseInt(e.target.value) || 0)}
+                      className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold text-lg"
+                    />
+                  </div>
                 </div>
+              ) : (
+                <p className="text-xs text-brand-muted font-medium italic mt-2">Update your overall progress below.</p>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Overall Progress</Label>
+                <span className="text-base font-black text-brand-primary">{assignment.completionPercentage}%</span>
               </div>
-            ) : isHomework ? (
-              <div className="flex items-center gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">
-                    Problems Done
-                  </Label>
-                  <Input
-                    type="number"
-                    value={assignment.problemsCompleted || ""}
-                    onChange={(e) => onUpdate("problemsCompleted", parseInt(e.target.value) || 0)}
-                    className="h-10 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
-                  />
+              <Slider
+                value={[assignment.completionPercentage]}
+                min={0}
+                max={100}
+                step={5}
+                onValueChange={(val) => onUpdate("completionPercentage", val[0])}
+                className="py-4"
+              />
+            </div>
+          </div>
+
+          {/* Schedule More / Notes Section */}
+          <div className="space-y-6">
+            {assignment.completionPercentage < 100 ? (
+              <div className="p-5 rounded-3xl bg-brand-primary/5 border border-brand-primary/10 space-y-4">
+                <div className="flex items-center gap-2">
+                  <CalendarDays size={16} className="text-brand-primary" />
+                  <span className="text-xs font-bold text-brand-text">Schedule remaining work?</span>
                 </div>
-                <div className="text-brand-muted font-bold self-end mb-2">/</div>
-                <div className="flex-1 space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">
-                    Total Problems
-                  </Label>
-                  <Input
-                    type="number"
-                    value={assignment.totalProblems || ""}
-                    onChange={(e) => onUpdate("totalProblems", parseInt(e.target.value) || 0)}
-                    className="h-10 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
-                  />
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant={assignment.scheduleRemaining ? "default" : "outline"}
+                    size="sm"
+                    className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-10 px-4", assignment.scheduleRemaining && "bg-brand-primary")}
+                    onClick={() => onUpdate("scheduleRemaining", !assignment.scheduleRemaining)}
+                  >
+                    {assignment.scheduleRemaining ? "Yes, Find a Slot" : "No, Skip"}
+                  </Button>
+                  {assignment.scheduleRemaining && (
+                    <div className="flex-1">
+                      <select
+                        className="w-full h-10 bg-white border border-brand-border/40 rounded-xl text-[10px] font-bold px-3 focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                        value={assignment.remainingMinutes}
+                        onChange={(e) => onUpdate("remainingMinutes", parseInt(e.target.value))}
+                      >
+                        <option value={30}>Need 30m more</option>
+                        <option value={60}>Need 1h more</option>
+                        <option value={120}>Need 2h more</option>
+                        <option value={180}>Need 3h more</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
-              <div className="space-y-4 h-full flex flex-col justify-end">
-                <p className="text-xs text-brand-muted font-medium italic">
-                  How much of this overall task is done?
-                </p>
+              <div className="p-5 rounded-3xl bg-brand-mint/10 border border-brand-mint/20 flex items-center gap-3">
+                <Check size={20} className="text-brand-mint" />
+                <span className="text-xs font-bold text-brand-mint uppercase tracking-widest">Marked as Fully Done</span>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Notes</Label>
+              <Textarea
+                placeholder="What did you accomplish?"
+                className="bg-brand-surface-2/50 border-brand-border/40 rounded-2xl text-sm min-h-[80px]"
+                value={assignment.notes}
+                onChange={(e) => onUpdate("notes", e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Professor Questions Section */}
+        <div className="pt-6 border-t border-brand-border/20 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                <HelpCircle size={18} />
+              </div>
+              <h5 className="text-sm font-bold text-brand-text">Any questions for the professor?</h5>
+            </div>
+            
+            {assignment.professorQuestions.length > 0 && (
+              <div className="flex items-center gap-4 bg-brand-surface-2 px-4 py-2 rounded-2xl">
+                <span className="text-[10px] font-bold text-brand-muted uppercase tracking-widest">Remind me during:</span>
+                <RadioGroup 
+                  value={assignment.questionsTarget} 
+                  onValueChange={(val) => onUpdate("questionsTarget", val)}
+                  className="flex items-center gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="Class" id={`class-${assignment.id}`} className="text-brand-primary border-brand-border" />
+                    <Label htmlFor={`class-${assignment.id}`} className="text-[10px] font-bold uppercase tracking-wider cursor-pointer">Next Class</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="OfficeHours" id={`oh-${assignment.id}`} className="text-brand-primary border-brand-border" />
+                    <Label htmlFor={`oh-${assignment.id}`} className="text-[10px] font-bold uppercase tracking-wider cursor-pointer">Office Hours</Label>
+                  </div>
+                </RadioGroup>
               </div>
             )}
           </div>
 
-          {/* Progress Slider */}
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">
-                Overall Progress
-              </Label>
-              <span className="text-sm font-black text-brand-primary">
-                {assignment.completionPercentage}%
-              </span>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Type a question to ask your professor..."
+                className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl"
+                value={newQuestion}
+                onChange={(e) => setNewQuestion(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addQuestion()}
+              />
+              <Button onClick={addQuestion} className="h-12 w-12 rounded-xl bg-brand-surface-2 text-brand-muted hover:text-brand-primary hover:bg-brand-primary/5 transition-all">
+                <Plus size={20} />
+              </Button>
             </div>
-            <Slider
-              value={[assignment.completionPercentage]}
-              min={0}
-              max={100}
-              step={5}
-              onValueChange={(val) => onUpdate("completionPercentage", val[0])}
-              className="py-4"
-            />
-            <div className="flex justify-between text-[8px] font-black text-brand-muted uppercase tracking-tighter">
-              <span>Not Started</span>
-              <span>Halfway</span>
-              <span>Done!</span>
-            </div>
+
+            {assignment.professorQuestions.length > 0 && (
+              <div className="space-y-2">
+                {assignment.professorQuestions.map((q, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 bg-brand-surface-2/30 rounded-2xl border border-brand-border/20 group/q">
+                    <div className="flex items-center gap-3">
+                      <MessageSquare size={14} className="text-brand-muted" />
+                      <span className="text-sm font-medium text-brand-text">{q}</span>
+                    </div>
+                    <button 
+                      onClick={() => onUpdate("professorQuestions", assignment.professorQuestions.filter((_, i) => i !== idx))}
+                      className="text-brand-muted hover:text-red-500 opacity-0 group-hover/q:opacity-100 transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2 px-2 text-brand-muted">
+                  <AlertCircle size={12} />
+                  <p className="text-[10px] font-bold uppercase tracking-widest">Reminding you 10 mins before class!</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">
-            What did you accomplish? (Optional)
-          </Label>
-          <Textarea
-            placeholder="e.g., Read first 10 pages, finished the intro, solved the hard problems..."
-            className="bg-brand-surface-2/50 border-brand-border/40 rounded-2xl text-sm"
-            rows={2}
-            value={assignment.notes}
-            onChange={(e) => onUpdate("notes", e.target.value)}
-          />
-        </div>
-
-        {assignment.completionPercentage === 100 && (
-          <div className="bg-brand-mint/10 border border-brand-mint/20 rounded-2xl p-3 flex items-center gap-3 animate-in zoom-in-95">
-            <div className="w-6 h-6 rounded-full bg-brand-mint text-white flex items-center justify-center">
-              <Check size={14} strokeWidth={3} />
-            </div>
-            <p className="text-xs font-bold text-brand-mint uppercase tracking-wider">
-              Marking as Fully Completed!
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
 }
-
