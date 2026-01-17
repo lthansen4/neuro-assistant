@@ -619,15 +619,27 @@ export class ScheduleAnalyzer {
     }
 
     const duration = (event.endAt.getTime() - event.startAt.getTime()) / (1000 * 60);
-    const sleepEnd = this.config.neuroRules.sleepProtectionEnd;
+    const sleepEndCST = this.config.neuroRules.sleepProtectionEnd; // 7 (7am CST)
+    
+    // Convert CST to UTC: CST is UTC-6, so add 6 hours
+    const cstOffset = 6;
+    const sleepEndUTC = (sleepEndCST + cstOffset) % 24; // 7 + 6 = 13 (1pm UTC = 7am CST)
 
-    // Move to after sleep window (next morning)
+    // Move to after sleep window (2 hours after sleep ends in CST = 9am CST = 3pm UTC)
+    const targetHourUTC = sleepEndUTC + 2; // 13 + 2 = 15 (3pm UTC = 9am CST)
+    
     const nextMorning = new Date(event.startAt);
-    nextMorning.setUTCHours(sleepEnd + 2, 0, 0, 0); // 2 hours after sleep ends
+    nextMorning.setUTCHours(targetHourUTC, 0, 0, 0);
     
     // If that's in the past, use tomorrow
     if (nextMorning <= new Date()) {
       nextMorning.setDate(nextMorning.getDate() + 1);
+    }
+
+    // Safety check: verify the proposed time is NOT in sleep window
+    if (this.isInSleepWindow(nextMorning)) {
+      console.error(`[ScheduleAnalyzer] BUG: Sleep violation resolution would still be in sleep window! ${nextMorning.toISOString()}`);
+      return []; // Don't propose invalid resolutions
     }
 
     resolutions.push({
@@ -638,7 +650,7 @@ export class ScheduleAnalyzer {
         endAt: new Date(nextMorning.getTime() + duration * 60 * 1000)
       },
       cost: this.calculateChurnCost(event.eventType, duration),
-      explanation: `Move "${event.title}" out of sleep window to next morning`
+      explanation: `Move "${event.title}" out of sleep window to next morning (9am)`
     });
 
     return resolutions;
