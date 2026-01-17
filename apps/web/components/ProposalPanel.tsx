@@ -274,18 +274,22 @@ export function ProposalPanel({ isOpen, onClose, userId, mode, proposalId, onPro
           "x-clerk-user-id": userId,
         },
         body: JSON.stringify({ 
-          moveIds: selectedMoveIds // Send selected move IDs
+          selectedMoveIds: selectedMoveIds // Send selected move IDs
         }),
       });
 
+      const result = await res.json();
+      
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to apply proposal");
+        // Check for specific error types
+        if (result.shouldRefresh) {
+          throw new Error('STALE_PROPOSAL: ' + (result.detail || result.error));
+        }
+        throw new Error(result.detail || result.error || "Failed to apply proposal");
       }
 
-      const result = await res.json();
       if (result.ok) {
-        console.log(`[ProposalPanel] Successfully applied ${result.appliedCount || 0} changes`);
+        console.log(`[ProposalPanel] Successfully applied ${result.applied || 0} changes`);
         // Update the current proposal's status to 'applied' in local state
         if (proposal) {
           setProposal({
@@ -295,8 +299,16 @@ export function ProposalPanel({ isOpen, onClose, userId, mode, proposalId, onPro
         }
         // Notify parent to refresh
         onProposalApplied?.();
-        // Show success message
-        alert(`Applied ${result.appliedCount || 0} changes. You can undo within 30 minutes.`);
+        
+        // Show appropriate success message
+        const appliedCount = result.applied || 0;
+        const skippedCount = result.skipped || 0;
+        let message = `Applied ${appliedCount} change${appliedCount === 1 ? '' : 's'}.`;
+        if (skippedCount > 0) {
+          message += ` ${skippedCount} were skipped due to conflicts.`;
+        }
+        message += ' You can undo within 30 minutes.';
+        alert(message);
         // Close panel so user can see the undo banner
         onClose();
       }
@@ -330,26 +342,25 @@ export function ProposalPanel({ isOpen, onClose, userId, mode, proposalId, onPro
     setError("");
     try {
       console.log(`[ProposalPanel] Undoing proposal: ${proposal.id}`);
-      const res = await fetch(`${API_BASE}/api/rebalancing/undo`, {
+      const res = await fetch(`${API_BASE}/api/rebalancing/proposal/${proposal.id}/undo`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-clerk-user-id": userId,
         },
-        body: JSON.stringify({ proposalId: proposal.id }),
       });
 
+      const result = await res.json();
+      
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to undo proposal");
+        throw new Error(result.error || result.detail || "Failed to undo proposal");
       }
 
-      const result = await res.json();
       if (result.ok) {
-        console.log("[ProposalPanel] Successfully undid proposal");
+        console.log(`[ProposalPanel] Successfully undid proposal - restored ${result.restoredCount} events`);
         onProposalApplied?.();
         onClose();
-        alert("Reverted schedule.");
+        alert(`Reverted ${result.restoredCount} change${result.restoredCount === 1 ? '' : 's'} to your schedule.`);
       }
     } catch (e: any) {
       console.error("[ProposalPanel] Error undoing proposal:", e);

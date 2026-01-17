@@ -169,11 +169,25 @@ export function getHeuristicConfig(userId?: string): HeuristicConfig {
   return DEFAULT_HEURISTIC_CONFIG;
 }
 
+import { DateTime } from 'luxon';
+
 /**
  * Helper: Get time of day category
+ * @param date - The date to check
+ * @param config - Heuristic configuration
+ * @param timezone - Optional IANA timezone (e.g., 'America/Chicago'). Defaults to UTC for backwards compatibility.
  */
-export function getTimeOfDay(date: Date, config: HeuristicConfig): 'morning' | 'afternoon' | 'evening' | 'night' {
-  const hour = date.getUTCHours();
+export function getTimeOfDay(
+  date: Date, 
+  config: HeuristicConfig,
+  timezone?: string
+): 'morning' | 'afternoon' | 'evening' | 'night' {
+  // Convert to the specified timezone (or UTC if not provided)
+  const dt = timezone 
+    ? DateTime.fromJSDate(date).setZone(timezone)
+    : DateTime.fromJSDate(date, { zone: 'utc' });
+  
+  const hour = dt.hour;
   
   if (hour >= config.neuroRules.sleepProtectionStart || hour < config.neuroRules.sleepProtectionEnd) {
     return 'night';
@@ -189,10 +203,16 @@ export function getTimeOfDay(date: Date, config: HeuristicConfig): 'morning' | '
 
 /**
  * Helper: Check if it's a weekend
+ * @param date - The date to check
+ * @param timezone - Optional IANA timezone. Defaults to UTC for backwards compatibility.
  */
-export function isWeekend(date: Date): boolean {
-  const day = date.getUTCDay();
-  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+export function isWeekend(date: Date, timezone?: string): boolean {
+  const dt = timezone 
+    ? DateTime.fromJSDate(date).setZone(timezone)
+    : DateTime.fromJSDate(date, { zone: 'utc' });
+  
+  // Luxon weekday: 1=Monday, 7=Sunday (ISO standard)
+  return dt.weekday === 6 || dt.weekday === 7; // Saturday=6, Sunday=7
 }
 
 

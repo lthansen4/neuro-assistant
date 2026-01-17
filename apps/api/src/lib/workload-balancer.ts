@@ -55,11 +55,22 @@ export class WorkloadBalancer {
   private config: ReturnType<typeof getHeuristicConfig>;
   private scheduleAnalyzer: ScheduleAnalyzer;
   private slotMatcher: SlotMatcher;
+  private timezoneInitialized: boolean = false;
 
   constructor(userId?: string) {
     this.config = getHeuristicConfig(userId);
     this.scheduleAnalyzer = new ScheduleAnalyzer(userId);
     this.slotMatcher = new SlotMatcher(userId);
+  }
+
+  /**
+   * Initialize timezone for sub-components
+   */
+  private async ensureTimezoneInitialized(): Promise<void> {
+    if (!this.timezoneInitialized) {
+      await this.scheduleAnalyzer.initTimezone();
+      this.timezoneInitialized = true;
+    }
   }
 
   /**
@@ -70,6 +81,9 @@ export class WorkloadBalancer {
     lookaheadDays: number,
     energyLevel: number = 5
   ): Promise<WorkloadBalanceReport> {
+    // Ensure timezone is initialized
+    await this.ensureTimezoneInitialized();
+    
     console.log(`[WorkloadBalancer] Analyzing workload balance for next ${lookaheadDays} days`);
 
     // Get comprehensive workload analysis

@@ -9,21 +9,32 @@ import {
   rebalancingApplyAttempts
 } from '../../../../packages/db/src/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
+import { 
+  getUserTimezone, 
+  isInSleepWindow as checkSleepWindow, 
+  DEFAULT_TIMEZONE 
+} from './timezone-utils';
 
 export class RebalancingService {
-  // SAFETY CONSTRAINTS
-  private static readonly SLEEP_START_HOUR = 23; // 11 PM
-  private static readonly SLEEP_END_HOUR = 7;    // 7 AM
   private static readonly MAX_RETRY_ATTEMPTS = 3;
   private static readonly RETRY_DELAY_MS = 100;
+  
+  private userTimezone: string = DEFAULT_TIMEZONE;
 
   /**
-   * Check if a given date/time falls within the sleep window (11pm - 7am)
-   * NOTE: Uses UTC hours for now. TODO: Add user timezone support
+   * Initialize timezone for a specific user
+   */
+  async initTimezone(userId: string): Promise<void> {
+    this.userTimezone = await getUserTimezone(userId);
+    console.log(`[RebalancingService] Using timezone: ${this.userTimezone}`);
+  }
+
+  /**
+   * Check if a given date/time falls within the sleep window
+   * Uses user's timezone for accurate local time checking
    */
   private isInSleepWindow(date: Date): boolean {
-    const hour = date.getUTCHours(); // Use UTC hours to match ISO timestamp timezone
-    return hour >= RebalancingService.SLEEP_START_HOUR || hour < RebalancingService.SLEEP_END_HOUR;
+    return checkSleepWindow(date, this.userTimezone);
   }
 
   /**
@@ -133,6 +144,9 @@ export class RebalancingService {
    * @param moveIds - Optional array of move IDs to apply. If provided, only these moves will be applied.
    */
   async applyProposal(proposalId: string, userId: string, moveIds?: string[]) {
+    // Initialize timezone for sleep window validation
+    await this.initTimezone(userId);
+    
     return await db.transaction(async (tx) => {
       // 0. IDEMPOTENCY CHECK: Check if this proposal was already applied recently (within 5 minutes)
       const recentAttempts = await tx.query.rebalancingApplyAttempts.findMany({
@@ -189,9 +203,13 @@ export class RebalancingService {
         ? allMoves.filter(m => moveIds.includes(m.id))
         : allMoves;
       
-      console.log(`[RebalancingService] Applying ${moves.length} of ${allMoves.length} moves for proposal ${proposalId}`);
+      console.log(`[RebalancingService] ═══════════════════════════════════════════`);
+      console.log(`[RebalancingService] APPLYING PROPOSAL: ${proposalId.substring(0, 8)}...`);
+      console.log(`[RebalancingService] ───────────────────────────────────────────`);
+      console.log(`[RebalancingService] Total moves: ${allMoves.length}`);
+      console.log(`[RebalancingService] Selected moves: ${moves.length}`);
       if (moveIds && moveIds.length > 0) {
-        console.log(`[RebalancingService] Filtered to selected moves:`, moveIds);
+        console.log(`[RebalancingService] Filtered move IDs:`, moveIds.map(id => id.substring(0, 8)));
       }
 
       if (moves.length === 0) {
@@ -542,6 +560,9 @@ export class RebalancingService {
    * Logic: atomic restore of original start/end times.
    */
   async undoProposal(proposalId: string, userId: string) {
+    // Initialize timezone for proper validation
+    await this.initTimezone(userId);
+    
     return await db.transaction(async (tx) => {
       // 1. Verify eligibility (status must be 'applied')
       const proposal = await tx.query.rebalancingProposals.findFirst({

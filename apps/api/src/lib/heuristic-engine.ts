@@ -1,12 +1,44 @@
 import { db } from './db';
 import { calendarEventsNew, assignments, proposalMoves, rebalancingProposals } from '../../../../packages/db/src/schema';
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, ne } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { PrioritizationEngine } from './prioritization-engine';
 import { getHeuristicConfig, getTimeOfDay } from './heuristic-config';
 import { ScheduleAnalyzer } from './schedule-analyzer';
 import { SlotMatcher } from './slot-matcher';
 import { WorkloadBalancer } from './workload-balancer';
+import { 
+  getUserTimezone, 
+  isInSleepWindow as checkSleepWindow, 
+  getNextWakeTime,
+  formatInTimezone,
+  validateTimeSlot,
+  DEFAULT_TIMEZONE 
+} from './timezone-utils';
+
+// ============================================================================
+// ALERT THRESHOLDS - Defines what counts as a "real problem"
+// These match the alert-engine thresholds for consistency
+// ============================================================================
+
+const PROBLEM_THRESHOLDS = {
+  // DEADLINE_AT_RISK: Only alert if assignment is approaching and under-scheduled
+  deadlineWarningDays: 7,           // Warn if due within 7 days
+  minScheduledPercent: 0.5,         // Alert if < 50% of needed time scheduled
+  criticalScheduledPercent: 0.25,   // Critical if < 25% scheduled
+  
+  // AVOIDANCE_DETECTED: Pattern of rescheduling
+  deferralThreshold: 3,             // Alert after 3+ reschedules
+  
+  // IMPOSSIBLE_SCHEDULE: Physical impossibilities
+  maxDailyDeepWorkHours: 7,         // Alert if more than 7 hours deep work
+  
+  // When NOT to propose changes:
+  // - Schedule is imperfect but workable
+  // - Time is sufficiently scheduled (even if not "optimal")
+  // - Minor imbalances between days
+  // - Preference differences (morning vs afternoon)
+};
 
 interface GenerateProposalTrigger {
   userId: string;
@@ -35,42 +67,190 @@ interface ProposalMove {
 }
 
 export class HeuristicEngine {
-  // SAFETY CONSTRAINTS
-  private static readonly SLEEP_START_HOUR = 23; // 11 PM
-  private static readonly SLEEP_END_HOUR = 7;    // 7 AM
-  
   private prioritizationEngine: PrioritizationEngine;
   private config: ReturnType<typeof getHeuristicConfig>;
+  private userId: string | undefined;
+  private userTimezone: string = DEFAULT_TIMEZONE;
   
   constructor(userId?: string) {
+    this.userId = userId;
     this.prioritizationEngine = new PrioritizationEngine(userId);
     this.config = getHeuristicConfig(userId);
   }
   
   /**
-   * Check if a given date/time falls within the sleep window (11pm - 7am)
-   * NOTE: Uses UTC hours for now. TODO: Add user timezone support
+   * Initialize timezone - must be called before generating proposals
+   */
+  private async initTimezone(): Promise<void> {
+    if (this.userId) {
+      this.userTimezone = await getUserTimezone(this.userId);
+      console.log(`[HeuristicEngine] Using timezone: ${this.userTimezone} for user ${this.userId}`);
+    }
+  }
+
+  /**
+   * GATEKEEPER: Check if there are REAL problems worth proposing changes for.
+   * 
+   * Philosophy: Only generate proposals when there's a genuine problem.
+   * This is the "smoke detector" - silent 99% of the time, loud when there's fire.
+   * 
+   * Returns an object describing what problems (if any) need addressing.
+   */
+  private async detectRealProblems(userId: string): Promise<{
+    hasRealProblems: boolean;
+    deadlinesAtRisk: Array<{ id: string; title: string; dueDate: Date; scheduledPercent: number; hoursNeeded: number }>;
+    avoidancePatterns: Array<{ id: string; title: string; deferralCount: number; dueDate: Date }>;
+    sleepViolations: Array<{ eventId: string; title: string; startAt: Date }>;
+    overloadedDays: Array<{ date: string; hours: number }>;
+  }> {
+    const now = new Date();
+    const warningDate = new Date(now.getTime() + PROBLEM_THRESHOLDS.deadlineWarningDays * 24 * 60 * 60 * 1000);
+    
+    const deadlinesAtRisk: Array<{ id: string; title: string; dueDate: Date; scheduledPercent: number; hoursNeeded: number }> = [];
+    const avoidancePatterns: Array<{ id: string; title: string; deferralCount: number; dueDate: Date }> = [];
+    const sleepViolations: Array<{ eventId: string; title: string; startAt: Date }> = [];
+    const overloadedDays: Array<{ date: string; hours: number }> = [];
+
+    // 1. Check for DEADLINE_AT_RISK
+    const upcomingAssignments = await db
+      .select()
+      .from(assignments)
+      .where(
+        and(
+          eq(assignments.userId, userId),
+          ne(assignments.status, 'Completed'),
+          gte(assignments.dueDate, now),
+          lte(assignments.dueDate, warningDate)
+        )
+      );
+
+    for (const assignment of upcomingAssignments) {
+      if (!assignment.dueDate) continue;
+      
+      const estimatedMinutes = assignment.effortEstimateMinutes || 60;
+      
+      // Calculate scheduled time
+      const scheduledEvents = await db
+        .select()
+        .from(calendarEventsNew)
+        .where(
+          and(
+            eq(calendarEventsNew.userId, userId),
+            eq(calendarEventsNew.linkedAssignmentId, assignment.id),
+            gte(calendarEventsNew.startAt, now)
+          )
+        );
+      
+      const scheduledMinutes = scheduledEvents.reduce((sum, event) => {
+        const duration = (event.endAt.getTime() - event.startAt.getTime()) / (1000 * 60);
+        return sum + duration;
+      }, 0);
+      
+      const scheduledPercent = scheduledMinutes / estimatedMinutes;
+      
+      if (scheduledPercent < PROBLEM_THRESHOLDS.minScheduledPercent) {
+        const hoursNeeded = Math.round((estimatedMinutes - scheduledMinutes) / 60 * 10) / 10;
+        deadlinesAtRisk.push({
+          id: assignment.id,
+          title: assignment.title,
+          dueDate: assignment.dueDate,
+          scheduledPercent: Math.round(scheduledPercent * 100),
+          hoursNeeded
+        });
+      }
+    }
+
+    // 2. Check for AVOIDANCE_DETECTED
+    const avoidedAssignments = await db
+      .select()
+      .from(assignments)
+      .where(
+        and(
+          eq(assignments.userId, userId),
+          ne(assignments.status, 'Completed'),
+          gte(assignments.deferralCount, PROBLEM_THRESHOLDS.deferralThreshold),
+          gte(assignments.dueDate, now),
+          lte(assignments.dueDate, warningDate)
+        )
+      );
+
+    for (const assignment of avoidedAssignments) {
+      if (!assignment.dueDate) continue;
+      avoidancePatterns.push({
+        id: assignment.id,
+        title: assignment.title,
+        deferralCount: assignment.deferralCount,
+        dueDate: assignment.dueDate
+      });
+    }
+
+    // 3. Check for SLEEP_VIOLATIONS
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const upcomingEvents = await db
+      .select()
+      .from(calendarEventsNew)
+      .where(
+        and(
+          eq(calendarEventsNew.userId, userId),
+          gte(calendarEventsNew.startAt, now),
+          lte(calendarEventsNew.startAt, nextWeek)
+        )
+      );
+
+    for (const event of upcomingEvents) {
+      if (checkSleepWindow(event.startAt, this.userTimezone)) {
+        sleepViolations.push({
+          eventId: event.id,
+          title: event.title || 'Event',
+          startAt: event.startAt
+        });
+      }
+    }
+
+    // 4. Check for OVERLOADED_DAYS
+    const dayWorkload = new Map<string, number>();
+    for (const event of upcomingEvents) {
+      if (event.eventType === 'Focus' || event.eventType === 'Studying') {
+        const dateKey = event.startAt.toISOString().split('T')[0];
+        const duration = (event.endAt.getTime() - event.startAt.getTime()) / (1000 * 60 * 60);
+        dayWorkload.set(dateKey, (dayWorkload.get(dateKey) || 0) + duration);
+      }
+    }
+
+    for (const [dateKey, hours] of dayWorkload) {
+      if (hours > PROBLEM_THRESHOLDS.maxDailyDeepWorkHours) {
+        overloadedDays.push({ date: dateKey, hours: Math.round(hours * 10) / 10 });
+      }
+    }
+
+    const hasRealProblems = 
+      deadlinesAtRisk.length > 0 ||
+      avoidancePatterns.length > 0 ||
+      sleepViolations.length > 0 ||
+      overloadedDays.length > 0;
+
+    console.log(`[HeuristicEngine] PROBLEM DETECTION RESULTS:`);
+    console.log(`[HeuristicEngine]   Deadlines at risk: ${deadlinesAtRisk.length}`);
+    console.log(`[HeuristicEngine]   Avoidance patterns: ${avoidancePatterns.length}`);
+    console.log(`[HeuristicEngine]   Sleep violations: ${sleepViolations.length}`);
+    console.log(`[HeuristicEngine]   Overloaded days: ${overloadedDays.length}`);
+    console.log(`[HeuristicEngine]   HAS REAL PROBLEMS: ${hasRealProblems}`);
+
+    return {
+      hasRealProblems,
+      deadlinesAtRisk,
+      avoidancePatterns,
+      sleepViolations,
+      overloadedDays
+    };
+  }
+  
+  /**
+   * Check if a given date/time falls within the sleep window
+   * Uses user's timezone for accurate local time checking
    */
   private isInSleepWindow(date: Date): boolean {
-    // Config values (SLEEP_START_HOUR, SLEEP_END_HOUR) are in CST (local time)
-    // CST is UTC-6, so we need to convert to UTC for comparison
-    // CST 11 PM (23) = UTC 5 AM next day
-    // CST 7 AM (7) = UTC 1 PM (13)
-    // CST 10 AM weekend (10) = UTC 4 PM (16)
-    
-    const hour = date.getUTCHours();
-    const day = date.getUTCDay(); // 0 = Sunday, 6 = Saturday
-    const isWeekend = day === 0 || day === 6;
-    
-    const cstOffset = 6; // CST is UTC-6
-    const sleepStartUTC = (HeuristicEngine.SLEEP_START_HOUR + cstOffset) % 24; // 23 + 6 = 5
-    const sleepEndWeekdayUTC = (HeuristicEngine.SLEEP_END_HOUR + cstOffset) % 24; // 7 + 6 = 13
-    const sleepEndWeekendUTC = (10 + cstOffset) % 24; // 10 + 6 = 16
-    
-    const sleepEndUTC = isWeekend ? sleepEndWeekendUTC : sleepEndWeekdayUTC;
-    
-    // Sleep window in UTC: 5 AM - 1 PM (weekday) or 5 AM - 4 PM (weekend)
-    return hour >= sleepStartUTC && hour < sleepEndUTC;
+    return checkSleepWindow(date, this.userTimezone);
   }
 
   /**
@@ -174,10 +354,14 @@ export class HeuristicEngine {
    * Triggered by Quick Add, Energy Changes, or Manual Requests
    */
   async generateProposal(trigger: GenerateProposalTrigger) {
+    // Initialize timezone before processing
+    this.userId = trigger.userId;
+    await this.initTimezone();
+    
     const now = new Date();
     const lookaheadLimit = new Date(now.getTime() + 1440 * 60 * 1000); // 24-hour window (1440 minutes)
 
-    console.log(`[HeuristicEngine] Generating proposal for user ${trigger.userId}`);
+    console.log(`[HeuristicEngine] Generating proposal for user ${trigger.userId} (timezone: ${this.userTimezone})`);
     console.log(`[HeuristicEngine] Now: ${now.toISOString()}, Lookahead limit: ${lookaheadLimit.toISOString()}`);
 
     // First, check ALL events for this user to see what exists
@@ -788,9 +972,20 @@ export class HeuristicEngine {
   /**
    * COMPREHENSIVE OPTIMIZATION: Generate a holistic schedule optimization proposal
    * 
-   * This is the main entry point for the new comprehensive optimization system.
-   * It orchestrates all the analysis and optimization components to generate
-   * intelligent, multi-event proposals that optimize the entire schedule.
+   * PHILOSOPHY: Only propose changes when there's a REAL problem.
+   * This is a "smoke detector" - silent 99% of the time, loud when there's fire.
+   * 
+   * We do NOT propose changes for:
+   * - Imperfect but workable schedules
+   * - Sufficiently scheduled time (even if not "optimal")
+   * - Minor imbalances between days
+   * - Preference differences (morning vs afternoon)
+   * 
+   * We DO propose changes for:
+   * - DEADLINE_AT_RISK: Assignment due soon with < 50% of needed time scheduled
+   * - AVOIDANCE_DETECTED: Assignment deferred 3+ times, still insufficient time
+   * - SLEEP_VIOLATION: Event scheduled during sleep hours (11pm-7am)
+   * - BURNOUT_RISK: More than 7 hours of deep work on one day
    */
   async generateComprehensiveProposal(trigger: {
     userId: string;
@@ -798,11 +993,66 @@ export class HeuristicEngine {
     type: 'quick_add' | 'daily' | 'energy_change' | 'manual';
     targetAssignmentId?: string;
     lookaheadDays?: number;
-  }): Promise<{ proposalId: string; moves: ProposalMove[] }> {
+  }): Promise<{ proposalId: string; moves: ProposalMove[]; message?: string }> {
+    const startTime = Date.now();
+    
+    // Initialize timezone before processing
+    this.userId = trigger.userId;
+    await this.initTimezone();
+    
     const proposalId = randomUUID();
     const lookaheadDays = trigger.lookaheadDays || 14;
     
-    console.log(`[HeuristicEngine] COMPREHENSIVE OPTIMIZATION for user ${trigger.userId}, type: ${trigger.type}`);
+    console.log(`[HeuristicEngine] ═══════════════════════════════════════════════════════════`);
+    console.log(`[HeuristicEngine] SCHEDULE CHECK STARTED`);
+    console.log(`[HeuristicEngine] ───────────────────────────────────────────────────────────`);
+    console.log(`[HeuristicEngine] User: ${trigger.userId.substring(0, 8)}...`);
+    console.log(`[HeuristicEngine] Timezone: ${this.userTimezone}`);
+    console.log(`[HeuristicEngine] Trigger type: ${trigger.type}`);
+    console.log(`[HeuristicEngine] Energy level: ${trigger.energyLevel}/10`);
+    console.log(`[HeuristicEngine] Lookahead days: ${lookaheadDays}`);
+    console.log(`[HeuristicEngine] ───────────────────────────────────────────────────────────`);
+
+    // =========================================================================
+    // GATEKEEPER: First, check if there are REAL problems worth addressing
+    // =========================================================================
+    console.log(`[HeuristicEngine] Step 0: Checking for real problems...`);
+    const problems = await this.detectRealProblems(trigger.userId);
+
+    if (!problems.hasRealProblems) {
+      console.log(`[HeuristicEngine] ✓ NO REAL PROBLEMS DETECTED`);
+      console.log(`[HeuristicEngine] Schedule looks good! Not generating proposals.`);
+      console.log(`[HeuristicEngine] ═══════════════════════════════════════════════════════════`);
+      
+      return {
+        proposalId,
+        moves: [],
+        message: "Your schedule looks good! No changes needed right now."
+      };
+    }
+
+    console.log(`[HeuristicEngine] ⚠️ REAL PROBLEMS DETECTED - generating targeted proposals`);
+    console.log(`[HeuristicEngine]   Problems to address:`);
+    if (problems.deadlinesAtRisk.length > 0) {
+      problems.deadlinesAtRisk.forEach(d => 
+        console.log(`[HeuristicEngine]     - DEADLINE: "${d.title}" (${d.scheduledPercent}% scheduled, need ${d.hoursNeeded}h more)`)
+      );
+    }
+    if (problems.avoidancePatterns.length > 0) {
+      problems.avoidancePatterns.forEach(a => 
+        console.log(`[HeuristicEngine]     - AVOIDANCE: "${a.title}" (deferred ${a.deferralCount} times)`)
+      );
+    }
+    if (problems.sleepViolations.length > 0) {
+      problems.sleepViolations.forEach(s => 
+        console.log(`[HeuristicEngine]     - SLEEP: "${s.title}" at ${formatInTimezone(s.startAt, this.userTimezone)}`)
+      );
+    }
+    if (problems.overloadedDays.length > 0) {
+      problems.overloadedDays.forEach(o => 
+        console.log(`[HeuristicEngine]     - OVERLOAD: ${o.date} has ${o.hours}h of work`)
+      );
+    }
 
     // Initialize analysis engines
     const scheduleAnalyzer = new ScheduleAnalyzer(trigger.userId);
@@ -811,263 +1061,305 @@ export class HeuristicEngine {
 
     const moves: ProposalMove[] = [];
 
-    // STEP 1: Run comprehensive schedule analysis
-    console.log(`[HeuristicEngine] Step 1: Running schedule analysis`);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:BEFORE_ANALYSIS',message:'Before schedule analysis',data:{userId:trigger.userId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-    // #endregion
-    const [conflicts, workloadAnalysis, balanceReport] = await Promise.all([
-      scheduleAnalyzer.detectConflicts(trigger.userId, lookaheadDays).catch((err) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:DETECT_CONFLICTS_ERROR',message:'Error in detectConflicts',data:{error:err.message,stack:err.stack},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-        // #endregion
-        throw err;
-      }),
-      scheduleAnalyzer.analyzeWorkload(trigger.userId, lookaheadDays).catch((err) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:ANALYZE_WORKLOAD_ERROR',message:'Error in analyzeWorkload',data:{error:err.message,stack:err.stack},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-        // #endregion
-        throw err;
-      }),
-      workloadBalancer.balanceWorkload(trigger.userId, lookaheadDays, trigger.energyLevel).catch((err) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:BALANCE_WORKLOAD_ERROR',message:'Error in balanceWorkload',data:{error:err.message,stack:err.stack},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-        // #endregion
-        throw err;
-      })
-    ]);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:AFTER_ANALYSIS',message:'After schedule analysis',data:{conflictsCount:conflicts.length,balanceCount:balanceReport.proposals.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-    // #endregion
+    // =========================================================================
+    // TARGETED PROPOSAL GENERATION
+    // Only generate proposals for the specific problems detected
+    // =========================================================================
 
-    console.log(`[HeuristicEngine] Found ${conflicts.length} conflicts, ${balanceReport.crammingRiskCount} cramming risks`);
-
-    // STEP 2: Address conflicts (CRITICAL PRIORITY)
-    console.log(`[HeuristicEngine] Step 2: Addressing conflicts`);
-    for (const conflict of conflicts) {
-      if (conflict.severity === 'critical' || conflict.severity === 'high') {
-        // Filter out resolutions that would land in sleep window (7am start, so 11pm-7am is sleep)
-        const validResolutions = conflict.resolutionOptions.filter(resolution => {
-          if (resolution.action === 'delete') return true; // Delete is always valid
-          const targetStart = resolution.proposal.startAt;
-          const targetEnd = resolution.proposal.endAt;
-          if (!targetStart || !targetEnd) return false;
-          
-          // SAFETY: Reject any resolution that lands in sleep window
-          if (this.isInSleepWindow(targetStart) || this.isInSleepWindow(targetEnd)) {
-            console.log(`[HeuristicEngine] SAFETY: Rejecting conflict resolution - would land in sleep window: ${targetStart.toISOString()}`);
-            return false;
-          }
-          return true;
-        });
-        
-        // Pick the best VALID resolution option
-        const bestResolution = validResolutions.sort((a, b) => a.cost - b.cost)[0];
-        
-        if (bestResolution) {
-          // Find the event being moved from the conflict
-          const eventBeingMoved = conflict.events.find(e => e.id === bestResolution.targetEventId);
-          
-          moves.push({
-            proposalId,
-            userId: trigger.userId,
-            moveType: bestResolution.action === 'delete' ? 'delete' : 'move',
-            sourceEventId: bestResolution.targetEventId,
-            targetStartAt: bestResolution.proposal.startAt,
-            targetEndAt: bestResolution.proposal.endAt,
-            deltaMinutes: bestResolution.proposal.startAt ? 
-              Math.round((bestResolution.proposal.startAt.getTime() - new Date().getTime()) / (1000 * 60)) : 0,
-            churnCost: bestResolution.cost,
-            category: 'conflict_resolution',
-            reasonCodes: [`CONFLICT_RESOLUTION_${conflict.type.toUpperCase()}`, `SEVERITY_${conflict.severity.toUpperCase()}`],
-            basePriority: 1.0,
-            energyMultiplier: 1.0,
-            finalPriority: 1.0,
-            metadata: {
-              conflictType: conflict.type,
-              resolution: bestResolution.explanation,
-              eventTitle: eventBeingMoved?.title || 'Event',
-              title: eventBeingMoved?.title || 'Event',
-              originalStartAt: eventBeingMoved?.startAt.toISOString(),
-              originalEndAt: eventBeingMoved?.endAt.toISOString(),
-              eventType: eventBeingMoved?.eventType
-            }
-          });
-        } else {
-          console.log(`[HeuristicEngine] No valid resolution for conflict (all options would violate sleep window)`);
-        }
-      }
-    }
-
-    // STEP 3: Address cramming risks (HIGH PRIORITY)
-    console.log(`[HeuristicEngine] Step 3: Addressing cramming prevention`);
-    const crammingProposals = balanceReport.proposals.filter(p => 
-      p.priority === 'critical' || p.priority === 'high'
-    );
-
-    for (const proposal of crammingProposals) {
-      for (const action of proposal.actions) {
-        if (action.type === 'add_focus' && action.slot && action.proposedStartAt && action.proposedEndAt) {
-          moves.push({
-            proposalId,
-            userId: trigger.userId,
-            moveType: 'insert',
-            targetStartAt: action.proposedStartAt,
-            targetEndAt: action.proposedEndAt,
-            deltaMinutes: 0,
-            churnCost: action.churnCost,
-            category: 'deep_work',
-            reasonCodes: [`CRAMMING_PREVENTION_${proposal.priority.toUpperCase()}`, 'WORKLOAD_BALANCE'],
-            basePriority: proposal.priority === 'critical' ? 0.95 : 0.85,
-            energyMultiplier: 1.0,
-            finalPriority: proposal.priority === 'critical' ? 0.95 : 0.85,
-            metadata: {
-              assignmentId: proposal.assignmentId,
-              assignmentTitle: proposal.assignmentTitle,
-              dueDate: proposal.dueDate.toISOString(),
-              title: action.explanation,
-              eventTitle: `Focus: ${proposal.assignmentTitle}`,
-              deficit: proposal.targetScheduledMinutes - proposal.currentScheduledMinutes,
-              reasoning: proposal.reasoning
-            }
-          });
-        }
-      }
-    }
-
-    // STEP 4: Address workload redistribution (MEDIUM PRIORITY)
-    console.log(`[HeuristicEngine] Step 4: Workload redistribution`);
-    const redistributionProposals = balanceReport.proposals.filter(p => 
-      p.priority === 'medium' && p.actions.some(a => a.type === 'move_focus')
-    );
-
-    for (const proposal of redistributionProposals) {
-      for (const action of proposal.actions) {
-        if (action.type === 'move_focus' && action.eventId && action.proposedStartAt && action.proposedEndAt) {
-          moves.push({
-            proposalId,
-            userId: trigger.userId,
-            moveType: 'move',
-            sourceEventId: action.eventId,
-            targetStartAt: action.proposedStartAt,
-            targetEndAt: action.proposedEndAt,
-            deltaMinutes: Math.round((action.proposedStartAt.getTime() - new Date().getTime()) / (1000 * 60)),
-            churnCost: action.churnCost,
-            category: 'deep_work',
-            reasonCodes: ['WORKLOAD_REDISTRIBUTION', 'PREVENT_OVERLOAD'],
-            basePriority: 0.6,
-            energyMultiplier: 1.0,
-            finalPriority: 0.6,
-            metadata: {
-              originalDay: action.eventId,
-              targetDay: action.proposedStartAt.toISOString().split('T')[0],
-              reasoning: action.explanation
-            }
-          });
-        }
-      }
-    }
-
-    // STEP 5: Energy-based optimization (LOW PRIORITY)
-    console.log(`[HeuristicEngine] Step 5: Energy-based optimization`);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:STEP5_START',message:'Step 5 start',data:{triggerType:trigger.type,energyLevel:trigger.energyLevel},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-    // #endregion
-    if (trigger.type === 'energy_change' && (trigger.energyLevel >= 8 || trigger.energyLevel <= 3)) {
-      // If energy changed significantly, suggest moving Focus blocks to better times
-      const now = new Date();
-      const endDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000); // Next 3 days only
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:BEFORE_FOCUS_QUERY',message:'Before upcomingFocus query',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-      // #endregion
-      const upcomingFocus = await db
-        .select()
-        .from(calendarEventsNew)
-        .where(
-          and(
-            eq(calendarEventsNew.userId, trigger.userId),
-            eq(calendarEventsNew.eventType, 'Focus'),
-            eq(calendarEventsNew.isMovable, true),
-            gte(calendarEventsNew.startAt, now),
-            lte(calendarEventsNew.startAt, endDate)
-          )
-        )
-        .limit(2); // Only optimize next 2 Focus blocks
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:AFTER_FOCUS_QUERY',message:'After upcomingFocus query',data:{focusCount:upcomingFocus.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-      // #endregion
-
-      for (const focusBlock of upcomingFocus) {
-        const duration = (focusBlock.endAt.getTime() - focusBlock.startAt.getTime()) / (1000 * 60);
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:BEFORE_SLOT_MATCHER',message:'Before slotMatcher.findOptimalSlot',data:{focusBlockId:focusBlock.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-        // #endregion
+    // STEP 1: Address DEADLINES AT RISK
+    if (problems.deadlinesAtRisk.length > 0) {
+      console.log(`[HeuristicEngine] Step 1: Scheduling time for at-risk deadlines...`);
+      
+      for (const deadline of problems.deadlinesAtRisk) {
+        // Find optimal slots to schedule the needed time
         const match = await slotMatcher.findOptimalSlot(
           {
-            id: focusBlock.id,
-            title: focusBlock.title || 'Focus Block',
-            duration,
-            linkedAssignmentId: focusBlock.linkedAssignmentId || undefined,
+            id: `deadline-${deadline.id}`,
+            title: `Focus: ${deadline.title}`,
+            duration: Math.min(deadline.hoursNeeded * 60, 120), // Max 2 hours per block
+            linkedAssignmentId: deadline.id,
             category: 'focus'
           },
           trigger.userId,
           trigger.energyLevel,
-          { lookaheadDays: 3 }
+          { 
+            lookaheadDays: Math.min(7, Math.ceil((deadline.dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+          }
         );
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:AFTER_SLOT_MATCHER',message:'After slotMatcher.findOptimalSlot',data:{hasMatch:!!match,matchScore:match?.score},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-        // #endregion
 
-        if (match && match.score > 70) {
-          // Only move if the new slot is significantly better
+        if (match && match.slot) {
           moves.push({
             proposalId,
             userId: trigger.userId,
-            moveType: 'move',
-            sourceEventId: focusBlock.id,
+            moveType: 'insert',
             targetStartAt: match.slot.startAt,
             targetEndAt: match.slot.endAt,
-            deltaMinutes: Math.round((match.slot.startAt.getTime() - focusBlock.startAt.getTime()) / (1000 * 60)),
-            churnCost: duration * 0.5, // Lower cost for energy optimization
+            deltaMinutes: 0,
+            churnCost: match.slot.durationMinutes * 0.5,
             category: 'deep_work',
-            reasonCodes: ['ENERGY_OPTIMIZATION', ...match.reasonCodes],
-            basePriority: 0.4,
-            energyMultiplier: trigger.energyLevel / 10,
-            finalPriority: 0.4 * (trigger.energyLevel / 10),
+            reasonCodes: ['DEADLINE_AT_RISK', 'SCHEDULE_TIME'],
+            basePriority: 0.9,
+            energyMultiplier: 1.0,
+            finalPriority: 0.9,
             metadata: {
-              eventTitle: focusBlock.title || 'Focus Block',
-              title: `Optimize for ${trigger.energyLevel >= 8 ? 'high' : 'low'} energy`,
-              originalStartAt: focusBlock.startAt.toISOString(),
-              energyLevel: trigger.energyLevel,
-              matchScore: match.score,
-              explanation: match.explanation
+              assignmentId: deadline.id,
+              assignmentTitle: deadline.title,
+              title: `Schedule time for "${deadline.title}"`,
+              eventTitle: `Focus: ${deadline.title}`,
+              dueDate: deadline.dueDate.toISOString(),
+              scheduledPercent: deadline.scheduledPercent,
+              hoursNeeded: deadline.hoursNeeded,
+              reasoning: `Only ${deadline.scheduledPercent}% of needed time is scheduled`
             }
           });
         }
       }
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:STEP5_END',message:'Step 5 complete',data:{movesCount:moves.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-    // #endregion
 
-    console.log(`[HeuristicEngine] Generated ${moves.length} comprehensive optimization moves`);
+    // STEP 2: Address AVOIDANCE PATTERNS
+    if (problems.avoidancePatterns.length > 0) {
+      console.log(`[HeuristicEngine] Step 2: Addressing avoidance patterns...`);
+      
+      for (const avoided of problems.avoidancePatterns) {
+        // Find a slot and suggest "locking it in"
+        const match = await slotMatcher.findOptimalSlot(
+          {
+            id: `avoided-${avoided.id}`,
+            title: `Focus: ${avoided.title} (locked)`,
+            duration: 60, // Start with 1 hour
+            linkedAssignmentId: avoided.id,
+            category: 'focus'
+          },
+          trigger.userId,
+          trigger.energyLevel,
+          { 
+            lookaheadDays: 3 // Schedule soon to break the pattern
+          }
+        );
+
+        if (match && match.slot) {
+          moves.push({
+            proposalId,
+            userId: trigger.userId,
+            moveType: 'insert',
+            targetStartAt: match.slot.startAt,
+            targetEndAt: match.slot.endAt,
+            deltaMinutes: 0,
+            churnCost: 60,
+            category: 'deep_work',
+            reasonCodes: ['AVOIDANCE_DETECTED', 'LOCK_IN_TIME'],
+            basePriority: 0.85,
+            energyMultiplier: 1.0,
+            finalPriority: 0.85,
+            metadata: {
+              assignmentId: avoided.id,
+              assignmentTitle: avoided.title,
+              title: `Lock in time for "${avoided.title}"`,
+              eventTitle: `Focus: ${avoided.title}`,
+              dueDate: avoided.dueDate.toISOString(),
+              deferralCount: avoided.deferralCount,
+              reasoning: `This has been rescheduled ${avoided.deferralCount} times - time to lock it in`
+            }
+          });
+        }
+      }
+    }
+
+    // STEP 3: Address SLEEP VIOLATIONS
+    if (problems.sleepViolations.length > 0) {
+      console.log(`[HeuristicEngine] Step 3: Fixing sleep violations...`);
+      
+      for (const violation of problems.sleepViolations) {
+        // Get the event details
+        const event = await db.query.calendarEventsNew.findFirst({
+          where: eq(calendarEventsNew.id, violation.eventId)
+        });
+        
+        if (event && event.isMovable) {
+          const duration = (event.endAt.getTime() - event.startAt.getTime()) / (1000 * 60);
+          
+          // Find a slot outside sleep hours
+          const nextWake = getNextWakeTime(event.startAt, this.userTimezone);
+          
+          moves.push({
+            proposalId,
+            userId: trigger.userId,
+            moveType: 'move',
+            sourceEventId: violation.eventId,
+            targetStartAt: nextWake,
+            targetEndAt: new Date(nextWake.getTime() + duration * 60 * 1000),
+            deltaMinutes: Math.round((nextWake.getTime() - event.startAt.getTime()) / (1000 * 60)),
+            churnCost: duration,
+            category: 'schedule_fix',
+            reasonCodes: ['SLEEP_VIOLATION', 'MOVE_TO_WAKING_HOURS'],
+            basePriority: 0.95,
+            energyMultiplier: 1.0,
+            finalPriority: 0.95,
+            metadata: {
+              eventId: violation.eventId,
+              title: `Move "${violation.title}" out of sleep hours`,
+              eventTitle: violation.title,
+              originalStartAt: event.startAt.toISOString(),
+              reasoning: `This is scheduled at ${formatInTimezone(event.startAt, this.userTimezone)} which is during sleep hours`
+            }
+          });
+        }
+      }
+    }
+
+    // STEP 4: Address OVERLOADED DAYS
+    if (problems.overloadedDays.length > 0) {
+      console.log(`[HeuristicEngine] Step 4: Balancing overloaded days...`);
+      
+      // Run the workload balancer for redistribution
+      const balanceReport = await workloadBalancer.balanceWorkload(trigger.userId, lookaheadDays, trigger.energyLevel);
+      
+      // Only take redistribution actions for the overloaded days we detected
+      const redistributionProposals = balanceReport.proposals.filter(p => 
+        p.actions.some(a => a.type === 'move_focus')
+      );
+
+      for (const proposal of redistributionProposals.slice(0, 2)) { // Limit to 2 redistributions
+        for (const action of proposal.actions) {
+          if (action.type === 'move_focus' && action.eventId && action.proposedStartAt && action.proposedEndAt) {
+            moves.push({
+              proposalId,
+              userId: trigger.userId,
+              moveType: 'move',
+              sourceEventId: action.eventId,
+              targetStartAt: action.proposedStartAt,
+              targetEndAt: action.proposedEndAt,
+              deltaMinutes: Math.round((action.proposedStartAt.getTime() - new Date().getTime()) / (1000 * 60)),
+              churnCost: action.churnCost,
+              category: 'workload_balance',
+              reasonCodes: ['OVERLOADED_DAY', 'REDISTRIBUTE_WORK'],
+              basePriority: 0.7,
+              energyMultiplier: 1.0,
+              finalPriority: 0.7,
+              metadata: {
+                title: `Spread out work from overloaded day`,
+                eventTitle: action.explanation,
+                reasoning: action.explanation
+              }
+            });
+          }
+        }
+      }
+    }
+
+    console.log(`[HeuristicEngine] Generated ${moves.length} targeted moves for real problems`);
+
+    // STEP 5: SAFETY FILTER - Validate all moves before proceeding
+    console.log(`[HeuristicEngine] Step 5: Running safety validation filter...`);
+    const validatedMoves: ProposalMove[] = [];
+    const rejectedMoves: { move: ProposalMove; reason: string }[] = [];
+
+    // Get the user's schedule for conflict checking
+    const now = new Date();
+    const endDate = new Date(now.getTime() + lookaheadDays * 24 * 60 * 60 * 1000);
+    const userSchedule = await db
+      .select()
+      .from(calendarEventsNew)
+      .where(
+        and(
+          eq(calendarEventsNew.userId, trigger.userId),
+          gte(calendarEventsNew.startAt, now),
+          lte(calendarEventsNew.startAt, endDate)
+        )
+      );
+
+    for (const move of moves) {
+      // Skip moves without target times (deletes)
+      if (!move.targetStartAt || !move.targetEndAt) {
+        if (move.moveType === 'delete') {
+          validatedMoves.push(move);
+        }
+        continue;
+      }
+
+      // SAFETY CHECK 1: Sleep window
+      if (this.isInSleepWindow(move.targetStartAt)) {
+        rejectedMoves.push({
+          move,
+          reason: `Start time ${formatInTimezone(move.targetStartAt, this.userTimezone)} is during sleep hours`
+        });
+        continue;
+      }
+      if (this.isInSleepWindow(move.targetEndAt)) {
+        rejectedMoves.push({
+          move,
+          reason: `End time ${formatInTimezone(move.targetEndAt, this.userTimezone)} is during sleep hours`
+        });
+        continue;
+      }
+
+      // SAFETY CHECK 2: Due date violation
+      const metadata = move.metadata || {};
+      const dueDateStr = metadata.dueDate || metadata.deadline || metadata.assignmentDueDate;
+      if (dueDateStr) {
+        const dueDate = new Date(dueDateStr);
+        if (move.targetEndAt > dueDate) {
+          rejectedMoves.push({
+            move,
+            reason: `End time ${formatInTimezone(move.targetEndAt, this.userTimezone)} is after due date ${formatInTimezone(dueDate, this.userTimezone)}`
+          });
+          continue;
+        }
+      }
+
+      // SAFETY CHECK 3: Immovable event conflicts
+      const immovableEvents = userSchedule.filter(e => !e.isMovable && e.id !== move.sourceEventId);
+      let hasConflict = false;
+      for (const immovable of immovableEvents) {
+        if (move.targetStartAt < immovable.endAt && move.targetEndAt > immovable.startAt) {
+          rejectedMoves.push({
+            move,
+            reason: `Conflicts with immovable event "${immovable.title}" (${immovable.startAt.toISOString()} - ${immovable.endAt.toISOString()})`
+          });
+          hasConflict = true;
+          break;
+        }
+      }
+      if (hasConflict) continue;
+
+      // SAFETY CHECK 4: Time is in the past
+      if (move.targetStartAt < now) {
+        rejectedMoves.push({
+          move,
+          reason: `Start time ${formatInTimezone(move.targetStartAt, this.userTimezone)} is in the past`
+        });
+        continue;
+      }
+
+      // All checks passed
+      validatedMoves.push(move);
+    }
+
+    // Log rejected moves
+    if (rejectedMoves.length > 0) {
+      console.warn(`[HeuristicEngine] SAFETY FILTER: Rejected ${rejectedMoves.length} invalid moves:`);
+      for (const { move, reason } of rejectedMoves) {
+        console.warn(`  - ${move.metadata?.eventTitle || move.sourceEventId || 'New event'}: ${reason}`);
+      }
+    }
+
+    // Update moves array with validated moves only
+    moves.length = 0;
+    moves.push(...validatedMoves);
+    console.log(`[HeuristicEngine] After safety filter: ${moves.length} valid moves (${rejectedMoves.length} rejected)`);
 
     // STEP 6: Apply churn limits
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:BEFORE_CHURN_CHECK',message:'Before churn check',data:{movesCount:moves.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-    // #endregion
+    console.log(`[HeuristicEngine] Step 6: Applying churn limits...`);
     const churnCheck = await this.checkChurnLimits(trigger.userId, moves, trigger.energyLevel);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heuristic-engine.ts:AFTER_CHURN_CHECK',message:'After churn check',data:{allowed:churnCheck.allowed},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'SQL_ERROR',runId:'trace'})}).catch(()=>{});
-    // #endregion
+    console.log(`[HeuristicEngine]   - Daily max moves: ${this.config.churnLimits.dailyMaxMoves}`);
+    console.log(`[HeuristicEngine]   - Churn allowed: ${churnCheck.allowed}`);
+    
     if (!churnCheck.allowed) {
-      console.warn(`[HeuristicEngine] Churn limit exceeded, filtering moves`);
+      console.warn(`[HeuristicEngine]   - CHURN LIMIT EXCEEDED, filtering moves`);
       // Keep only highest priority moves
       moves.sort((a, b) => (b.finalPriority || 0) - (a.finalPriority || 0));
       const allowedMoves = moves.slice(0, this.config.churnLimits.dailyMaxMoves);
-      console.log(`[HeuristicEngine] Reduced from ${moves.length} to ${allowedMoves.length} moves`);
+      console.log(`[HeuristicEngine]   - Reduced from ${moves.length} to ${allowedMoves.length} moves`);
       
       // Update moves array
       moves.length = 0;
@@ -1075,6 +1367,7 @@ export class HeuristicEngine {
     }
 
     // STEP 7: Persist proposal
+    console.log(`[HeuristicEngine] Step 7: Persisting proposal...`);
     if (moves.length > 0) {
       await db.insert(rebalancingProposals).values({
         id: proposalId,
@@ -1108,9 +1401,27 @@ export class HeuristicEngine {
           metadata: move.metadata || null
         }))
       );
+      console.log(`[HeuristicEngine]   - Persisted ${moves.length} moves to database`);
     }
 
-    console.log(`[HeuristicEngine] Comprehensive optimization complete: ${moves.length} moves proposed`);
+    const totalTime = Date.now() - startTime;
+    console.log(`[HeuristicEngine] ═══════════════════════════════════════════════════════════`);
+    console.log(`[HeuristicEngine] OPTIMIZATION COMPLETE`);
+    console.log(`[HeuristicEngine]   - Proposal ID: ${proposalId.substring(0, 8)}...`);
+    console.log(`[HeuristicEngine]   - Total moves: ${moves.length}`);
+    console.log(`[HeuristicEngine]   - Total time: ${totalTime}ms`);
+    console.log(`[HeuristicEngine] ═══════════════════════════════════════════════════════════`);
+    
+    // Log a summary of each move for debugging
+    if (moves.length > 0) {
+      console.log(`[HeuristicEngine] Move Summary:`);
+      moves.forEach((move, i) => {
+        const title = move.metadata?.eventTitle || move.metadata?.title || 'Unknown';
+        const targetTime = move.targetStartAt ? formatInTimezone(move.targetStartAt, this.userTimezone) : 'N/A';
+        console.log(`[HeuristicEngine]   ${i + 1}. [${move.moveType.toUpperCase()}] "${title}" -> ${targetTime}`);
+      });
+    }
+    
     return { proposalId, moves };
   }
 

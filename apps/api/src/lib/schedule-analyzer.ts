@@ -3,6 +3,13 @@ import { calendarEventsNew, assignments } from '../../../../packages/db/src/sche
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import { getHeuristicConfig, getTimeOfDay } from './heuristic-config';
 import { PrioritizationEngine } from './prioritization-engine';
+import { 
+  getUserTimezone, 
+  isInSleepWindow as checkSleepWindow, 
+  getNextWakeTime,
+  getTimeOfDayInTimezone,
+  DEFAULT_TIMEZONE 
+} from './timezone-utils';
 
 /**
  * Schedule Analyzer
@@ -72,10 +79,23 @@ export interface WorkloadAnalysis {
 export class ScheduleAnalyzer {
   private config: ReturnType<typeof getHeuristicConfig>;
   private prioritizationEngine: PrioritizationEngine;
+  private userId: string | undefined;
+  private userTimezone: string = DEFAULT_TIMEZONE;
 
   constructor(userId?: string) {
+    this.userId = userId;
     this.config = getHeuristicConfig(userId);
     this.prioritizationEngine = new PrioritizationEngine(userId);
+  }
+  
+  /**
+   * Initialize timezone - should be called before analysis
+   */
+  async initTimezone(): Promise<void> {
+    if (this.userId) {
+      this.userTimezone = await getUserTimezone(this.userId);
+      console.log(`[ScheduleAnalyzer] Using timezone: ${this.userTimezone}`);
+    }
   }
 
   /**
@@ -244,37 +264,10 @@ export class ScheduleAnalyzer {
 
   /**
    * Check if a time is in the sleep window
+   * Uses the shared timezone utility for consistent behavior
    */
   private isInSleepWindow(date: Date): boolean {
-    // Config values are in CST (local time), need to convert to UTC for comparison
-    // CST is UTC-6, so:
-    // - CST 11 PM (23) = UTC 5 AM next day
-    // - CST 7 AM (7) = UTC 1 PM (13)
-    // - CST 10 AM weekend (10) = UTC 4 PM (16)
-    
-    const hour = date.getUTCHours();
-    const day = date.getUTCDay(); // 0 = Sunday, 6 = Saturday
-    const isWeekend = day === 0 || day === 6;
-    
-    // Convert CST sleep times to UTC
-    const cstOffset = 6; // CST is UTC-6
-    const sleepStartCST = this.config.neuroRules.sleepProtectionStart; // 23 (11 PM CST)
-    const sleepEndWeekdayCST = this.config.neuroRules.sleepProtectionEnd; // 7 (7 AM CST)
-    const sleepEndWeekendCST = 10; // 10 AM CST on weekends
-    
-    const sleepEndCST = isWeekend ? sleepEndWeekendCST : sleepEndWeekdayCST;
-    
-    // Convert to UTC: add offset, handle day wraparound
-    const sleepStartUTC = (sleepStartCST + cstOffset) % 24; // 23 + 6 = 5 (next day)
-    const sleepEndUTC = (sleepEndCST + cstOffset) % 24;     // 7 + 6 = 13, or 10 + 6 = 16
-    
-    // Sleep window wraps across midnight in UTC
-    // CST 11 PM - 7 AM = UTC 5 AM - 1 PM (next day)
-    // So in UTC: hour >= 5 OR hour < 13 (but accounting for day boundary)
-    // Actually simpler: UTC 5-13 is sleep (or 5-16 on weekends)
-    const result = hour >= sleepStartUTC && hour < sleepEndUTC;
-    
-    return result;
+    return checkSleepWindow(date, this.userTimezone);
   }
 
   /**

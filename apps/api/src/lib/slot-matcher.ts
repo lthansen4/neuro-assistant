@@ -56,11 +56,22 @@ export class SlotMatcher {
   private config: ReturnType<typeof getHeuristicConfig>;
   private scheduleAnalyzer: ScheduleAnalyzer;
   private prioritizationEngine: PrioritizationEngine;
+  private timezoneInitialized: boolean = false;
 
   constructor(userId?: string) {
     this.config = getHeuristicConfig(userId);
     this.scheduleAnalyzer = new ScheduleAnalyzer(userId);
     this.prioritizationEngine = new PrioritizationEngine(userId);
+  }
+
+  /**
+   * Initialize timezone for the schedule analyzer
+   */
+  private async ensureTimezoneInitialized(): Promise<void> {
+    if (!this.timezoneInitialized) {
+      await this.scheduleAnalyzer.initTimezone();
+      this.timezoneInitialized = true;
+    }
   }
 
   /**
@@ -76,6 +87,9 @@ export class SlotMatcher {
       considerWorkload?: boolean;
     } = {}
   ): Promise<SlotMatch | null> {
+    // Ensure timezone is initialized before processing
+    await this.ensureTimezoneInitialized();
+    
     const lookaheadDays = options.lookaheadDays || 14;
     const now = new Date();
     let endDate = new Date(now.getTime() + lookaheadDays * 24 * 60 * 60 * 1000);

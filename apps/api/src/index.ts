@@ -23,6 +23,7 @@ import { nudgesRoute } from './routes/nudges';
 import adhdFeaturesRoute from './routes/adhd-features';
 import { sessionsRoute } from './routes/sessions';
 import { plannerRoute } from './routes/planner';
+import rescueRoute from './routes/rescue';
 
 import { runMigrations } from './lib/migrations';
 
@@ -94,6 +95,7 @@ app.route('/api/nudges', nudgesRoute);
 app.route('/api/adhd', adhdFeaturesRoute); // Priority 2 ADHD features
 app.route('/api/sessions', sessionsRoute);
 app.route('/api/planner', plannerRoute);
+app.route('/api/rescue', rescueRoute); // Rescue Mode for overwhelmed students
 
 // Simple health check
 app.get('/health', (c) => c.text('ok'));

@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
 import { HeuristicEngine } from '../lib/heuristic-engine';
+import { RebalancingService } from '../lib/rebalancing-service';
+import { checkAlerts } from '../lib/alert-engine';
 import { db } from '../lib/db';
 import { rebalancingProposals, proposalMoves, calendarEventsNew, users, churnLedger } from '../../../../packages/db/src/schema';
 import { eq, and, sql, gte } from 'drizzle-orm';
+import { formatInTimezone, getUserTimezone } from '../lib/timezone-utils';
 
 /**
  * Rebalancing Routes
@@ -18,7 +21,7 @@ const rebalancingRoute = new Hono();
 /**
  * Helper to convert Clerk user ID to database UUID
  */
-async function getUserId(c: any): Promise<string | null> {
+async function getUserIdFromContext(c: any): Promise<string | null> {
   const clerkUserId = c.req.header('x-clerk-user-id');
   if (!clerkUserId) {
     console.error('[Rebalancing API] Missing x-clerk-user-id header');
@@ -37,67 +40,80 @@ async function getUserId(c: any): Promise<string | null> {
   return user.id;
 }
 
+// Alias for backward compatibility
+const getUserId = getUserIdFromContext;
+
+/**
+ * GET /api/rebalancing/alerts
+ * 
+ * Check for genuine problems that need attention.
+ * This is the "smoke detector" - only alerts when there's a real issue.
+ */
+rebalancingRoute.get('/alerts', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    console.log(`[RebalancingAPI] Checking alerts for user ${userId.substring(0, 8)}...`);
+    
+    const result = await checkAlerts(userId);
+    
+    return c.json({
+      ok: true,
+      hasAlerts: result.hasAlerts,
+      criticalCount: result.criticalCount,
+      highCount: result.highCount,
+      totalCount: result.totalCount,
+      alerts: result.alerts,
+      checkedAt: result.checkedAt.toISOString()
+    });
+
+  } catch (error) {
+    console.error('[RebalancingAPI] Alert check error:', error);
+    return c.json({ 
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to check alerts' 
+    }, 500);
+  }
+});
+
 /**
  * POST /api/rebalancing/propose
  * 
  * Generate a new rebalancing proposal (alias for /optimize for backward compatibility)
  */
 rebalancingRoute.post('/propose', async (c) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rebalancing.ts:PROPOSE_ENTRY',message:'Propose endpoint hit',data:{hasUserId:!!c.req.header('x-clerk-user-id')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D',runId:'post-fix'})}).catch(()=>{});
-  // #endregion
   try {
     const userId = await getUserId(c);
     if (!userId) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rebalancing.ts:PROPOSE_NOAUTH',message:'No userId found',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
-      // #endregion
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
     const body = await c.req.json();
     const energyLevel = body.energyLevel || 5;
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rebalancing.ts:PROPOSE_PARSED',message:'Request parsed with DB userId',data:{userId:userId.substring(0,8),energyLevel},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B',runId:'post-fix'})}).catch(()=>{});
-    // #endregion
 
     console.log(`[RebalancingAPI] Proposal requested by user ${userId}`);
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rebalancing.ts:PROPOSE_BEFORE_ENGINE',message:'Before creating engine',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
-    // #endregion
     const engine = new HeuristicEngine(userId);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rebalancing.ts:PROPOSE_AFTER_ENGINE',message:'Engine created',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
-    // #endregion
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rebalancing.ts:PROPOSE_BEFORE_GENERATE',message:'Before generate proposal',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C',runId:'post-fix'})}).catch(()=>{});
-    // #endregion
     const result = await engine.generateComprehensiveProposal({
       userId,
       energyLevel,
       type: 'manual',
       lookaheadDays: 14
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rebalancing.ts:PROPOSE_AFTER_GENERATE',message:'Proposal generated',data:{proposalId:result.proposalId.substring(0,8),movesCount:result.moves.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C',runId:'post-fix'})}).catch(()=>{});
-    // #endregion
 
     return c.json({
       ok: true,
       proposal_id: result.proposalId,
       moves_count: result.moves.length,
-      message: result.moves.length > 0 
-        ? `Generated ${result.moves.length} optimization moves`
-        : 'Your schedule is already optimal!'
+      message: result.message || (result.moves.length > 0 
+        ? `Found ${result.moves.length} things to address`
+        : 'Your schedule looks good! No changes needed.')
     });
 
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'rebalancing.ts:PROPOSE_ERROR',message:'Error in propose',data:{error:error instanceof Error?error.message:String(error),stack:error instanceof Error?error.stack?.substring(0,200):undefined},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,C',runId:'post-fix'})}).catch(()=>{});
-    // #endregion
     console.error('[RebalancingAPI] Proposal generation error:', error);
     return c.json({ 
       error: error instanceof Error ? error.message : 'Failed to generate proposal' 
@@ -240,9 +256,9 @@ rebalancingRoute.post('/optimize', async (c) => {
       ok: true,
       proposal_id: result.proposalId,
       moves_count: result.moves.length,
-      message: result.moves.length > 0 
-        ? `Generated ${result.moves.length} optimization moves`
-        : 'Your schedule is already optimal!'
+      message: result.message || (result.moves.length > 0 
+        ? `Found ${result.moves.length} things to address`
+        : 'Your schedule looks good! No changes needed.')
     });
 
   } catch (error) {
@@ -330,7 +346,8 @@ rebalancingRoute.get('/proposal/:id', async (c) => {
 /**
  * POST /api/rebalancing/proposal/:id/accept
  * 
- * Accept and apply a proposal
+ * Accept and apply a proposal using the RebalancingService for proper
+ * snapshot creation and validation.
  */
 rebalancingRoute.post('/proposal/:id/accept', async (c) => {
   try {
@@ -340,101 +357,82 @@ rebalancingRoute.post('/proposal/:id/accept', async (c) => {
     }
 
     const proposalId = c.req.param('id');
-
-    // Fetch proposal
-    const proposal = await db.query.rebalancingProposals.findFirst({
-      where: and(
-        eq(rebalancingProposals.id, proposalId),
-        eq(rebalancingProposals.userId, userId),
-        eq(rebalancingProposals.status, 'proposed')
-      )
-    });
-
-    if (!proposal) {
-      return c.json({ error: 'Proposal not found or already processed' }, 404);
-    }
-
-    // Fetch moves
-    const moves = await db.query.proposalMoves.findMany({
-      where: eq(proposalMoves.proposalId, proposalId)
-    });
-
-    console.log(`[RebalancingAPI] Applying ${moves.length} moves from proposal ${proposalId}`);
-
-    // Apply moves in a transaction
-    let appliedCount = 0;
     
-    for (const move of moves) {
-      try {
-        if (move.moveType === 'insert' && move.targetStartAt && move.targetEndAt) {
-          // Create new event
-          const metadata = move.metadata as any;
-          await db.insert(calendarEventsNew).values({
-            userId,
-            title: metadata?.eventTitle || metadata?.title || 'Focus Session',
-            eventType: 'Focus',
-            startAt: move.targetStartAt,
-            endAt: move.targetEndAt,
-            isMovable: true,
-            linkedAssignmentId: metadata?.assignmentId || null,
-            metadata: move.metadata || null
-          });
-          appliedCount++;
-        } else if (move.moveType === 'move' && move.sourceEventId && move.targetStartAt && move.targetEndAt) {
-          // Move existing event
-          await db
-            .update(calendarEventsNew)
-            .set({
-              startAt: move.targetStartAt,
-              endAt: move.targetEndAt,
-              updatedAt: new Date()
-            })
-            .where(
-              and(
-                eq(calendarEventsNew.id, move.sourceEventId),
-                eq(calendarEventsNew.userId, userId)
-              )
-            );
-          appliedCount++;
-        } else if (move.moveType === 'delete' && move.sourceEventId) {
-          // Delete event
-          await db
-            .delete(calendarEventsNew)
-            .where(
-              and(
-                eq(calendarEventsNew.id, move.sourceEventId),
-                eq(calendarEventsNew.userId, userId)
-              )
-            );
-          appliedCount++;
-        }
-      } catch (error) {
-        console.error(`[RebalancingAPI] Failed to apply move ${move.id}:`, error);
-      }
+    // Get selected move IDs from request body (optional)
+    let selectedMoveIds: string[] | undefined;
+    try {
+      const body = await c.req.json();
+      selectedMoveIds = body.selectedMoveIds;
+    } catch {
+      // No body is fine - apply all moves
     }
 
-    // Update proposal status
-    await db
-      .update(rebalancingProposals)
-      .set({
-        status: 'applied',
-        appliedAt: new Date()
-      })
-      .where(eq(rebalancingProposals.id, proposalId));
+    console.log(`[RebalancingAPI] Applying proposal ${proposalId} for user ${userId}`);
+    if (selectedMoveIds) {
+      console.log(`[RebalancingAPI] Applying ${selectedMoveIds.length} selected moves`);
+    }
 
-    console.log(`[RebalancingAPI] Applied ${appliedCount}/${moves.length} moves`);
+    // Use the RebalancingService for proper apply with snapshot
+    const rebalancingService = new RebalancingService();
+    const result = await rebalancingService.applyProposal(proposalId, userId, selectedMoveIds);
+
+    console.log(`[RebalancingAPI] ═══════════════════════════════════════════`);
+    console.log(`[RebalancingAPI] PROPOSAL APPLIED SUCCESSFULLY`);
+    console.log(`[RebalancingAPI]   Status: ${result.status}`);
+    console.log(`[RebalancingAPI]   Applied: ${result.applied}`);
+    console.log(`[RebalancingAPI]   Skipped: ${result.skipped || 0}`);
+    console.log(`[RebalancingAPI]   Cached: ${result.cached || false}`);
+    console.log(`[RebalancingAPI] ═══════════════════════════════════════════`);
+
+    // Get user timezone for friendly time formatting in response
+    const userTimezone = await getUserTimezone(userId);
 
     return c.json({
       ok: true,
-      applied: appliedCount,
-      total: moves.length,
-      message: `Successfully applied ${appliedCount} optimization moves`
+      applied: result.applied,
+      skipped: result.skipped || 0,
+      status: result.status,
+      cached: result.cached || false,
+      message: result.cached 
+        ? 'Proposal was already applied (idempotent)'
+        : `Successfully applied ${result.applied} optimization move${result.applied === 1 ? '' : 's'}`,
+      conflicts: result.conflicts
     });
 
   } catch (error) {
     console.error('[RebalancingAPI] Accept proposal error:', error);
+    
+    // Handle specific error types
+    const errorMessage = error instanceof Error ? error.message : 'Failed to apply proposal';
+    
+    if (errorMessage.includes('APPLY_UNAVAILABLE')) {
+      return c.json({ 
+        ok: false,
+        error: 'Proposal not available',
+        detail: errorMessage
+      }, 404);
+    }
+    
+    if (errorMessage.includes('STALE_PROPOSAL')) {
+      return c.json({ 
+        ok: false,
+        error: 'Proposal is stale - some events have changed since the proposal was generated',
+        detail: errorMessage,
+        shouldRefresh: true
+      }, 409);
+    }
+    
+    if (errorMessage.includes('VALIDATION_FAILED')) {
+      return c.json({ 
+        ok: false,
+        error: 'Proposal failed validation',
+        detail: errorMessage
+      }, 400);
+    }
+
     return c.json({ 
-      error: error instanceof Error ? error.message : 'Failed to apply proposal' 
+      ok: false,
+      error: errorMessage 
     }, 500);
   }
 });
@@ -490,7 +488,8 @@ rebalancingRoute.post('/proposal/:id/reject', async (c) => {
 /**
  * POST /api/rebalancing/proposal/:id/undo
  * 
- * Undo an applied proposal by reverting all moves back to original state
+ * Undo an applied proposal using the RebalancingService which properly
+ * uses the rollback snapshot for accurate restoration.
  */
 rebalancingRoute.post('/proposal/:id/undo', async (c) => {
   try {
@@ -501,109 +500,45 @@ rebalancingRoute.post('/proposal/:id/undo', async (c) => {
 
     const proposalId = c.req.param('id');
 
-    // Fetch the applied proposal
-    const proposal = await db.query.rebalancingProposals.findFirst({
-      where: and(
-        eq(rebalancingProposals.id, proposalId),
-        eq(rebalancingProposals.userId, userId),
-        eq(rebalancingProposals.status, 'applied')
-      )
-    });
+    console.log(`[RebalancingAPI] Undo requested for proposal ${proposalId}`);
 
-    if (!proposal || !proposal.appliedAt) {
-      return c.json({ error: 'Proposal not found or not applied' }, 404);
-    }
+    // Use the RebalancingService for proper undo using snapshot
+    const rebalancingService = new RebalancingService();
+    const result = await rebalancingService.undoProposal(proposalId, userId);
 
-    // Check if undo window has expired (24 hours)
-    const hoursElapsed = (Date.now() - proposal.appliedAt.getTime()) / (1000 * 60 * 60);
-    if (hoursElapsed > 24) {
-      return c.json({ error: 'Undo window expired (24 hours)' }, 400);
-    }
-
-    // Fetch all moves for this proposal
-    const moves = await db.query.proposalMoves.findMany({
-      where: eq(proposalMoves.proposalId, proposalId)
-    });
-
-    console.log(`[RebalancingAPI] Undoing ${moves.length} moves from proposal ${proposalId}`);
-
-    // Revert moves in reverse order
-    let undoneCount = 0;
-    
-    for (const move of moves.reverse()) {
-      try {
-        if (move.moveType === 'insert' && move.sourceEventId) {
-          // Delete inserted event
-          await db
-            .delete(calendarEventsNew)
-            .where(
-              and(
-                eq(calendarEventsNew.id, move.sourceEventId),
-                eq(calendarEventsNew.userId, userId)
-              )
-            );
-          undoneCount++;
-        } else if (move.moveType === 'move' && move.sourceEventId) {
-          // Revert moved event to original time
-          const metadata = move.metadata as any;
-          if (metadata?.originalStartAt && metadata?.originalEndAt) {
-            await db
-              .update(calendarEventsNew)
-              .set({
-                startAt: new Date(metadata.originalStartAt),
-                endAt: new Date(metadata.originalEndAt),
-                updatedAt: new Date()
-              })
-              .where(
-                and(
-                  eq(calendarEventsNew.id, move.sourceEventId),
-                  eq(calendarEventsNew.userId, userId)
-                )
-              );
-            undoneCount++;
-          }
-        } else if (move.moveType === 'delete' && move.sourceEventId) {
-          // Restore deleted event
-          const metadata = move.metadata as any;
-          if (metadata?.originalStartAt && metadata?.originalEndAt) {
-            await db.insert(calendarEventsNew).values({
-              id: move.sourceEventId,
-              userId,
-              title: metadata.eventTitle || metadata.title || 'Restored Event',
-              eventType: metadata.eventType || 'Focus',
-              startAt: new Date(metadata.originalStartAt),
-              endAt: new Date(metadata.originalEndAt),
-              isMovable: true,
-              metadata: move.metadata
-            });
-            undoneCount++;
-          }
-          undoneCount++;
-        }
-      } catch (moveError) {
-        console.error(`[RebalancingAPI] Error undoing move ${move.id}:`, moveError);
-      }
-    }
-
-    // Mark proposal as reverted
-    await db
-      .update(rebalancingProposals)
-      .set({ status: 'reverted' })
-      .where(eq(rebalancingProposals.id, proposalId));
-
-    console.log(`[RebalancingAPI] Successfully undid ${undoneCount}/${moves.length} moves`);
+    console.log(`[RebalancingAPI] Undo result: ${result.restoredCount} events restored`);
 
     return c.json({
       ok: true,
-      message: `Undid ${undoneCount} changes`,
-      undoneCount,
-      totalMoves: moves.length
+      message: `Successfully reverted ${result.restoredCount} change${result.restoredCount === 1 ? '' : 's'}`,
+      restoredCount: result.restoredCount,
+      status: result.status
     });
 
   } catch (error) {
     console.error('[RebalancingAPI] Undo proposal error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Failed to undo proposal';
+    
+    if (errorMessage.includes('UNDO_UNAVAILABLE')) {
+      return c.json({ 
+        ok: false,
+        error: 'Cannot undo this proposal',
+        detail: errorMessage
+      }, 400);
+    }
+    
+    if (errorMessage.includes('UNDO_FAILED')) {
+      return c.json({ 
+        ok: false,
+        error: 'Failed to restore events',
+        detail: errorMessage
+      }, 500);
+    }
+
     return c.json({ 
-      error: error instanceof Error ? error.message : 'Failed to undo proposal' 
+      ok: false,
+      error: errorMessage 
     }, 500);
   }
 });

@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { Calendar } from "../../../components/Calendar";
 import { CalendarLegend } from "../../../components/CalendarLegend";
 import { ProposalPanel } from "../../../components/ProposalPanel";
 import { StuckAssignmentModal } from "../../../components/StuckAssignmentModal";
 import { OptimizeScheduleButton } from "../../../components/OptimizeScheduleButton";
 import { QuickAddInput } from "../../../components/QuickAddInput";
+import { AlertBanner } from "../../../components/AlertBanner";
 import { useUser } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { cn } from "../../../lib/utils";
@@ -26,8 +27,38 @@ function CalendarPageContent() {
   const [stuckModalOpen, setStuckModalOpen] = useState(false);
   const [stuckAssignmentId, setStuckAssignmentId] = useState<string | null>(null);
   const [stuckEventId, setStuckEventId] = useState<string | null>(null);
+  const [selectedAlertAssignmentId, setSelectedAlertAssignmentId] = useState<string | null>(null);
 
   const [assignmentTitle, setAssignmentTitle] = useState<string | null>(null);
+  
+  // Handle alert actions - when user clicks an alert, take appropriate action
+  const handleAlertAction = useCallback((alert: any) => {
+    console.log("[CalendarPage] Alert action clicked:", alert);
+    
+    switch (alert.actionType) {
+      case 'schedule':
+        // If it's related to an assignment, set up scheduling mode
+        if (alert.assignmentId) {
+          setSelectedAlertAssignmentId(alert.assignmentId);
+          // Open the optimize panel to get suggestions
+          setProposalPanelOpen(true);
+        }
+        break;
+        
+      case 'move':
+        // For move actions (like sleep violations), open the proposal panel
+        setProposalPanelOpen(true);
+        break;
+        
+      case 'review':
+        // For review actions (like overloaded days), open proposal panel
+        setProposalPanelOpen(true);
+        break;
+        
+      default:
+        setProposalPanelOpen(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user?.id || !assignmentId) return;
@@ -185,6 +216,13 @@ function CalendarPageContent() {
       </div>
 
       <main className="px-6 py-12 md:px-12 md:py-16 max-w-7xl mx-auto space-y-12 relative z-10">
+        {/* Alert Banner - Only shows when there's a real problem */}
+        <AlertBanner 
+          userId={user.id} 
+          onActionClick={handleAlertAction}
+          className="animate-in fade-in slide-in-from-top-2 duration-500"
+        />
+        
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div className="space-y-4">
             <h1 className="text-5xl md:text-7xl font-serif font-black text-brand-text tracking-tighter leading-none">

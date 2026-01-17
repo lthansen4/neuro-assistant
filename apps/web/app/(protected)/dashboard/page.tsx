@@ -18,6 +18,7 @@ import { FocusTimerModal } from "../../../components/FocusTimerModal";
 import { Button } from "../../../components/ui/button";
 import { BentoTileSkeleton, AssignmentCardSkeleton, TodayFlowSkeleton } from "../../../components/ui/Skeleton";
 import { toast } from "../../../components/ui/Toast";
+import { RescueMode, RescueModeTrigger } from "../../../components/RescueMode";
 
 interface Assignment {
   id: string;
@@ -92,6 +93,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [topTab, setTopTab] = useState<"top" | "today" | "week" | "all">("top");
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [rescueModeOpen, setRescueModeOpen] = useState(false);
 
   const loadDashboard = async (showLoader = true) => {
     if (!user) return;
@@ -313,9 +315,24 @@ export default function DashboardPage() {
               </p>
             </div>
             
-            <div className="flex items-center gap-2 bg-brand-surface-2 p-1.5 rounded-full cozy-border self-start">
-              <button onClick={() => handleRangeChange("day")} className={`px-8 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.1em] transition-all ${range === "day" ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted hover:text-brand-text"}`}>Day</button>
-              <button onClick={() => handleRangeChange("week")} className={`px-8 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.1em] transition-all ${range === "week" ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted hover:text-brand-text"}`}>Week</button>
+            <div className="flex items-center gap-4 self-start">
+              {/* Rescue Mode Trigger */}
+              <button
+                onClick={() => setRescueModeOpen(true)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold rounded-full transition-colors text-sm"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16a4 4 0 100-8 4 4 0 000 8z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24" />
+                </svg>
+                Help me focus
+              </button>
+              
+              <div className="flex items-center gap-2 bg-brand-surface-2 p-1.5 rounded-full cozy-border">
+                <button onClick={() => handleRangeChange("day")} className={`px-8 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.1em] transition-all ${range === "day" ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted hover:text-brand-text"}`}>Day</button>
+                <button onClick={() => handleRangeChange("week")} className={`px-8 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.1em] transition-all ${range === "week" ? "bg-brand-surface text-brand-text shadow-soft" : "text-brand-muted hover:text-brand-text"}`}>Week</button>
+              </div>
             </div>
           </div>
 
@@ -512,6 +529,30 @@ export default function DashboardPage() {
           />
         )}
       </main>
+
+      {/* Rescue Mode Auto-Suggest Banner */}
+      {user && !rescueModeOpen && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-xl w-full px-4">
+          <RescueModeTrigger 
+            userId={user.id}
+            onActivate={() => setRescueModeOpen(true)}
+            autoSuggest={true}
+          />
+        </div>
+      )}
+
+      {/* Rescue Mode Overlay */}
+      {user && (
+        <RescueMode
+          userId={user.id}
+          isOpen={rescueModeOpen}
+          onClose={() => setRescueModeOpen(false)}
+          onComplete={() => {
+            setRescueModeOpen(false);
+            loadDashboard(false);
+          }}
+        />
+      )}
     </div>
   );
 }
