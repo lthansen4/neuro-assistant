@@ -365,13 +365,12 @@ export function ProposalPanel({ isOpen, onClose, userId, mode, proposalId, onPro
     setApplying(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/rebalancing/reject`, {
+      const res = await fetch(`${API_BASE}/api/rebalancing/proposal/${proposal.id}/reject`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-clerk-user-id": userId,
         },
-        body: JSON.stringify({ proposalId: proposal.id }),
       });
 
       if (!res.ok) {
