@@ -102,6 +102,7 @@ export class HeuristicEngine {
     avoidancePatterns: Array<{ id: string; title: string; deferralCount: number; dueDate: Date }>;
     sleepViolations: Array<{ eventId: string; title: string; startAt: Date }>;
     overloadedDays: Array<{ date: string; hours: number }>;
+    overlappingEvents: Array<{ event1Id: string; event1Title: string; event2Id: string; event2Title: string; overlapTime: Date }>;
   }> {
     const now = new Date();
     const warningDate = new Date(now.getTime() + PROBLEM_THRESHOLDS.deadlineWarningDays * 24 * 60 * 60 * 1000);
@@ -110,6 +111,7 @@ export class HeuristicEngine {
     const avoidancePatterns: Array<{ id: string; title: string; deferralCount: number; dueDate: Date }> = [];
     const sleepViolations: Array<{ eventId: string; title: string; startAt: Date }> = [];
     const overloadedDays: Array<{ date: string; hours: number }> = [];
+    const overlappingEvents: Array<{ event1Id: string; event1Title: string; event2Id: string; event2Title: string; overlapTime: Date }> = [];
 
     // 1. Check for DEADLINE_AT_RISK
     const upcomingAssignments = await db
@@ -223,17 +225,60 @@ export class HeuristicEngine {
       }
     }
 
+    // 5. Check for OVERLAPPING_EVENTS (true double-booking)
+    // Only check HIGH-VALUE events (Focus, Studying, Class, Work) - ignore Chill, Transition, etc.
+    const highValueEvents = upcomingEvents.filter(e => 
+      e.eventType === 'Focus' || 
+      e.eventType === 'Studying' || 
+      e.eventType === 'Class' || 
+      e.eventType === 'Work' ||
+      e.eventType === 'OfficeHours' ||
+      e.eventType === 'Test' ||
+      e.eventType === 'Quiz' ||
+      e.eventType === 'Midterm' ||
+      e.eventType === 'Final'
+    );
+    
+    // Sort by start time for efficient comparison
+    const sortedEvents = [...highValueEvents].sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    const reportedOverlaps = new Set<string>();
+    
+    for (let i = 0; i < sortedEvents.length; i++) {
+      for (let j = i + 1; j < sortedEvents.length; j++) {
+        const event1 = sortedEvents[i];
+        const event2 = sortedEvents[j];
+        
+        // If event2 starts after event1 ends, no more overlaps possible for event1
+        if (event2.startAt >= event1.endAt) break;
+        
+        // We have an overlap!
+        const overlapKey = [event1.id, event2.id].sort().join('-');
+        if (reportedOverlaps.has(overlapKey)) continue;
+        reportedOverlaps.add(overlapKey);
+        
+        overlappingEvents.push({
+          event1Id: event1.id,
+          event1Title: event1.title || 'Event',
+          event2Id: event2.id,
+          event2Title: event2.title || 'Event',
+          overlapTime: event2.startAt // When the overlap starts
+        });
+      }
+    }
+
     const hasRealProblems = 
       deadlinesAtRisk.length > 0 ||
       avoidancePatterns.length > 0 ||
       sleepViolations.length > 0 ||
-      overloadedDays.length > 0;
+      overloadedDays.length > 0 ||
+      overlappingEvents.length > 0;
 
     console.log(`[HeuristicEngine] PROBLEM DETECTION RESULTS:`);
     console.log(`[HeuristicEngine]   Deadlines at risk: ${deadlinesAtRisk.length}`);
     console.log(`[HeuristicEngine]   Avoidance patterns: ${avoidancePatterns.length}`);
     console.log(`[HeuristicEngine]   Sleep violations: ${sleepViolations.length}`);
     console.log(`[HeuristicEngine]   Overloaded days: ${overloadedDays.length}`);
+    console.log(`[HeuristicEngine]   Overlapping events: ${overlappingEvents.length}`);
     console.log(`[HeuristicEngine]   HAS REAL PROBLEMS: ${hasRealProblems}`);
 
     return {
@@ -241,7 +286,8 @@ export class HeuristicEngine {
       deadlinesAtRisk,
       avoidancePatterns,
       sleepViolations,
-      overloadedDays
+      overloadedDays,
+      overlappingEvents
     };
   }
   
@@ -1014,6 +1060,26 @@ export class HeuristicEngine {
     console.log(`[HeuristicEngine] ───────────────────────────────────────────────────────────`);
 
     // =========================================================================
+    // CLEANUP: Cancel any old 'proposed' proposals for this user
+    // This prevents stale proposals from accumulating in the database
+    // =========================================================================
+    console.log(`[HeuristicEngine] Cancelling any old pending proposals...`);
+    const cancelledCount = await db
+      .update(rebalancingProposals)
+      .set({ status: 'expired' as const })
+      .where(
+        and(
+          eq(rebalancingProposals.userId, trigger.userId),
+          eq(rebalancingProposals.status, 'proposed')
+        )
+      )
+      .returning();
+    
+    if (cancelledCount.length > 0) {
+      console.log(`[HeuristicEngine] Expired ${cancelledCount.length} old proposals`);
+    }
+
+    // =========================================================================
     // GATEKEEPER: First, check if there are REAL problems worth addressing
     // =========================================================================
     console.log(`[HeuristicEngine] Step 0: Checking for real problems...`);
@@ -1051,6 +1117,11 @@ export class HeuristicEngine {
     if (problems.overloadedDays.length > 0) {
       problems.overloadedDays.forEach(o => 
         console.log(`[HeuristicEngine]     - OVERLOAD: ${o.date} has ${o.hours}h of work`)
+      );
+    }
+    if (problems.overlappingEvents.length > 0) {
+      problems.overlappingEvents.forEach(o => 
+        console.log(`[HeuristicEngine]     - OVERLAP: "${o.event1Title}" and "${o.event2Title}" at ${formatInTimezone(o.overlapTime, this.userTimezone)}`)
       );
     }
 
@@ -1247,10 +1318,70 @@ export class HeuristicEngine {
       }
     }
 
+    // STEP 5: Address OVERLAPPING EVENTS (true double-booking)
+    if (problems.overlappingEvents.length > 0) {
+      console.log(`[HeuristicEngine] Step 5: Resolving overlapping events...`);
+      
+      for (const overlap of problems.overlappingEvents) {
+        // Get event details
+        const event1 = await db.query.calendarEventsNew.findFirst({
+          where: eq(calendarEventsNew.id, overlap.event1Id)
+        });
+        const event2 = await db.query.calendarEventsNew.findFirst({
+          where: eq(calendarEventsNew.id, overlap.event2Id)
+        });
+        
+        if (!event1 || !event2) continue;
+        
+        // Decide which event to move: prefer moving the movable one
+        // If both movable, move the one that started later (event2)
+        const eventToMove = !event1.isMovable ? event2 : (event2.isMovable ? event2 : event1);
+        const otherEvent = eventToMove === event1 ? event2 : event1;
+        
+        if (!eventToMove.isMovable) {
+          // Can't move either - this is a critical conflict that needs manual resolution
+          console.log(`[HeuristicEngine]   CRITICAL: Both overlapping events are immovable: "${event1.title}" and "${event2.title}"`);
+          continue;
+        }
+        
+        const duration = (eventToMove.endAt.getTime() - eventToMove.startAt.getTime()) / (1000 * 60);
+        
+        // Move the event to right after the other event ends
+        const newStartAt = new Date(otherEvent.endAt.getTime() + 15 * 60 * 1000); // 15 min buffer
+        const newEndAt = new Date(newStartAt.getTime() + duration * 60 * 1000);
+        
+        // Don't move into sleep hours
+        if (!this.isInSleepWindow(newStartAt) && !this.isInSleepWindow(newEndAt)) {
+          moves.push({
+            proposalId,
+            userId: trigger.userId,
+            moveType: 'move',
+            sourceEventId: eventToMove.id,
+            targetStartAt: newStartAt,
+            targetEndAt: newEndAt,
+            deltaMinutes: Math.round((newStartAt.getTime() - eventToMove.startAt.getTime()) / (1000 * 60)),
+            churnCost: duration,
+            category: 'conflict_fix',
+            reasonCodes: ['OVERLAP_DETECTED', 'RESOLVE_DOUBLE_BOOKING'],
+            basePriority: 1.0, // High priority - overlaps are critical
+            energyMultiplier: 1.0,
+            finalPriority: 1.0,
+            metadata: {
+              title: `Fix overlap: Move "${eventToMove.title}"`,
+              eventTitle: eventToMove.title || 'Event',
+              originalStartAt: eventToMove.startAt.toISOString(),
+              conflictsWith: otherEvent.title || 'Event',
+              reasoning: `"${eventToMove.title}" overlaps with "${otherEvent.title}" - moving to ${formatInTimezone(newStartAt, this.userTimezone)}`
+            }
+          });
+        }
+      }
+    }
+
     console.log(`[HeuristicEngine] Generated ${moves.length} targeted moves for real problems`);
 
-    // STEP 5: SAFETY FILTER - Validate all moves before proceeding
-    console.log(`[HeuristicEngine] Step 5: Running safety validation filter...`);
+    // STEP 6: SAFETY FILTER - Validate all moves before proceeding
+    console.log(`[HeuristicEngine] Step 6: Running safety validation filter...`);
     const validatedMoves: ProposalMove[] = [];
     const rejectedMoves: { move: ProposalMove; reason: string }[] = [];
 
@@ -1348,8 +1479,8 @@ export class HeuristicEngine {
     moves.push(...validatedMoves);
     console.log(`[HeuristicEngine] After safety filter: ${moves.length} valid moves (${rejectedMoves.length} rejected)`);
 
-    // STEP 6: Apply churn limits
-    console.log(`[HeuristicEngine] Step 6: Applying churn limits...`);
+    // STEP 7: Apply churn limits
+    console.log(`[HeuristicEngine] Step 7: Applying churn limits...`);
     const churnCheck = await this.checkChurnLimits(trigger.userId, moves, trigger.energyLevel);
     console.log(`[HeuristicEngine]   - Daily max moves: ${this.config.churnLimits.dailyMaxMoves}`);
     console.log(`[HeuristicEngine]   - Churn allowed: ${churnCheck.allowed}`);
@@ -1366,8 +1497,8 @@ export class HeuristicEngine {
       moves.push(...allowedMoves);
     }
 
-    // STEP 7: Persist proposal
-    console.log(`[HeuristicEngine] Step 7: Persisting proposal...`);
+    // STEP 8: Persist proposal
+    console.log(`[HeuristicEngine] Step 8: Persisting proposal...`);
     if (moves.length > 0) {
       await db.insert(rebalancingProposals).values({
         id: proposalId,
