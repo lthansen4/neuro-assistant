@@ -82,57 +82,90 @@ export function Calendar({
     return () => window.removeEventListener('resize', handleResize);
   }, [currentView]);
 
+  const [hasScrolledToHighlight, setHasScrolledToHighlight] = useState(false);
+
+  // Helper to scroll to highlights
+  const scrollToFirstHighlight = (ids?: string[]) => {
+    const targetIds = ids || Array.from(highlightedEventIds);
+    if (targetIds.length === 0) return;
+
+    const calendarApi = calendarRef.current?.getApi();
+    if (!calendarApi) return;
+
+    // Find the earliest start time among the highlighted events
+    let earliestEvent: any = null;
+    
+    targetIds.forEach(id => {
+      const ev = calendarApi.getEventById(String(id));
+      if (ev && ev.start) {
+        if (!earliestEvent || ev.start < earliestEvent.start) {
+          earliestEvent = ev;
+        }
+      }
+    });
+
+    if (earliestEvent) {
+      console.log(`[Calendar] Scrolling to highlighted event: ${earliestEvent.title} at ${earliestEvent.start}`);
+      
+      // 1. Move to the date - wait a bit for initial render
+      setTimeout(() => {
+        const api = calendarRef.current?.getApi();
+        if (api) {
+          api.gotoDate(earliestEvent.start);
+        }
+      }, 100);
+      
+      // 2. Scroll to the time (if in timeGrid view)
+      // We'll try multiple times to catch it after render
+      let attempts = 0;
+      const tryScroll = () => {
+        const el = document.querySelector('.focus-block-highlight');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          console.log(`[Calendar] Scrolled to highlighted event on attempt ${attempts + 1}`);
+        } else if (attempts < 20) {
+          attempts++;
+          setTimeout(tryScroll, 200);
+        } else {
+          // Final fallback: find by text if class still hasn't appeared
+          const allEvents = document.querySelectorAll('.fc-event');
+          for (const eventEl of Array.from(allEvents)) {
+            if (eventEl.textContent?.includes(earliestEvent.title)) {
+              eventEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              console.log(`[Calendar] Scrolled to event by text fallback`);
+              break;
+            }
+          }
+        }
+      };
+      
+      setTimeout(tryScroll, 500);
+      return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     const handleHighlight = (e: Event) => {
       const detail = (e as CustomEvent).detail as { eventIds?: string[] } | undefined;
       const ids = detail?.eventIds || [];
       const idSet = new Set(ids.map(String));
       setHighlightedEventIds(idSet);
+      setHasScrolledToHighlight(false); // Reset so we can scroll again
 
-      // SCROLL TO FIRST HIGHLIGHTED EVENT
       if (ids.length > 0) {
-        // We need to wait a tiny bit for the calendar to render/fetch if it just changed
+        // Try immediately
         setTimeout(() => {
-          const calendarApi = calendarRef.current?.getApi();
-          if (!calendarApi) return;
-
-          // Find the earliest start time among the highlighted events
-          let earliestEvent: any = null;
-          
-          ids.forEach(id => {
-            const ev = calendarApi.getEventById(String(id));
-            if (ev && ev.start) {
-              if (!earliestEvent || ev.start < earliestEvent.start) {
-                earliestEvent = ev;
-              }
-            }
-          });
-
-          if (earliestEvent) {
-            console.log(`[Calendar] Scrolling to highlighted event: ${earliestEvent.title} at ${earliestEvent.start}`);
-            
-            // 1. Move to the date
-            calendarApi.gotoDate(earliestEvent.start);
-            
-            // 2. Scroll to the time (if in timeGrid view)
-            if (currentView.startsWith('timeGrid')) {
-              // FullCalendar doesn't have a direct "scrollToTime" on the API, 
-              // but we can use the scrollTime property if we were re-rendering,
-              // or use the internal scroll functions if available.
-              // A reliable way is to find the element and scroll into view.
-              const el = document.querySelector('.focus-block-highlight');
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
-            }
+          if (scrollToFirstHighlight(ids)) {
+            setHasScrolledToHighlight(true);
           }
-        }, 500);
+        }, 800);
       }
     };
 
     window.addEventListener("highlightFocusBlocks", handleHighlight as EventListener);
     return () => window.removeEventListener("highlightFocusBlocks", handleHighlight as EventListener);
-  }, [currentView]);
+  }, [currentView, highlightedEventIds]);
 
   useEffect(() => {
     const handleRefresh = () => {
@@ -251,6 +284,15 @@ export function Calendar({
           eventClassNames={(eventInfo) => {
             const id = String(eventInfo.event.id);
             return highlightedEventIds.has(id) ? ["focus-block-highlight"] : [];
+          }}
+          
+          eventsSet={() => {
+            // If we have highlighted IDs but haven't scrolled yet, try now
+            if (highlightedEventIds.size > 0 && !hasScrolledToHighlight) {
+              if (scrollToFirstHighlight()) {
+                setHasScrolledToHighlight(true);
+              }
+            }
           }}
           
           eventContent={(eventInfo) => {

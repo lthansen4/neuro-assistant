@@ -40,11 +40,14 @@ function CalendarPageContent() {
         const data = await res.json();
         if (data.ok && data.assignment) {
           setAssignmentTitle(data.assignment.title);
-          if (data.focusBlocks) {
+          if (data.focusBlocks && data.focusBlocks.length > 0) {
             const eventIds = data.focusBlocks.map((b: any) => b.id);
-            window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
-              detail: { eventIds }
-            }));
+            // Wait a moment for the title to update and components to settle
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+                detail: { eventIds }
+              }));
+            }, 500);
           }
         }
       } catch (err) {

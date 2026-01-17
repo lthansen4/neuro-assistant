@@ -209,10 +209,11 @@ export function PostSessionSummaryModal({
     if (!user?.id) return;
     setSaving(true);
     let manualRescheduleUrl: string | null = null;
+    const autoScheduledBlocks: Array<{ title: string, startAt: string }> = [];
 
     try {
       const promises = assignments.map(async (a) => {
-        // 1. Update basic progress
+        // ... basic progress update ...
         await updateAssignment(user.id, a.id, {
           pagesCompleted: a.pagesCompleted,
           totalPages: a.totalPages,
@@ -225,7 +226,7 @@ export function PostSessionSummaryModal({
           questionsTarget: a.questionsTarget
         });
 
-        // 2. Schedule professor reminder if questions exist
+        // ... professor reminder ...
         if (a.professorQuestions.length > 0) {
           await scheduleProfessorReminder(user.id, a.id, a.professorQuestions, a.questionsTarget);
         }
@@ -233,17 +234,41 @@ export function PostSessionSummaryModal({
         // 3. Reschedule remaining work if requested
         if (a.completionPercentage < 100) {
           if (a.rescheduleMode === "auto") {
-            await scheduleRemainingWork(user.id, a.id, a.remainingMinutes);
+            const result = await scheduleRemainingWork(user.id, a.id, a.remainingMinutes);
+            if (result.ok && result.event) {
+              autoScheduledBlocks.push({
+                title: a.title,
+                startAt: result.event.startAt
+              });
+            }
           } else if (a.rescheduleMode === "manual" && !manualRescheduleUrl) {
-            // Manual rescheduling will open the calendar page with the assignment highlighted
-            // We only capture the first one if there are multiple, to avoid conflicting redirects
             manualRescheduleUrl = `/calendar?assignmentId=${a.id}&reschedule=true`;
           }
         }
       });
 
       await Promise.all(promises);
-      toast.success("Progress and reminders saved!");
+      
+      // Notify about auto-scheduled blocks
+      if (autoScheduledBlocks.length > 0) {
+        autoScheduledBlocks.forEach(block => {
+          const date = new Date(block.startAt);
+          const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          const dateStr = date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+          
+          // Use a custom style for the "Rescheduled" notification to make it feel like a banner
+          toast.success(
+            <div className="flex flex-col gap-1">
+              <span className="font-black text-[10px] uppercase tracking-widest opacity-70">Rescheduled! ✨</span>
+              <span className="font-bold text-sm">"{block.title}"</span>
+              <span className="text-xs opacity-90">Placed on {dateStr} at {timeStr}</span>
+            </div>,
+            { duration: 6000 }
+          );
+        });
+      } else {
+        toast.success("Progress and reminders saved!");
+      }
       
       if (manualRescheduleUrl) {
         window.location.href = manualRescheduleUrl;
