@@ -216,7 +216,13 @@ export function Calendar({
             const isCompleted = eventInfo.event.extendedProps?.metadata?.isCompleted;
             const category = eventInfo.event.extendedProps?.eventType || 'Other';
             const timeText = eventInfo.timeText || "";
-            const isTransitionBuffer = eventInfo.event.extendedProps?.metadata?.transitionTax;
+            const metadata = eventInfo.event.extendedProps?.metadata || {};
+            // Robust check for transition buffer: title matches OR metadata flag is set
+            const isTransitionBuffer = 
+              metadata.transitionTax === true || 
+              metadata.transitionTax === "true" || 
+              eventInfo.event.title === "Transition Buffer";
+            
             const courseName = eventInfo.event.extendedProps?.courseName;
             
             // Shorten titles for crowded views
@@ -225,7 +231,7 @@ export function Calendar({
               // 1. If it's a transition buffer, don't label it at all
               if (isTransitionBuffer) {
                 return (
-                  <div className="h-full w-full opacity-30" />
+                  <div className="h-full w-full opacity-30 bg-brand-surface-2/50 rounded-lg" />
                 );
               }
 

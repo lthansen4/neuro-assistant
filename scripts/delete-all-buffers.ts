@@ -5,27 +5,36 @@ async function deleteAllBuffers() {
   console.log('🧹 [Cleanup] Starting deletion of all Transition Buffer events...');
   
   try {
-    // We target events by title OR metadata flag to be thorough
+    // 1. Delete from calendar_events_new (the primary table)
+    // We target by title, metadata flag, or specific purpose string to be exhaustive
     const result = await db.delete(schema.calendarEventsNew)
       .where(
         or(
           eq(schema.calendarEventsNew.title, 'Transition Buffer'),
-          sql`${schema.calendarEventsNew.metadata}->>'transitionTax' = 'true'`
+          eq(schema.calendarEventsNew.title, 'CHILL'),
+          sql`${schema.calendarEventsNew.metadata}->>'transitionTax' = 'true'`,
+          sql`${schema.calendarEventsNew.metadata}->>'purpose' ILIKE '%Context switching%'`
         )
       )
-      .returning({ id: schema.calendarEventsNew.id });
+      .returning({ id: schema.calendarEventsNew.id, title: schema.calendarEventsNew.title });
     
-    console.log(`✅ [Cleanup] Successfully deleted ${result.length} transition buffer events.`);
+    console.log(`✅ [Cleanup] Successfully deleted ${result.length} transition buffer/chill events from calendar_events_new.`);
     
-    // Also check the legacy table just in case
+    // 2. Also check the legacy calendar_events table just in case
     const legacyResult = await db.delete(schema.calendarEvents)
-      .where(eq(schema.calendarEvents.title, 'Transition Buffer'))
+      .where(
+        or(
+          eq(schema.calendarEvents.title, 'Transition Buffer'),
+          eq(schema.calendarEvents.title, 'CHILL')
+        )
+      )
       .returning({ id: schema.calendarEvents.id });
       
     if (legacyResult.length > 0) {
       console.log(`✅ [Cleanup] Also deleted ${legacyResult.length} legacy buffer events.`);
     }
 
+    console.log('\n✨ Cleanup complete! Your calendar should now be free of glitched buffers.');
     process.exit(0);
   } catch (error) {
     console.error('❌ [Cleanup] Deletion failed:', error);

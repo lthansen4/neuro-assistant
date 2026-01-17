@@ -871,33 +871,37 @@ Use their specific context to make the BEST scheduling decision.`,
           }
         });
         
-        /* 
-        // DISABLED: Transition buffers were causing clutter
         // TRANSITION TAX: Add 15m buffer AFTER each Focus block (except the last one)
         if (idx < chunks.length - 1 || chunks.length === 1) {
           const bufferStart = new Date(chunk.endAt);
           const bufferEnd = new Date(bufferStart.getTime() + 15 * 60 * 1000); // +15 minutes
           
-          eventsToCreate.push({
-            userId,
-            courseId: draft.course_id || null,
-            title: "Transition Buffer",
-            eventType: 'Chill' as const, // Low-cog recovery time
-            startAt: bufferStart,
-            endAt: bufferEnd,
-            isMovable: true, // User can delete if needed
-            linkedAssignmentId: assignment.id,
-            metadata: { 
-              transitionTax: true,
-              afterChunkIndex: idx,
-              purpose: 'Context switching recovery - prevents mental fatigue',
-              courseName: courseName // Add courseName to metadata
-            }
-          });
-          
-          console.log(`[QuickAdd] Added 15m transition buffer after ${chunk.label}`);
+          // DEDUPLICATION: Avoid creating multiple buffers for the same time slot
+          const alreadyCreated = eventsToCreate.some(e => 
+            e.title === "Transition Buffer" && 
+            e.startAt.getTime() === bufferStart.getTime()
+          );
+
+          if (!alreadyCreated) {
+            eventsToCreate.push({
+              userId,
+              courseId: draft.course_id || null,
+              title: "Transition Buffer",
+              eventType: 'Chill' as const, // Low-cog recovery time
+              startAt: bufferStart,
+              endAt: bufferEnd,
+              isMovable: true, // User can delete if needed
+              linkedAssignmentId: assignment.id,
+              metadata: { 
+                transitionTax: true,
+                afterChunkIndex: idx,
+                purpose: 'Context switching recovery - prevents mental fatigue',
+                courseName: courseName // Add courseName to metadata
+              }
+            });
+            console.log(`[QuickAdd] Queued 15m transition buffer after ${chunk.label}`);
+          }
         }
-        */
       }
       
       focusEvents = await db
@@ -1036,12 +1040,27 @@ Use their specific context to make the BEST scheduling decision.`,
         .returning();
       focusEvents = createdFocusEvents;
       
-      /*
-      // DISABLED: Transition buffers were causing clutter
       // ADHD TRANSITION TAX: Add 15-minute buffer after each Focus event
       for (const event of createdFocusEvents) {
+        if (event.eventType !== 'Focus') continue; // Only buffer Focus events
+
         const bufferStart = new Date(event.endAt);
         const bufferEnd = new Date(bufferStart.getTime() + 15 * 60 * 1000);
+        
+        // DEDUPLICATION: Check if a buffer already exists for this exact time and user
+        const existingBuffer = await db.query.calendarEventsNew.findFirst({
+          where: and(
+            eq(schema.calendarEventsNew.userId, userId),
+            eq(schema.calendarEventsNew.startAt, bufferStart),
+            eq(schema.calendarEventsNew.title, 'Transition Buffer')
+          )
+        });
+
+        if (existingBuffer) {
+          console.log(`[QuickAdd] Skipping duplicate buffer at ${bufferStart.toISOString()}`);
+          continue;
+        }
+
         const [bufferEvent] = await db
           .insert(schema.calendarEventsNew)
           .values({
@@ -1063,7 +1082,6 @@ Use their specific context to make the BEST scheduling decision.`,
           .returning();
         focusEvents.push(bufferEvent);
       }
-      */
       
       // PRIORITY 2: Automatic Deep Work Tracking (Recovery Forcing)
       try {
