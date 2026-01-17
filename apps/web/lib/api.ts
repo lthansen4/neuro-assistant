@@ -94,6 +94,14 @@ export async function fetchCalendarEvents(userId: string, start: Date, end: Date
   return res.json();
 }
 
+export async function fetchCourses(userId: string) {
+  const res = await fetch(`${API_BASE}/api/courses`, {
+    headers: { "x-clerk-user-id": userId },
+  });
+  if (!res.ok) throw new Error("Failed to fetch courses");
+  return res.json();
+}
+
 export async function fetchOverlappingAssignments(userId: string, start: string, end: string) {
   const res = await fetch(`${API_BASE}/api/calendar/overlap-assignments?start=${start}&end=${end}`, {
     headers: { "x-clerk-user-id": userId },
@@ -117,6 +125,7 @@ export async function updateAssignment(
     title?: string;
     description?: string;
     category?: string;
+    courseId?: string | null;
     dueDate?: string;
     pagesCompleted?: number;
     totalPages?: number;

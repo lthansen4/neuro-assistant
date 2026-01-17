@@ -10,6 +10,7 @@ interface HomeworkAssignment {
   id: string;
   title: string;
   dueDate: string | null;
+  courseId: string | null;
   courseName: string | null;
   category: string | null;
   completionPercentage?: number;

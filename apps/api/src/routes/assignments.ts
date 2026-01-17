@@ -320,6 +320,9 @@ assignmentsRoute.put('/:id', async (c) => {
     if (typeof body.questionsTarget === 'string' || body.questionsTarget === null) {
       updatePayload.questionsTarget = body.questionsTarget ?? null;
     }
+    if (typeof body.courseId === 'string' || body.courseId === null) {
+      updatePayload.courseId = body.courseId ?? null;
+    }
 
     const [updated] = await db
       .update(assignments)
@@ -327,11 +330,27 @@ assignmentsRoute.put('/:id', async (c) => {
       .where(and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)))
       .returning();
 
-    // UX: Sync title changes to associated calendar events
-    if (typeof body.title === 'string' && body.title.trim() !== existing.title) {
-      const newTitle = body.title.trim();
-      console.log(`[Assignments API] Title changed from "${existing.title}" to "${newTitle}". Syncing to calendar...`);
+    // UX: Sync changes to associated calendar events (Focus blocks and DueDate markers)
+    const titleChanged = typeof body.title === 'string' && body.title.trim() !== existing.title;
+    const dueDateChanged = typeof body.dueDate === 'string' && new Date(body.dueDate).getTime() !== (existing.dueDate?.getTime() || 0);
+    const courseIdChanged = typeof body.courseId !== 'undefined' && body.courseId !== existing.courseId;
+
+    if (titleChanged || dueDateChanged || courseIdChanged) {
+      console.log(`[Assignments API] Detected changes for assignment ${assignmentId}: title=${titleChanged}, dueDate=${dueDateChanged}, courseId=${courseIdChanged}. Syncing to calendar...`);
       
+      const newTitle = typeof body.title === 'string' ? body.title.trim() : existing.title;
+      const newDueDate = typeof body.dueDate === 'string' ? new Date(body.dueDate) : existing.dueDate;
+      const newCourseId = typeof body.courseId !== 'undefined' ? body.courseId : existing.courseId;
+      
+      let newCourseName = null;
+      if (newCourseId) {
+        const course = await db.query.courses.findFirst({
+          where: eq(schema.courses.id, newCourseId),
+          columns: { name: true }
+        });
+        newCourseName = course?.name || null;
+      }
+
       const relatedEvents = await db.query.calendarEventsNew.findMany({
         where: and(
           eq(schema.calendarEventsNew.userId, userId),
@@ -343,21 +362,41 @@ assignmentsRoute.put('/:id', async (c) => {
       });
 
       for (const event of relatedEvents) {
-        let updatedEventTitle = event.title;
+        const eventUpdate: any = {};
         
-        // If it was "Work on: Old Title (Session 1)", update it
-        if (event.title.includes(existing.title)) {
-          updatedEventTitle = event.title.replace(existing.title, newTitle);
-        } else if (event.title === `Work on: ${existing.title}`) {
-          updatedEventTitle = `Work on: ${newTitle}`;
-        } else if (event.eventType === 'Focus' && !event.title.includes(newTitle)) {
-          // Fallback for focus blocks that might have lost sync
-          updatedEventTitle = `Work on: ${newTitle}`;
+        // 1. Sync Title
+        if (titleChanged) {
+          if (event.eventType === 'DueDate') {
+            eventUpdate.title = `📌 DUE: ${newTitle}`;
+          } else if (event.title.includes(existing.title)) {
+            eventUpdate.title = event.title.replace(existing.title, newTitle);
+          } else if (event.title === `Work on: ${existing.title}`) {
+            eventUpdate.title = `Work on: ${newTitle}`;
+          } else if (event.eventType === 'Focus' && !event.title.includes(newTitle)) {
+            eventUpdate.title = `Work on: ${newTitle}`;
+          }
         }
 
-        if (updatedEventTitle !== event.title) {
+        // 2. Sync Course
+        if (courseIdChanged) {
+          eventUpdate.courseId = newCourseId;
+          eventUpdate.metadata = {
+            ...(event.metadata || {}),
+            courseName: newCourseName
+          };
+        }
+
+        // 3. Sync Due Date Marker
+        if (dueDateChanged && event.eventType === 'DueDate') {
+          if (newDueDate) {
+            eventUpdate.startAt = newDueDate;
+            eventUpdate.endAt = new Date(newDueDate.getTime() + 15 * 60 * 1000);
+          }
+        }
+
+        if (Object.keys(eventUpdate).length > 0) {
           await db.update(schema.calendarEventsNew)
-            .set({ title: updatedEventTitle })
+            .set(eventUpdate)
             .where(eq(schema.calendarEventsNew.id, event.id));
         }
       }

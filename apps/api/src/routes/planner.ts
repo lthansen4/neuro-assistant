@@ -23,6 +23,7 @@ plannerRoute.get("/summary", async (c) => {
         dueDate: schema.assignments.dueDate,
         category: schema.assignments.category,
         status: schema.assignments.status,
+        courseId: schema.assignments.courseId,
         courseName: schema.courses.name,
         totalPages: schema.assignments.totalPages,
         pagesCompleted: schema.assignments.pagesCompleted,

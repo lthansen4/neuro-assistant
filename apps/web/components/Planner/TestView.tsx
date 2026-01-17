@@ -9,6 +9,7 @@ interface TestAssignment {
   id: string;
   title: string;
   dueDate: string | null;
+  courseId: string | null;
   courseName: string | null;
   category: string | null;
   daysRemaining: number | null;

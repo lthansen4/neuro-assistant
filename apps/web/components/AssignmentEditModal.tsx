@@ -16,8 +16,8 @@ import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
 import { toast } from "./ui/Toast";
 import { GessoIcon } from "./ui/GessoIcon";
-import { Trash2, CheckCircle2, Save, X, Check } from "lucide-react";
-import { toggleCalendarEventCompletion } from "../lib/api";
+import { Trash2, CheckCircle2, Save, X, Check, GraduationCap } from "lucide-react";
+import { toggleCalendarEventCompletion, fetchCourses } from "../lib/api";
 import { PostSessionSummaryModal } from "./PostSessionSummaryModal";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
@@ -30,6 +30,7 @@ export interface AssignmentEditData {
   category: string | null;
   effortEstimateMinutes: number | null;
   status: "Inbox" | "Scheduled" | "Locked_In" | "Completed";
+  courseId: string | null;
   courseName: string | null;
 }
 
@@ -65,6 +66,8 @@ export function AssignmentEditModal({
   const [description, setDescription] = useState(assignment.description || "");
   const [dueDate, setDueDate] = useState(toLocalDateTimeValue(assignment.dueDate));
   const [category, setCategory] = useState(assignment.category || "");
+  const [editCourseId, setEditCourseId] = useState(assignment.courseId || "");
+  const [courses, setCourses] = useState<any[]>([]);
   const [effortMinutes, setEffortMinutes] = useState<string>(
     assignment.effortEstimateMinutes ? String(assignment.effortEstimateMinutes) : ""
   );
@@ -96,6 +99,18 @@ export function AssignmentEditModal({
     };
 
     loadDetails();
+    
+    const loadCourses = async () => {
+      try {
+        const data = await fetchCourses(userId);
+        if (data.ok) {
+          setCourses(data.items || []);
+        }
+      } catch (err) {
+        console.error("[AssignmentEditModal] Failed to load courses:", err);
+      }
+    };
+    loadCourses();
   }, [assignment.id, userId]);
 
   useEffect(() => {
@@ -129,6 +144,7 @@ export function AssignmentEditModal({
         description: description.trim() || null,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         category: category || null,
+        courseId: editCourseId || null,
         effortEstimateMinutes: effortMinutes ? Number(effortMinutes) : null,
       };
       const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}`, {
@@ -282,13 +298,22 @@ export function AssignmentEditModal({
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Due Date</Label>
-                <Input
-                  type="datetime-local"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
-                />
+                <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Course</Label>
+                <div className="relative">
+                  <select
+                    value={editCourseId}
+                    onChange={(e) => setEditCourseId(e.target.value)}
+                    className="w-full h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold px-10 appearance-none focus:ring-2 focus:ring-brand-primary/20 outline-none"
+                  >
+                    <option value="">No Course</option>
+                    {courses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.name}
+                      </option>
+                    ))}
+                  </select>
+                  <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted" size={18} />
+                </div>
               </div>
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Category</Label>
@@ -301,15 +326,26 @@ export function AssignmentEditModal({
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Effort (minutes)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={effortMinutes}
-                onChange={(e) => setEffortMinutes(e.target.value)}
-                className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold w-full md:w-1/3"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Due Date</Label>
+                <Input
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
+                />
+              </div>
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Effort (minutes)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={effortMinutes}
+                  onChange={(e) => setEffortMinutes(e.target.value)}
+                  className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
+                />
+              </div>
             </div>
           </div>
 

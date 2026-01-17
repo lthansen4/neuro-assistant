@@ -10,6 +10,7 @@ interface ReadingAssignment {
   id: string;
   title: string;
   dueDate: string | null;
+  courseId: string | null;
   courseName: string | null;
   totalPages: number | null;
   pagesCompleted: number | null;
