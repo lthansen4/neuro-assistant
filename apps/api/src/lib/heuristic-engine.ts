@@ -841,8 +841,23 @@ export class HeuristicEngine {
     console.log(`[HeuristicEngine] Step 2: Addressing conflicts`);
     for (const conflict of conflicts) {
       if (conflict.severity === 'critical' || conflict.severity === 'high') {
-        // Pick the best resolution option
-        const bestResolution = conflict.resolutionOptions.sort((a, b) => a.cost - b.cost)[0];
+        // Filter out resolutions that would land in sleep window (7am start, so 11pm-7am is sleep)
+        const validResolutions = conflict.resolutionOptions.filter(resolution => {
+          if (resolution.action === 'delete') return true; // Delete is always valid
+          const targetStart = resolution.proposal.startAt;
+          const targetEnd = resolution.proposal.endAt;
+          if (!targetStart || !targetEnd) return false;
+          
+          // SAFETY: Reject any resolution that lands in sleep window
+          if (this.isInSleepWindow(targetStart) || this.isInSleepWindow(targetEnd)) {
+            console.log(`[HeuristicEngine] SAFETY: Rejecting conflict resolution - would land in sleep window: ${targetStart.toISOString()}`);
+            return false;
+          }
+          return true;
+        });
+        
+        // Pick the best VALID resolution option
+        const bestResolution = validResolutions.sort((a, b) => a.cost - b.cost)[0];
         
         if (bestResolution) {
           // Find the event being moved from the conflict
@@ -873,6 +888,8 @@ export class HeuristicEngine {
               eventType: eventBeingMoved?.eventType
             }
           });
+        } else {
+          console.log(`[HeuristicEngine] No valid resolution for conflict (all options would violate sleep window)`);
         }
       }
     }

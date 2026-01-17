@@ -16,10 +16,11 @@ function ReasonBadge({ code }: { code: string }) {
   const explanation = getReasonExplanation(code);
   
   if (!explanation) {
-    // Fallback for unknown codes
+    // Fallback for unknown codes - display the raw code in a readable format
+    const readableCode = code.replace(/_/g, ' ').toLowerCase();
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-gray-100 text-gray-700">
-        {code}
+        {readableCode}
       </span>
     );
   }
@@ -42,12 +43,12 @@ function ReasonBadge({ code }: { code: string }) {
       
       {showTooltip && (
         <div 
-          className="absolute z-50 w-72 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-xl mt-1 left-0"
+          className="absolute z-[100] w-72 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-xl bottom-full mb-2 left-0"
           style={{ animation: 'fadeIn 0.2s' }}
         >
           <p className="font-semibold mb-1">{explanation.short}</p>
           <p className="text-xs leading-relaxed opacity-90">{explanation.explanation}</p>
-          <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+          <div className="absolute -bottom-1 left-4 w-2 h-2 bg-gray-900 transform rotate-45"></div>
         </div>
       )}
     </div>
