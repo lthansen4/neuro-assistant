@@ -86,6 +86,7 @@ export function FocusTimerModal({
         startTime={sessionData.start}
         endTime={sessionData.end}
         actualMinutes={sessionData.minutes}
+        initialAssignmentId={assignmentId}
       />
     );
   }

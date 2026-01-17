@@ -15,7 +15,7 @@ import { Badge } from "./ui/badge";
 import { AlertCircle, CheckCircle2, Clock, BookOpen } from "lucide-react";
 import { SmartQuestions } from "./SmartQuestions";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
 interface QuickAddPreviewSheetProps {
   isOpen: boolean;

@@ -35,7 +35,8 @@ import {
   searchAssignments, 
   updateAssignment,
   scheduleProfessorReminder,
-  scheduleRemainingWork
+  scheduleRemainingWork,
+  fetchAssignmentDetails
 } from "../lib/api";
 import { useUser } from "@clerk/nextjs";
 import { Progress } from "./ui/progress";
@@ -66,6 +67,7 @@ interface PostSessionSummaryModalProps {
   startTime: string; // ISO string
   endTime: string; // ISO string
   actualMinutes: number;
+  initialAssignmentId?: string | null; // Added initialAssignmentId
 }
 
 export function PostSessionSummaryModal({
@@ -74,6 +76,7 @@ export function PostSessionSummaryModal({
   startTime,
   endTime,
   actualMinutes,
+  initialAssignmentId, // Added initialAssignmentId
 }: PostSessionSummaryModalProps) {
   const { user } = useUser();
   const [loading, setLoading] = useState(true);
@@ -94,19 +97,31 @@ export function PostSessionSummaryModal({
     try {
       setLoading(true);
       const data = await fetchOverlappingAssignments(user!.id, startTime, endTime);
-      if (data.ok) {
-        setAssignments(
-          data.assignments.map((a: any) => ({
-            ...a,
-            notes: "",
-            completionPercentage: a.completionPercentage || 0,
-            professorQuestions: [],
-            questionsTarget: "Class",
-            rescheduleMode: "none",
-            remainingMinutes: 60,
-          }))
-        );
+      let initialList = data.ok ? data.assignments : [];
+
+      // If we have an initialAssignmentId, make sure it's in the list
+      if (initialAssignmentId && !initialList.find((a: any) => a.id === initialAssignmentId)) {
+        try {
+          const detailData = await fetchAssignmentDetails(user!.id, initialAssignmentId);
+          if (detailData.ok && detailData.assignment) {
+            initialList = [detailData.assignment, ...initialList];
+          }
+        } catch (err) {
+          console.error("Error fetching initial assignment details:", err);
+        }
       }
+
+      setAssignments(
+        initialList.map((a: any) => ({
+          ...a,
+          notes: "",
+          completionPercentage: a.completionPercentage || 0,
+          professorQuestions: a.professorQuestions || [],
+          questionsTarget: a.questionsTarget || "Class",
+          rescheduleMode: "none",
+          remainingMinutes: 60,
+        }))
+      );
     } catch (error) {
       console.error("Error loading assignments:", error);
       toast.error("Failed to load scheduled assignments");
@@ -193,6 +208,8 @@ export function PostSessionSummaryModal({
   const handleSave = async () => {
     if (!user?.id) return;
     setSaving(true);
+    let manualRescheduleUrl = null;
+
     try {
       const promises = assignments.map(async (a) => {
         // 1. Update basic progress
@@ -217,16 +234,22 @@ export function PostSessionSummaryModal({
         if (a.completionPercentage < 100) {
           if (a.rescheduleMode === "auto") {
             await scheduleRemainingWork(user.id, a.id, a.remainingMinutes);
-          } else if (a.rescheduleMode === "manual") {
+          } else if (a.rescheduleMode === "manual" && !manualRescheduleUrl) {
             // Manual rescheduling will open the calendar page with the assignment highlighted
-            window.location.href = `/calendar?assignmentId=${a.id}&reschedule=true`;
+            // We only capture the first one if there are multiple, to avoid conflicting redirects
+            manualRescheduleUrl = `/calendar?assignmentId=${a.id}&reschedule=true`;
           }
         }
       });
 
       await Promise.all(promises);
       toast.success("Progress and reminders saved!");
-      onClose();
+      
+      if (manualRescheduleUrl) {
+        window.location.href = manualRescheduleUrl;
+      } else {
+        onClose();
+      }
     } catch (error) {
       console.error("Save error:", error);
       toast.error("Failed to save some updates");
@@ -481,25 +504,28 @@ function AssignmentUpdateCard({
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
-                      variant={assignment.rescheduleMode === "auto" ? "default" : "outline"}
+                      variant={assignment.rescheduleMode === "auto" ? "brand" : "outline"}
                       size="sm"
-                      className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3", assignment.rescheduleMode === "auto" && "bg-brand-primary")}
+                      className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3")}
                       onClick={() => onUpdate("rescheduleMode", "auto")}
                     >
                       Auto
                     </Button>
                     <Button
-                      variant={assignment.rescheduleMode === "manual" ? "default" : "outline"}
+                      variant={assignment.rescheduleMode === "manual" ? "brand" : "outline"}
                       size="sm"
-                      className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3", assignment.rescheduleMode === "manual" && "bg-brand-primary")}
+                      className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3")}
                       onClick={() => onUpdate("rescheduleMode", "manual")}
                     >
                       Manual
                     </Button>
                     <Button
-                      variant={assignment.rescheduleMode === "none" ? "default" : "outline"}
+                      variant={assignment.rescheduleMode === "none" ? "brand" : "outline"}
                       size="sm"
-                      className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3", assignment.rescheduleMode === "none" && "bg-brand-rose")}
+                      className={cn(
+                        "rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3",
+                        assignment.rescheduleMode === "none" && "bg-brand-rose text-white"
+                      )}
                       onClick={() => onUpdate("rescheduleMode", "none")}
                     >
                       Skip

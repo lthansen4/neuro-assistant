@@ -9,7 +9,7 @@ import { EventDetailsModal } from "./EventDetailsModal";
 import { AssignmentEditModal, AssignmentEditData } from "./AssignmentEditModal";
 import { cn } from "../lib/utils";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
 // Detect if mobile
 const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 768;

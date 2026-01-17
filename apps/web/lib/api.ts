@@ -19,6 +19,14 @@ export async function fetchDashboardSummary(userId: string, range: "day" | "week
   }
 }
 
+export async function fetchAssignmentDetails(userId: string, assignmentId: string) {
+  const res = await fetch(`${API_BASE}/api/assignments/${assignmentId}/details`, {
+    headers: { "x-clerk-user-id": userId },
+  });
+  if (!res.ok) throw new Error("Failed to fetch assignment details");
+  return res.json();
+}
+
 export async function fetchDashboardPreferences(userId: string) {
   const res = await fetch(`${API_BASE}/api/dashboard/preferences`, {
     headers: { "x-clerk-user-id": userId },

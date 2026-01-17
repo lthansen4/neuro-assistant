@@ -3,7 +3,7 @@ import { useState } from "react";
 import confetti from 'canvas-confetti';
 import { toast } from "./ui/Toast";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
 interface EventDetailsModalProps {
   event: {

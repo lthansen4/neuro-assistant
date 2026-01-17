@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "./ui/sheet";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
 interface OptimizeScheduleButtonProps {
   userId: string;

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { ChecklistQuestionsModal } from "./ChecklistQuestionsModal";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8787";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
 export function StuckAssignmentModal({ 
   assignmentId, 
