@@ -237,9 +237,20 @@ export function Calendar({
 
               // 2. If it's a course-related event, prioritize Course Name (e.g. "HIST 305")
               if (courseName) {
-                displayTitle = courseName;
+                const lowerCat = (category || "").toLowerCase();
+                const isTest = lowerCat.includes('test') || lowerCat.includes('exam') || lowerCat.includes('quiz') || lowerCat.includes('midterm') || lowerCat.includes('final');
+                const isHomework = lowerCat.includes('homework') || lowerCat.includes('assignment');
+                
+                if (isTest) {
+                  displayTitle = `${courseName} - Test`;
+                } else if (isHomework) {
+                  displayTitle = `${courseName} - Homework`;
+                } else {
+                  // Default to just the course name as requested
+                  displayTitle = courseName;
+                }
               } else {
-                // 3. Shorten titles
+                // 3. Shorten titles for non-course events
                 displayTitle = displayTitle
                   .replace(/^Work on:\s*/i, "")
                   .replace(/^📌\s*DUE:\s*/i, "")
