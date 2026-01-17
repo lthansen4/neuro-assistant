@@ -80,23 +80,51 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
     { id: "4", title: "The Reset", startTime: "2026-01-14T12:30:00", endTime: "2026-01-14T12:45:00", category: "reset", status: "Scheduled", emoji: "🌿" },
   ] as FlowItem[];
 
+  // Calculate now marker position (6am = 0%, 8pm = 100%)
+  const getNowPosition = () => {
+    const hours = now.getHours() + now.getMinutes() / 60;
+    // Timeline spans 6am (6) to 8pm (20) = 14 hours
+    const startHour = 6;
+    const endHour = 20;
+    if (hours < startHour) return 0;
+    if (hours > endHour) return 100;
+    return ((hours - startHour) / (endHour - startHour)) * 100;
+  };
+
+  const nowPosition = getNowPosition();
+  const currentHour = now.getHours();
+  const isWithinTimeline = currentHour >= 6 && currentHour < 20;
+
   return (
     <div className="w-full bg-brand-surface-2/50 rounded-[2.5rem] p-8 space-y-8 cozy-border">
-      {/* Time Markers */}
-      <div className="flex justify-between px-4 text-[13px] font-bold text-brand-muted uppercase tracking-wider">
-        {["6am", "8am", "10am", "12pm", "2pm", "4pm", "6pm", "8pm"].map((time) => (
-          <span key={time} className={cn(time === "10am" && "text-category-deep-fg")}>{time}</span>
-        ))}
+      {/* Time Markers with Now Line */}
+      <div className="relative px-4">
+        <div className="flex justify-between text-[13px] font-bold text-brand-muted uppercase tracking-wider">
+          {["6am", "8am", "10am", "12pm", "2pm", "4pm", "6pm", "8pm"].map((time) => {
+            const timeHour = parseInt(time) + (time.includes("pm") && !time.includes("12") ? 12 : 0);
+            const isCurrentHour = currentHour === timeHour || (time === "12pm" && currentHour === 12);
+            return (
+              <span key={time} className={cn(isCurrentHour && "text-category-deep-fg")}>{time}</span>
+            );
+          })}
+        </div>
+        
+        {/* Now Marker Line - positioned on timeline */}
+        {isWithinTimeline && (
+          <div 
+            className="absolute top-1/2 -translate-y-1/2 z-10 flex flex-col items-center pointer-events-none"
+            style={{ left: `calc(${nowPosition}% - 4px)` }}
+          >
+            <div className="w-3 h-3 rounded-full bg-category-deep-fg" />
+            <div className="w-[2px] h-8 bg-category-deep-fg" />
+          </div>
+        )}
       </div>
 
       <div 
         ref={scrollRef}
         className="flex gap-6 overflow-x-auto pb-6 snap-x snap-mandatory no-scrollbar relative"
       >
-        {/* Vertical Now Marker (Placeholder position for 10am) */}
-        <div className="absolute left-[25%] top-0 bottom-0 w-[2px] bg-category-deep-fg z-10 flex flex-col items-center">
-          <div className="w-4 h-4 rounded-full bg-category-deep-fg -mt-2" />
-        </div>
 
         {displayItems.map((item) => {
           const config = getCategoryConfig(item.category);
