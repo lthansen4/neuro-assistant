@@ -1,10 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "./ui/dialog";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
 import { toast } from "./ui/Toast";
 import { GessoIcon } from "./ui/GessoIcon";
+import { Trash2, CheckCircle2, Save, X } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
@@ -199,156 +211,191 @@ export function AssignmentEditModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-3xl shadow-xl max-w-lg w-full mx-4 p-6 space-y-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <h2 className="text-xl font-semibold text-brand-text">Edit Assignment</h2>
-            {assignment.courseName && (
-              <p className="text-sm text-brand-muted">{assignment.courseName}</p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="text-brand-muted hover:text-brand-text text-2xl leading-none"
-            aria-label="Close"
-          >
-            ×
-          </button>
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-brand-surface border-brand-border rounded-[2.5rem] p-0 gap-0">
+        <div className="sticky top-0 z-20 bg-brand-surface/80 backdrop-blur-xl border-b border-brand-border/40 p-8">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <DialogTitle className="text-2xl font-serif font-black text-brand-text italic leading-tight">
+                  Edit Assignment
+                </DialogTitle>
+                {assignment.courseName && (
+                  <p className="text-[10px] font-bold text-brand-muted uppercase tracking-widest">
+                    {assignment.courseName}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={onClose}
+                className="w-10 h-10 rounded-full bg-brand-surface-2/50 flex items-center justify-center text-brand-muted hover:text-brand-text transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </DialogHeader>
         </div>
 
-        {error && (
-          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-brand-text">Title</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full border border-brand-border rounded-2xl px-4 py-2 text-sm"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-brand-text">Description / Notes</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Your original input or notes about this assignment..."
-              rows={3}
-              className="w-full border border-brand-border rounded-2xl px-4 py-2 text-sm resize-none"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-brand-text">Due date</label>
-            <input
-              type="datetime-local"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full border border-brand-border rounded-2xl px-4 py-2 text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-brand-text">Category</label>
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full border border-brand-border rounded-2xl px-4 py-2 text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-brand-text">Effort (minutes)</label>
-            <input
-              type="number"
-              min={0}
-              value={effortMinutes}
-              onChange={(e) => setEffortMinutes(e.target.value)}
-              className="w-full border border-brand-border rounded-2xl px-4 py-2 text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-3 border-t border-brand-border/40 pt-4">
-          <h3 className="text-sm font-semibold text-brand-text">Scheduled Focus Blocks</h3>
-          {loadingFocusBlocks ? (
-            <p className="text-sm text-brand-muted">Loading focus blocks...</p>
-          ) : focusBlocks.length === 0 ? (
-            <p className="text-sm text-brand-muted">No focus blocks scheduled yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {focusBlocks.map((block) => {
-                const start = new Date(block.startAt);
-                const end = new Date(block.endAt);
-                return (
-                  <div
-                    key={block.id}
-                    className="rounded-2xl border border-brand-border/40 bg-brand-surface-2 px-4 py-3 text-sm hover:border-brand-primary/50 transition-colors cursor-default group/block"
-                    onMouseEnter={() => {
-                      window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
-                        detail: { eventIds: [block.id] }
-                      }));
-                    }}
-                    onMouseLeave={() => {
-                      window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
-                        detail: { eventIds: focusBlocks.map(b => b.id) }
-                      }));
-                    }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="font-semibold text-brand-text group-hover/block:text-brand-primary transition-colors">{block.title}</div>
-                      <GessoIcon type="bolt" size={14} className="text-brand-muted opacity-0 group-hover/block:opacity-100 transition-opacity" />
-                    </div>
-                    <div className="text-brand-muted">
-                      {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </div>
-                  </div>
-                );
-              })}
+        <div className="p-8 space-y-8">
+          {error && (
+            <div className="p-4 rounded-2xl bg-brand-rose/10 border border-brand-rose/20 text-brand-rose text-sm font-medium flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-brand-rose animate-pulse" />
+              {error}
             </div>
           )}
-        </div>
 
-        <div className="flex flex-col gap-3">
-          <Button
-            className="w-full bg-brand-mint text-white hover:brightness-110"
-            onClick={handleComplete}
-            disabled={completing}
-          >
-            {completing ? "Marking..." : "Done"}
-          </Button>
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Title</Label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Assignment Title"
+                className="h-14 bg-brand-surface-2/50 border-brand-border/40 rounded-2xl text-lg font-bold focus:ring-brand-primary"
+              />
+            </div>
+            
+            <div className="space-y-3">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Description / Notes</Label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Your original input or notes about this assignment..."
+                className="bg-brand-surface-2/50 border-brand-border/40 rounded-2xl text-sm min-h-[100px] resize-none focus:ring-brand-primary"
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Due Date</Label>
+                <Input
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
+                />
+              </div>
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Category</Label>
+                <Input
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="e.g. Reading, Homework"
+                  className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
+                />
+              </div>
+            </div>
 
-          <div className="flex flex-col-reverse md:flex-row md:items-center justify-between gap-3">
-            <Button
-              variant="ghost"
-              className={cn("text-rose-600 hover:text-rose-700", deleting && "opacity-60")}
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </Button>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : "Save changes"}
-              </Button>
+            <div className="space-y-3">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Effort (minutes)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={effortMinutes}
+                onChange={(e) => setEffortMinutes(e.target.value)}
+                className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold w-full md:w-1/3"
+              />
             </div>
           </div>
+
+          {/* Focus Blocks Section */}
+          <div className="space-y-4 border-t border-brand-border/20 pt-8">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-brand-text uppercase tracking-wider">Scheduled Focus Blocks</h3>
+              <Badge variant="outline" className="bg-brand-primary/5 text-brand-primary border-brand-primary/20">
+                {loadingFocusBlocks ? "..." : focusBlocks.length} Blocks
+              </Badge>
+            </div>
+
+            {loadingFocusBlocks ? (
+              <div className="py-8 flex flex-col items-center justify-center gap-3 bg-brand-surface-2/30 rounded-3xl border border-brand-border/20">
+                <div className="w-6 h-6 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-brand-muted font-medium">Finding your focus sessions...</p>
+              </div>
+            ) : focusBlocks.length === 0 ? (
+              <div className="py-8 text-center bg-brand-surface-2/30 rounded-3xl border border-dashed border-brand-border/40">
+                <p className="text-sm text-brand-muted font-medium italic">No focus blocks scheduled yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {focusBlocks.map((block) => {
+                  const start = new Date(block.startAt);
+                  const end = new Date(block.endAt);
+                  return (
+                    <div
+                      key={block.id}
+                      className="group relative p-5 rounded-3xl border border-brand-border/40 bg-brand-surface-2/50 hover:border-brand-primary/40 hover:bg-brand-surface transition-all duration-300"
+                      onMouseEnter={() => {
+                        window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+                          detail: { eventIds: [block.id] }
+                        }));
+                      }}
+                      onMouseLeave={() => {
+                        window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
+                          detail: { eventIds: focusBlocks.map(b => b.id) }
+                        }));
+                      }}
+                    >
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="space-y-1">
+                          <div className="font-bold text-brand-text group-hover:text-brand-primary transition-colors">
+                            {block.title}
+                          </div>
+                          <div className="text-[11px] font-medium text-brand-muted">
+                            {start.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </div>
+                        <div className="w-8 h-8 rounded-xl bg-brand-surface flex items-center justify-center text-brand-muted group-hover:text-brand-primary shadow-sm transition-all group-hover:scale-110">
+                          <GessoIcon type="bolt" size={14} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="sticky bottom-0 z-20 bg-brand-surface/80 backdrop-blur-xl border-t border-brand-border/40 p-8">
+          <div className="w-full flex flex-col gap-4">
+            <Button
+              className="w-full h-14 bg-brand-mint hover:bg-brand-mint/90 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:scale-[1.02] transition-all"
+              onClick={handleComplete}
+              disabled={completing}
+            >
+              <CheckCircle2 size={20} className="mr-2" />
+              {completing ? "Marking..." : "Mark as Fully Complete"}
+            </Button>
+
+            <div className="flex items-center justify-between gap-4">
+              <Button
+                variant="ghost"
+                className={cn("h-12 px-6 rounded-2xl text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold", deleting && "opacity-60")}
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                <Trash2 size={18} className="mr-2" />
+                Delete
+              </Button>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={onClose} className="h-12 px-6 rounded-2xl font-bold">
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSave} 
+                  disabled={saving} 
+                  className="h-12 px-8 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-2xl font-black uppercase tracking-widest shadow-md hover:scale-[1.05] transition-all"
+                >
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
   );
 }
 
