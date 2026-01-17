@@ -274,12 +274,12 @@ export function ProposalPanel({ isOpen, onClose, userId, mode, proposalId, onPro
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-brand-text/30 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+        className="fixed inset-0 bg-brand-text/30 backdrop-blur-sm z-[90] animate-in fade-in duration-200"
         onClick={onClose}
       />
       
-      {/* Panel */}
-      <div className="fixed right-4 top-4 bottom-4 w-[420px] max-w-[calc(100vw-2rem)] bg-brand-surface rounded-[2rem] shadow-2xl z-50 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 cozy-border">
+      {/* Panel - positioned below the sticky header */}
+      <div className="fixed right-6 top-28 bottom-6 w-[420px] max-w-[calc(100vw-3rem)] bg-brand-surface rounded-[2rem] shadow-2xl z-[100] flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 cozy-border">
         
         {/* Header */}
         <div className="p-6 pb-4 border-b border-brand-border/30">
