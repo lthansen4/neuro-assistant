@@ -396,6 +396,7 @@ export function Calendar({
                     category: data.assignment.category,
                     effortEstimateMinutes: data.assignment.effortEstimateMinutes,
                     status: data.assignment.status,
+                    courseId: data.assignment.courseId || null,
                     courseName: data.assignment.courseName || null
                   });
                   setAssignmentModalOpen(true);

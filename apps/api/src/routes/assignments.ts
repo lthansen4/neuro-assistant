@@ -380,8 +380,11 @@ assignmentsRoute.put('/:id', async (c) => {
         // 2. Sync Course
         if (courseIdChanged) {
           eventUpdate.courseId = newCourseId;
+          const existingMetadata = (event.metadata && typeof event.metadata === 'object') 
+            ? event.metadata as Record<string, unknown> 
+            : {};
           eventUpdate.metadata = {
-            ...(event.metadata || {}),
+            ...existingMetadata,
             courseName: newCourseName
           };
         }
