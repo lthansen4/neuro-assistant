@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { getReasonExplanation, type ReasonExplanation } from "../lib/reasonCodes";
 
 // Icons - using simple SVG or emoji fallback if lucide-react not available
@@ -13,7 +13,20 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API
 // Educational Reason Badge Component
 function ReasonBadge({ code }: { code: string }) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const explanation = getReasonExplanation(code);
+  
+  const handleShowTooltip = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setTooltipPosition({
+        top: rect.top - 8, // Position above the button
+        left: Math.max(8, rect.left) // Keep within viewport
+      });
+    }
+    setShowTooltip(true);
+  };
   
   if (!explanation) {
     // Fallback for unknown codes - display the raw code in a readable format
@@ -28,12 +41,17 @@ function ReasonBadge({ code }: { code: string }) {
   return (
     <div className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
-        onMouseEnter={() => setShowTooltip(true)}
+        onMouseEnter={handleShowTooltip}
         onMouseLeave={() => setShowTooltip(false)}
         onClick={(e) => {
           e.stopPropagation();
-          setShowTooltip(!showTooltip);
+          if (showTooltip) {
+            setShowTooltip(false);
+          } else {
+            handleShowTooltip();
+          }
         }}
         className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200 transition-colors cursor-help"
       >
@@ -43,8 +61,12 @@ function ReasonBadge({ code }: { code: string }) {
       
       {showTooltip && (
         <div 
-          className="absolute z-[100] w-72 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-xl bottom-full mb-2 left-0"
-          style={{ animation: 'fadeIn 0.2s' }}
+          className="fixed z-[9999] w-72 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-xl transform -translate-y-full"
+          style={{ 
+            top: tooltipPosition.top,
+            left: tooltipPosition.left,
+            animation: 'fadeIn 0.2s'
+          }}
         >
           <p className="font-semibold mb-1">{explanation.short}</p>
           <p className="text-xs leading-relaxed opacity-90">{explanation.explanation}</p>
