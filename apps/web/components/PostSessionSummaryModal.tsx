@@ -56,7 +56,7 @@ interface AssignmentUpdate {
   isCompleted?: boolean;
   professorQuestions: string[];
   questionsTarget: "Class" | "OfficeHours";
-  scheduleRemaining: boolean;
+  rescheduleMode: "none" | "auto" | "manual";
   remainingMinutes: number;
 }
 
@@ -102,7 +102,7 @@ export function PostSessionSummaryModal({
             completionPercentage: a.completionPercentage || 0,
             professorQuestions: [],
             questionsTarget: "Class",
-            scheduleRemaining: false,
+            rescheduleMode: "none",
             remainingMinutes: 60,
           }))
         );
@@ -150,7 +150,7 @@ export function PostSessionSummaryModal({
         completionPercentage: a.completionPercentage || 0,
         professorQuestions: [],
         questionsTarget: "Class",
-        scheduleRemaining: false,
+        rescheduleMode: "none",
         remainingMinutes: 60,
       },
     ]);
@@ -213,9 +213,14 @@ export function PostSessionSummaryModal({
           await scheduleProfessorReminder(user.id, a.id, a.professorQuestions, a.questionsTarget);
         }
 
-        // 3. Schedule remaining work if requested
-        if (a.scheduleRemaining && a.completionPercentage < 100) {
-          await scheduleRemainingWork(user.id, a.id, a.remainingMinutes);
+        // 3. Reschedule remaining work if requested
+        if (a.completionPercentage < 100) {
+          if (a.rescheduleMode === "auto") {
+            await scheduleRemainingWork(user.id, a.id, a.remainingMinutes);
+          } else if (a.rescheduleMode === "manual") {
+            // Manual rescheduling will open the calendar page with the assignment highlighted
+            window.location.href = `/calendar?assignmentId=${a.id}&reschedule=true`;
+          }
         }
       });
 
@@ -472,17 +477,37 @@ function AssignmentUpdateCard({
                   <CalendarDays size={16} className="text-brand-primary" />
                   <span className="text-xs font-bold text-brand-text">Schedule remaining work?</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant={assignment.scheduleRemaining ? "default" : "outline"}
-                    size="sm"
-                    className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-10 px-4", assignment.scheduleRemaining && "bg-brand-primary")}
-                    onClick={() => onUpdate("scheduleRemaining", !assignment.scheduleRemaining)}
-                  >
-                    {assignment.scheduleRemaining ? "Yes, Find a Slot" : "No, Skip"}
-                  </Button>
-                  {assignment.scheduleRemaining && (
-                    <div className="flex-1">
+                
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant={assignment.rescheduleMode === "auto" ? "default" : "outline"}
+                      size="sm"
+                      className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3", assignment.rescheduleMode === "auto" && "bg-brand-primary")}
+                      onClick={() => onUpdate("rescheduleMode", "auto")}
+                    >
+                      Auto
+                    </Button>
+                    <Button
+                      variant={assignment.rescheduleMode === "manual" ? "default" : "outline"}
+                      size="sm"
+                      className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3", assignment.rescheduleMode === "manual" && "bg-brand-primary")}
+                      onClick={() => onUpdate("rescheduleMode", "manual")}
+                    >
+                      Manual
+                    </Button>
+                    <Button
+                      variant={assignment.rescheduleMode === "none" ? "default" : "outline"}
+                      size="sm"
+                      className={cn("rounded-xl text-[10px] font-black uppercase tracking-widest h-9 px-3", assignment.rescheduleMode === "none" && "bg-brand-rose")}
+                      onClick={() => onUpdate("rescheduleMode", "none")}
+                    >
+                      Skip
+                    </Button>
+                  </div>
+
+                  {assignment.rescheduleMode !== "none" && (
+                    <div className="animate-in fade-in slide-in-from-top-1">
                       <select
                         className="w-full h-10 bg-white border border-brand-border/40 rounded-xl text-[10px] font-bold px-3 focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                         value={assignment.remainingMinutes}
@@ -493,6 +518,11 @@ function AssignmentUpdateCard({
                         <option value={120}>Need 2h more</option>
                         <option value={180}>Need 3h more</option>
                       </select>
+                      {assignment.rescheduleMode === "manual" && (
+                        <p className="text-[9px] text-brand-muted mt-2 font-medium">
+                          You'll be taken to the calendar to pick a spot after saving.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
