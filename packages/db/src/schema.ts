@@ -98,6 +98,8 @@ export const assignments = pgTable("assignments", {
   problemsCompleted: integer("problems_completed"), // Migration 0033: Homework progress
   completionPercentage: integer("completion_percentage").default(0), // Migration 0033: Global progress
   readingQuestions: jsonb("reading_questions"), // Migration 0032: Captured questions
+  professorQuestions: jsonb("professor_questions"), // Migration 0034: Generic professor questions
+  questionsTarget: text("questions_target"), // 'Class' or 'OfficeHours'
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 }, (t) => ({
   idx_user_due: index("idx_assignments_user_due").on(t.userId, t.dueDate),

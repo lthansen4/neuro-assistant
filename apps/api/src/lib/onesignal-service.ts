@@ -14,6 +14,7 @@ interface PushNotificationOptions {
   message: string;
   data?: Record<string, any>; // Additional data for the notification
   url?: string; // URL to open when notification is clicked
+  sendAfter?: string; // ISO string or OneSignal specific format
 }
 
 export class OneSignalService {
@@ -31,7 +32,21 @@ export class OneSignalService {
     }
 
     try {
-      console.log(`[OneSignal] Sending notification to user ${options.userId}:`, options.title);
+      console.log(`[OneSignal] Sending notification to user ${options.userId}:`, options.title, options.sendAfter ? `(Scheduled for ${options.sendAfter})` : '');
+
+      const body: any = {
+        app_id: ONESIGNAL_APP_ID,
+        include_external_user_ids: [options.userId], // Target specific user by Clerk ID
+        headings: { en: options.title },
+        contents: { en: options.message },
+        data: options.data || {},
+        url: options.url || undefined,
+        web_url: options.url,
+      };
+
+      if (options.sendAfter) {
+        body.send_after = options.sendAfter;
+      }
 
       const response = await fetch(ONESIGNAL_API_URL, {
         method: 'POST',
@@ -39,18 +54,7 @@ export class OneSignalService {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${ONESIGNAL_API_KEY}`,
         },
-        body: JSON.stringify({
-          app_id: ONESIGNAL_APP_ID,
-          include_external_user_ids: [options.userId], // Target specific user by Clerk ID
-          headings: { en: options.title },
-          contents: { en: options.message },
-          data: options.data || {},
-          url: options.url || undefined,
-          // Web-specific settings
-          web_url: options.url,
-          // chrome_web_icon: '/icons/icon-192.png', // Optional, will use default
-          // chrome_web_badge: '/icons/badge-72.png', // Optional, will use default
-        }),
+        body: JSON.stringify(body),
       });
 
       const result = await response.json();

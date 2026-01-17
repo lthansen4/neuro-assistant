@@ -143,6 +143,24 @@ const migrations = [
       COMMENT ON COLUMN assignments.problems_completed IS 'Number of problems student has finished';
       COMMENT ON COLUMN assignments.completion_percentage IS 'Overall completion progress from 0 to 100';
     `
+  },
+  {
+    name: '0034: Add professor questions and target to assignments',
+    sql: `
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'professor_questions') THEN
+          ALTER TABLE assignments ADD COLUMN professor_questions JSONB DEFAULT '[]'::jsonb;
+        END IF;
+        
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assignments' AND column_name = 'questions_target') THEN
+          ALTER TABLE assignments ADD COLUMN questions_target TEXT;
+        END IF;
+      END $$;
+
+      COMMENT ON COLUMN assignments.professor_questions IS 'Array of questions for the professor';
+      COMMENT ON COLUMN assignments.questions_target IS 'Where to ask the questions: Class or OfficeHours';
+    `
   }
 ];
 
@@ -227,6 +245,13 @@ export async function run() {
         EXISTS (
           SELECT 1 FROM information_schema.columns 
           WHERE table_name = 'assignments' AND column_name = 'completion_percentage'
+        )
+      UNION ALL
+      SELECT 
+        'assignments.professor_questions',
+        EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'assignments' AND column_name = 'professor_questions'
         )
     `);
 

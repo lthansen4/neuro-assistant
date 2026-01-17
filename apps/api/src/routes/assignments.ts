@@ -1,10 +1,176 @@
 import { Hono } from 'hono';
 import { db, schema } from '../lib/db';
-import { assignments, courses } from '../../../../packages/db/src/schema';
-import { and, eq, or, sql } from 'drizzle-orm';
+import { assignments, courses, nudges, calendarEventsNew } from '../../../../packages/db/src/schema';
+import { and, eq, gte, or, sql } from 'drizzle-orm';
 import { getUserId } from '../lib/auth-utils';
+import { DateTime } from 'luxon';
+import { OneSignalService } from '../lib/onesignal-service';
+import { SlotMatcher } from '../lib/slot-matcher';
 
 export const assignmentsRoute = new Hono();
+
+/**
+ * POST /api/assignments/:id/schedule-reminder
+ * Schedule a OneSignal reminder 10m before the next Class or Office Hours
+ */
+assignmentsRoute.post('/:id/schedule-reminder', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const assignmentId = c.req.param('id');
+    const body = await c.req.json<{ 
+      questions: string[]; 
+      target: 'Class' | 'OfficeHours' 
+    }>();
+
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const assignment = await db.query.assignments.findFirst({
+      where: and(eq(assignments.id, assignmentId), eq(assignments.userId, userId))
+    });
+
+    if (!assignment || !assignment.courseId) {
+      return c.json({ error: 'Assignment or linked course not found' }, 404);
+    }
+
+    const course = await db.query.courses.findFirst({
+      where: eq(courses.id, assignment.courseId)
+    });
+
+    // 1. Update assignment with questions and target
+    await db.update(assignments).set({
+      professorQuestions: body.questions,
+      questionsTarget: body.target
+    }).where(eq(assignments.id, assignmentId));
+
+    // 2. Find next event of specified type for this course
+    const nextEvent = await db.query.calendarEventsNew.findFirst({
+      where: and(
+        eq(calendarEventsNew.userId, userId),
+        eq(calendarEventsNew.courseId, assignment.courseId),
+        eq(calendarEventsNew.eventType, body.target as any),
+        gte(calendarEventsNew.startAt, new Date())
+      ),
+      orderBy: (events, { asc }) => [asc(events.startAt)]
+    });
+
+    if (!nextEvent) {
+      return c.json({ 
+        ok: true, 
+        message: `Saved questions, but couldn't find a future ${body.target} to set a reminder for.` 
+      });
+    }
+
+    // 3. Schedule OneSignal nudge (10m before)
+    const sendTime = DateTime.fromJSDate(nextEvent.startAt).minus({ minutes: 10 });
+    
+    // Create nudge in DB for tracking
+    const [nudge] = await db.insert(nudges).values({
+      userId,
+      courseId: assignment.courseId,
+      type: 'PROFESSOR_QUESTION',
+      status: 'queued',
+      triggerAt: nextEvent.startAt,
+      scheduledSendAt: sendTime.toJSDate(),
+      metadata: {
+        assignmentId,
+        assignmentTitle: assignment.title,
+        questions: body.questions,
+        targetEventId: nextEvent.id,
+        targetEventType: body.target
+      }
+    }).returning();
+
+    // If sendTime is soon or in future, schedule with OneSignal
+    if (sendTime > DateTime.now()) {
+      const dbUser = await db.query.users.findFirst({ where: eq(schema.users.id, userId) });
+      if (dbUser?.clerkUserId) {
+        await OneSignalService.sendNotification({
+          userId: dbUser.clerkUserId,
+          title: `Ask ${assignment.course?.name || 'Professor'}?`,
+          message: `You have questions for ${assignment.title}. Class starts in 10 minutes!`,
+          sendAfter: sendTime.toJSDate().toISOString(),
+          data: { type: 'professor_question', assignmentId, nudgeId: nudge.id }
+        });
+      }
+    }
+
+    return c.json({ 
+      ok: true, 
+      scheduledAt: sendTime.toISO(),
+      targetEvent: nextEvent.title
+    });
+
+  } catch (error: any) {
+    console.error('[Assignments API] Error scheduling reminder:', error);
+    return c.json({ error: error.message || 'Failed to schedule reminder' }, 500);
+  }
+});
+
+/**
+ * POST /api/assignments/:id/schedule-remaining
+ * Automatically find a slot for remaining work
+ */
+assignmentsRoute.post('/:id/schedule-remaining', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const assignmentId = c.req.param('id');
+    const body = await c.req.json<{ minutesNeeded: number }>();
+
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const assignment = await db.query.assignments.findFirst({
+      where: and(eq(assignments.id, assignmentId), eq(assignments.userId, userId))
+    });
+
+    if (!assignment) return c.json({ error: 'Assignment not found' }, 404);
+
+    const matcher = new SlotMatcher(userId);
+    const match = await matcher.findOptimalSlot(
+      {
+        title: `Finish: ${assignment.title}`,
+        duration: body.minutesNeeded || 60,
+        linkedAssignmentId: assignmentId,
+        category: 'focus'
+      },
+      userId,
+      7 // Assume decent energy for follow-up work
+    );
+
+    if (!match) {
+      return c.json({ error: 'No suitable time slot found in the next 14 days.' }, 404);
+    }
+
+    // Create the event
+    const [event] = await db.insert(calendarEventsNew).values({
+      userId,
+      courseId: assignment.courseId,
+      linkedAssignmentId: assignmentId,
+      title: match.focusBlock.title,
+      eventType: 'Focus',
+      startAt: match.slot.startAt,
+      endAt: match.slot.endAt,
+      isMovable: true,
+      metadata: {
+        autoScheduled: true,
+        reason: 'Remaining work from session'
+      }
+    }).returning();
+
+    return c.json({ 
+      ok: true, 
+      event: {
+        id: event.id,
+        title: event.title,
+        startAt: event.startAt.toISOString(),
+        endAt: event.endAt.toISOString()
+      }
+    });
+
+  } catch (error: any) {
+    console.error('[Assignments API] Error scheduling remaining work:', error);
+    return c.json({ error: error.message || 'Failed to schedule remaining work' }, 500);
+  }
+});
 
 /**
  * POST /api/assignments/quick-add
@@ -147,6 +313,12 @@ assignmentsRoute.put('/:id', async (c) => {
     }
     if (Array.isArray(body.readingQuestions) || body.readingQuestions === null) {
       updatePayload.readingQuestions = body.readingQuestions ?? null;
+    }
+    if (Array.isArray(body.professorQuestions) || body.professorQuestions === null) {
+      updatePayload.professorQuestions = body.professorQuestions ?? null;
+    }
+    if (typeof body.questionsTarget === 'string' || body.questionsTarget === null) {
+      updatePayload.questionsTarget = body.questionsTarget ?? null;
     }
 
     const [updated] = await db
