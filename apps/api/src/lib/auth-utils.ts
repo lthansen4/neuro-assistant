@@ -22,7 +22,27 @@ export async function getUserId(c: any): Promise<string> {
     return dbUser.id;
   }
 
-  // 2. If not found by clerkUserId, check if it's a valid UUID and might be a direct database ID
+  // 2. Auto-provision missing users by clerkUserId
+  const [created] = await db
+    .insert(schema.users)
+    .values({ clerkUserId: uid })
+    .onConflictDoNothing({ target: schema.users.clerkUserId })
+    .returning();
+
+  if (created) {
+    return created.id;
+  }
+
+  // 3. If we raced, try fetching again
+  const afterCreate = await db.query.users.findFirst({
+    where: eq(schema.users.clerkUserId, uid),
+  });
+
+  if (afterCreate) {
+    return afterCreate.id;
+  }
+
+  // 4. If not found by clerkUserId, check if it's a valid UUID and might be a direct database ID
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
   if (isUUID) {
     // Verify it exists as a database ID
@@ -36,7 +56,7 @@ export async function getUserId(c: any): Promise<string> {
     return uid;
   }
 
-  // 3. Not found anywhere
+  // 5. Not found anywhere
   throw new Error(`No database user found for ID: ${uid}. Make sure the user exists in the database.`);
 }
 
