@@ -108,6 +108,17 @@ export const assignments = pgTable("assignments", {
   idx_stuck: index("idx_assignments_stuck").on(t.userId, t.isStuck).where(sql`is_stuck = TRUE`) // Migration 0022: Quick queries for stuck assignments
 }));
 
+// Alert dismissals (persisted across devices)
+export const alertDismissals = pgTable("alert_dismissals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  alertId: text("alert_id").notNull(),
+  dismissedAt: timestamp("dismissed_at", { withTimezone: true }).defaultNow().notNull()
+}, (t) => ({
+  uniq_user_alert: uniqueIndex("uniq_alert_dismissals_user_alert").on(t.userId, t.alertId),
+  idx_user: index("idx_alert_dismissals_user").on(t.userId)
+}));
+
 // Assignment Checklists - Migration 0024: Interactive checklists for stuck assignments
 export const assignmentChecklists = pgTable("assignment_checklists", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -225,6 +236,8 @@ export const userDailyProductivity = pgTable("user_daily_productivity", {
   focusMinutes: integer("focus_minutes").notNull().default(0),
   chillMinutes: integer("chill_minutes").notNull().default(0),
   earnedChillMinutes: integer("earned_chill_minutes").notNull().default(0),
+  bufferMinutesEarned: integer("buffer_minutes_earned").notNull().default(0), // Migration 0033: 15 min per focus session (refreshes, doesn't stack)
+  bufferMinutesUsed: integer("buffer_minutes_used").notNull().default(0), // Migration 0033: Expires at midnight
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 }, (t) => ({
   uniq_user_day: uniqueIndex("uniq_user_day").on(t.userId, t.day)

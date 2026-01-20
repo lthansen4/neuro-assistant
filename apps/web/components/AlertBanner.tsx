@@ -157,6 +157,7 @@ export function AlertBanner({ userId, onActionClick, className = "" }: AlertBann
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState(false);
+  const [expandedReasons, setExpandedReasons] = useState<Set<string>>(new Set());
 
   const fetchAlerts = useCallback(async () => {
     if (!userId) return;
@@ -193,24 +194,65 @@ export function AlertBanner({ userId, onActionClick, className = "" }: AlertBann
     fetchAlerts();
   }, [fetchAlerts]);
 
+  useEffect(() => {
+    setDismissed(new Set());
+  }, [userId]);
+
   // Refresh alerts every 5 minutes
   useEffect(() => {
     const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchAlerts]);
 
-  const handleDismiss = (alertId: string) => {
+  const handleDismiss = async (alertId: string) => {
     setDismissed(prev => new Set(prev).add(alertId));
+    try {
+      await fetch(`${API_BASE}/api/rebalancing/alerts/dismiss`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-clerk-user-id": userId,
+        },
+        body: JSON.stringify({ alertId }),
+      });
+    } catch (e) {
+      console.error("[AlertBanner] Failed to persist dismissal", e);
+    }
   };
 
-  const handleDismissAll = () => {
-    setDismissed(new Set(alerts.map(a => a.id)));
+  const handleDismissAll = async () => {
+    const ids = alerts.map(a => a.id);
+    setDismissed(new Set(ids));
+    try {
+      await fetch(`${API_BASE}/api/rebalancing/alerts/dismiss`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-clerk-user-id": userId,
+        },
+        body: JSON.stringify({ alertIds: ids }),
+      });
+    } catch (e) {
+      console.error("[AlertBanner] Failed to persist dismiss-all", e);
+    }
   };
 
   const handleAction = (alert: Alert) => {
     if (onActionClick) {
       onActionClick(alert);
     }
+  };
+
+  const toggleReason = (alertId: string) => {
+    setExpandedReasons(prev => {
+      const next = new Set(prev);
+      if (next.has(alertId)) {
+        next.delete(alertId);
+      } else {
+        next.add(alertId);
+      }
+      return next;
+    });
   };
 
   // Filter out dismissed alerts
@@ -303,6 +345,22 @@ export function AlertBanner({ userId, onActionClick, className = "" }: AlertBann
                       <XIcon />
                     </button>
                   </div>
+
+                  {alert.metadata?.reasoning && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => toggleReason(alert.id)}
+                        className="text-xs font-semibold opacity-80 hover:opacity-100"
+                      >
+                        {expandedReasons.has(alert.id) ? "Hide reasoning" : "Why is this showing?"}
+                      </button>
+                      {expandedReasons.has(alert.id) && (
+                        <p className="text-xs opacity-80 mt-1">
+                          {alert.metadata.reasoning}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   
                   <div className="mt-2">
                     <button

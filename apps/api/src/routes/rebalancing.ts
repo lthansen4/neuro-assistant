@@ -3,7 +3,7 @@ import { HeuristicEngine } from '../lib/heuristic-engine';
 import { RebalancingService } from '../lib/rebalancing-service';
 import { checkAlerts } from '../lib/alert-engine';
 import { db } from '../lib/db';
-import { rebalancingProposals, proposalMoves, calendarEventsNew, users, churnLedger } from '../../../../packages/db/src/schema';
+import { rebalancingProposals, proposalMoves, calendarEventsNew, users, churnLedger, alertDismissals } from '../../../../packages/db/src/schema';
 import { eq, and, sql, gte } from 'drizzle-orm';
 import { formatInTimezone, getUserTimezone } from '../lib/timezone-utils';
 
@@ -75,6 +75,50 @@ rebalancingRoute.get('/alerts', async (c) => {
     return c.json({ 
       ok: false,
       error: error instanceof Error ? error.message : 'Failed to check alerts' 
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/rebalancing/alerts/dismiss
+ * Persistently dismiss alerts for this user.
+ * body: { alertId?: string, alertIds?: string[] }
+ */
+rebalancingRoute.post('/alerts/dismiss', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = await c.req.json<{ alertId?: string; alertIds?: string[] }>();
+    const alertIds = Array.isArray(body.alertIds)
+      ? body.alertIds
+      : body.alertId
+        ? [body.alertId]
+        : [];
+
+    if (alertIds.length === 0) {
+      return c.json({ error: 'alertId or alertIds required' }, 400);
+    }
+
+    const valuesSql = sql.join(
+      alertIds.map((id) => sql`(${userId}::uuid, ${id}::text)`),
+      sql`,`
+    );
+
+    await db.execute(sql`
+      INSERT INTO alert_dismissals (user_id, alert_id)
+      VALUES ${valuesSql}
+      ON CONFLICT (user_id, alert_id) DO NOTHING
+    `);
+
+    return c.json({ ok: true, dismissedCount: alertIds.length });
+  } catch (error) {
+    console.error('[RebalancingAPI] Alert dismiss error:', error);
+    return c.json({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to dismiss alerts'
     }, 500);
   }
 });

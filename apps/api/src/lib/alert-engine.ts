@@ -8,8 +8,8 @@
  */
 
 import { db } from './db';
-import { assignments, calendarEventsNew, assignmentDeferrals } from '../../../../packages/db/src/schema';
-import { eq, and, gte, lte, lt, sql, isNull, ne } from 'drizzle-orm';
+import { assignments, calendarEventsNew, assignmentDeferrals, alertDismissals } from '../../../../packages/db/src/schema';
+import { eq, and, gte, lte, lt, sql, isNull, ne, inArray } from 'drizzle-orm';
 import { getUserTimezone, isInSleepWindow, formatInTimezone } from './timezone-utils';
 
 // ============================================================================
@@ -103,6 +103,26 @@ export async function checkAlerts(userId: string): Promise<AlertCheckResult> {
   // Sort by severity (critical first)
   const severityOrder: Record<AlertSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
   alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  // Remove dismissed alerts (persisted per user)
+  if (alerts.length > 0) {
+    const alertIds = alerts.map(a => a.id);
+    const dismissed = await db
+      .select({ alertId: alertDismissals.alertId })
+      .from(alertDismissals)
+      .where(and(
+        eq(alertDismissals.userId, userId),
+        inArray(alertDismissals.alertId, alertIds)
+      ));
+    const dismissedSet = new Set(dismissed.map(d => d.alertId));
+    if (dismissedSet.size > 0) {
+      const before = alerts.length;
+      const filtered = alerts.filter(a => !dismissedSet.has(a.id));
+      alerts.length = 0;
+      alerts.push(...filtered);
+      console.log(`[AlertEngine] Filtered ${before - filtered.length} dismissed alerts`);
+    }
+  }
   
   const criticalCount = alerts.filter(a => a.severity === 'critical').length;
   const highCount = alerts.filter(a => a.severity === 'high').length;
@@ -202,7 +222,8 @@ async function checkDeadlineAtRisk(userId: string, timezone: string): Promise<Al
           scheduledMinutes,
           scheduledPercent: Math.round(scheduledPercent * 100),
           hoursNeeded,
-          daysUntilDue: Math.round(daysUntilDue * 10) / 10
+          daysUntilDue: Math.round(daysUntilDue * 10) / 10,
+          reasoning: `Scheduled ${Math.round(scheduledMinutes)}min of ${estimatedMinutes}min (${Math.round(scheduledPercent * 100)}%). Due in ${Math.round(daysUntilDue * 10) / 10} days. Alert threshold: < ${Math.round(THRESHOLDS.minScheduledPercent * 100)}%.`
         }
       });
       
@@ -265,7 +286,8 @@ async function checkAvoidanceDetected(userId: string, timezone: string): Promise
       metadata: {
         deferralCount: assignment.deferralCount,
         daysUntilDue: Math.round(daysUntilDue * 10) / 10,
-        lastDeferredAt: assignment.lastDeferredAt
+        lastDeferredAt: assignment.lastDeferredAt,
+        reasoning: `Deferred ${assignment.deferralCount} times (threshold ${THRESHOLDS.deferralThreshold}). Due in ${Math.round(daysUntilDue * 10) / 10} days.`
       }
     });
     
@@ -310,7 +332,8 @@ async function checkImpossibleSchedule(userId: string, timezone: string): Promis
         actionType: 'move',
         metadata: {
           reason: 'sleep_hours',
-          originalTime: event.startAt.toISOString()
+          originalTime: event.startAt.toISOString(),
+          reasoning: `Event starts during sleep window (configured sleep hours).`
         }
       });
       
@@ -356,7 +379,8 @@ async function checkImpossibleSchedule(userId: string, timezone: string): Promis
           event2Id: eventB.id,
           event2Title: eventB.title,
           overlapStart: eventB.startAt.toISOString(),
-          overlapEnd: (eventA.endAt < eventB.endAt ? eventA.endAt : eventB.endAt).toISOString()
+          overlapEnd: (eventA.endAt < eventB.endAt ? eventA.endAt : eventB.endAt).toISOString(),
+          reasoning: `Two events overlap in time. One must be moved to avoid a conflict.`
         }
       });
       
@@ -388,7 +412,8 @@ async function checkImpossibleSchedule(userId: string, timezone: string): Promis
         metadata: {
           reason: 'overloaded_day',
           date: dateKey,
-          hours: Math.round(hours * 10) / 10
+          hours: Math.round(hours * 10) / 10,
+          reasoning: `Deep work totals ${Math.round(hours * 10) / 10}h, exceeding the ${THRESHOLDS.maxDailyDeepWorkHours}h daily limit.`
         }
       });
       
@@ -471,7 +496,8 @@ async function checkNoPlanToday(userId: string, timezone: string): Promise<Alert
       actionType: 'schedule',
       metadata: {
         upcomingAssignments: upcomingCount,
-        date: todayStart.toISOString().split('T')[0]
+        date: todayStart.toISOString().split('T')[0],
+        reasoning: `0 minutes scheduled today before ${THRESHOLDS.noPlanCutoffHour}:00, with ${upcomingCount} assignments due within ${THRESHOLDS.upcomingDeadlineDays} days.`
       }
     });
     
