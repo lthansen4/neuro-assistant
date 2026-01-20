@@ -163,6 +163,24 @@ const migrations = [
     `
   },
   {
+    name: '0036: Add buffer time tracking (Epic 4)',
+    sql: `
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_productivity' AND column_name = 'buffer_minutes_earned') THEN
+          ALTER TABLE user_daily_productivity ADD COLUMN buffer_minutes_earned INTEGER NOT NULL DEFAULT 0;
+        END IF;
+        
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_productivity' AND column_name = 'buffer_minutes_used') THEN
+          ALTER TABLE user_daily_productivity ADD COLUMN buffer_minutes_used INTEGER NOT NULL DEFAULT 0;
+        END IF;
+      END $$;
+
+      COMMENT ON COLUMN user_daily_productivity.buffer_minutes_earned IS 'Total buffer minutes earned today (15 min per focus session, refreshes not stacks)';
+      COMMENT ON COLUMN user_daily_productivity.buffer_minutes_used IS 'Buffer minutes redeemed today (expires at midnight)';
+    `
+  },
+  {
     name: '0035: Add alert dismissals table',
     sql: `
       CREATE TABLE IF NOT EXISTS alert_dismissals (
@@ -269,6 +287,20 @@ export async function run() {
         EXISTS (
           SELECT 1 FROM information_schema.columns 
           WHERE table_name = 'assignments' AND column_name = 'professor_questions'
+        )
+      UNION ALL
+      SELECT 
+        'user_daily_productivity.buffer_minutes_earned',
+        EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'user_daily_productivity' AND column_name = 'buffer_minutes_earned'
+        )
+      UNION ALL
+      SELECT 
+        'user_daily_productivity.buffer_minutes_used',
+        EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'user_daily_productivity' AND column_name = 'buffer_minutes_used'
         )
       UNION ALL
       SELECT
