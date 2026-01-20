@@ -65,7 +65,10 @@ export function CourseEditor({
     setForm({ ...form, officeHours: next });
   };
 
-  const updateGradeWeight = (idx: number, patch: Partial<CourseFormData["gradeWeights"][number]>) => {
+  const updateGradeWeight = (
+    idx: number,
+    patch: Partial<NonNullable<CourseFormData["gradeWeights"]>[number]>
+  ) => {
     const next = [...(form.gradeWeights || [])];
     next[idx] = { ...next[idx], ...patch };
     setForm({ ...form, gradeWeights: next });
