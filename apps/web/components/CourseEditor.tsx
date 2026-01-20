@@ -80,13 +80,25 @@ export function CourseEditor({
     patch: Partial<NonNullable<CourseFormData["gradeWeights"]>[number]>
   ) => {
     const next = [...(form.gradeWeights || [])];
+    const prevKey = `${next[idx]?.name ?? ""}-${idx}`;
     next[idx] = { ...next[idx], ...patch };
+    const nextKey = `${next[idx]?.name ?? ""}-${idx}`;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:74',message:'grade weight update',data:{idx,prevKey,nextKey,prevName:next[idx]?.name,prevWeight:next[idx]?.weight},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+    fetch('/api/debug-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:74',message:'grade weight update',data:{idx,prevKey,nextKey},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
     setForm({ ...form, gradeWeights: next });
   };
 
   const updateNewAssignment = (idx: number, patch: Partial<NonNullable<CourseFormData["newAssignments"]>[number]>) => {
     const next = [...(form.newAssignments || [])];
+    const prevKey = `${next[idx]?.title ?? ""}-${idx}`;
     next[idx] = { ...next[idx], ...patch };
+    const nextKey = `${next[idx]?.title ?? ""}-${idx}`;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:87',message:'new assignment update',data:{idx,prevKey,nextKey},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+    fetch('/api/debug-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:87',message:'new assignment update',data:{idx,prevKey,nextKey},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
     setForm({ ...form, newAssignments: next });
   };
 
