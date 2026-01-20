@@ -57,6 +57,10 @@ export default function CourseDetailPage() {
   const handleSave = async (data: CourseFormData) => {
     if (!user) return;
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:57',message:'handleSave called',data:{courseName:data.name,scheduleCount:data.schedule.length,officeHoursCount:data.officeHours.length,newAssignmentsCount:(data.newAssignments||[]).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2'})}).catch(()=>{});
+    // #endregion
+    
     try {
       setSaving(true);
       setError(null);
@@ -68,6 +72,10 @@ export default function CourseDetailPage() {
         }
         return acc;
       }, {});
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:72',message:'calling updateCourseDetail',data:{courseId,gradeWeightsCount:Object.keys(grade_weights).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       
       await updateCourseDetail(user.id, courseId, {
         course: {
@@ -85,6 +93,10 @@ export default function CourseDetailPage() {
           effort_estimate_minutes: item.effortMinutes ? Number(item.effortMinutes) : null,
         })),
       });
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:89',message:'updateCourseDetail succeeded',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       
       setSuccessMessage("Course saved successfully!");
       
@@ -111,6 +123,9 @@ export default function CourseDetailPage() {
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:113',message:'handleSave error caught',data:{errorMessage:err.message,errorName:err.name,stack:(err.stack||'').substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3,H4'})}).catch(()=>{});
+      // #endregion
       console.error("Failed to save course:", err);
       setError(err.message || "Failed to save course. Please try again.");
     } finally {

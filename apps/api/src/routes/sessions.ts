@@ -1,13 +1,16 @@
 import { Hono } from "hono";
 import { db, schema } from "../lib/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getUserId } from "../lib/auth-utils";
+import { getUserTimezone } from "../lib/timezone-utils";
 
 export const sessionsRoute = new Hono();
 
 /**
  * POST /api/sessions
  * Body: { type: "Focus" | "Chill", startTime: ISO, endTime: ISO, assignmentId?: uuid }
+ * 
+ * When Focus session is logged, awards 15 minutes of buffer time (refreshes to 15, doesn't stack)
  */
 sessionsRoute.post("/", async (c) => {
   try {
@@ -49,8 +52,56 @@ sessionsRoute.post("/", async (c) => {
       })
       .returning();
 
-    return c.json({ ok: true, session });
+    // Award buffer time for Focus sessions
+    let bufferBalance = null;
+    if (body.type === "Focus") {
+      const userTz = await getUserTimezone(userId);
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: userTz }); // YYYY-MM-DD in user's timezone
+      
+      // Upsert buffer time: set to 15 (refresh, don't stack)
+      await db
+        .insert(schema.userDailyProductivity)
+        .values({
+          userId,
+          day: today,
+          focusMinutes: 0,
+          chillMinutes: 0,
+          earnedChillMinutes: 0,
+          bufferMinutesEarned: 15, // Always 15, refreshes
+          bufferMinutesUsed: 0,
+        })
+        .onConflictDoUpdate({
+          target: [schema.userDailyProductivity.userId, schema.userDailyProductivity.day],
+          set: {
+            bufferMinutesEarned: 15, // Refresh to 15 minutes
+          },
+        });
+      
+      // Fetch updated balance
+      const [productivity] = await db
+        .select()
+        .from(schema.userDailyProductivity)
+        .where(
+          and(
+            eq(schema.userDailyProductivity.userId, userId),
+            eq(schema.userDailyProductivity.day, today)
+          )
+        );
+      
+      if (productivity) {
+        bufferBalance = {
+          earned: productivity.bufferMinutesEarned,
+          used: productivity.bufferMinutesUsed,
+          available: productivity.bufferMinutesEarned - productivity.bufferMinutesUsed,
+        };
+      }
+      
+      console.log(`[Sessions] Focus session complete - awarded 15 min buffer time (available: ${bufferBalance?.available || 0}m)`);
+    }
+
+    return c.json({ ok: true, session, bufferBalance });
   } catch (error: any) {
+    console.error("[Sessions] Error creating session:", error);
     return c.json({ error: error.message || "Failed to create session" }, 500);
   }
 });

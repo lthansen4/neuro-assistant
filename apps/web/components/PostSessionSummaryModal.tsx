@@ -59,6 +59,8 @@ interface AssignmentUpdate {
   questionsTarget: "Class" | "OfficeHours";
   rescheduleMode: "none" | "auto" | "manual";
   remainingMinutes: number;
+  wasScheduled?: boolean; // NEW: Was this in the scheduled time window?
+  scheduledDuration?: number | null; // NEW: How long was it scheduled for?
 }
 
 interface PostSessionSummaryModalProps {
@@ -113,19 +115,29 @@ export function PostSessionSummaryModal({
         }
       }
 
-      setAssignments(
-        initialList.map((a: any) => ({
-          ...a,
-          notes: "",
-          // UX: If manually completing, start at 100%
-          completionPercentage: (mode === "manual" && a.id === initialAssignmentId) ? 100 : (a.completionPercentage || 0),
-          isCompleted: (mode === "manual" && a.id === initialAssignmentId) ? true : (a.completionPercentage === 100),
-          professorQuestions: a.professorQuestions || [],
-          questionsTarget: a.questionsTarget || "Class",
-          rescheduleMode: "none",
-          remainingMinutes: 60,
-        }))
-      );
+      // Mark assignments as scheduled (from overlapping) or ad-hoc
+      const assignmentsWithScheduleInfo = initialList.map((a: any, index: number) => ({
+        ...a,
+        notes: "",
+        // UX: If manually completing, start at 100%
+        completionPercentage: (mode === "manual" && a.id === initialAssignmentId) ? 100 : (a.completionPercentage || 0),
+        isCompleted: (mode === "manual" && a.id === initialAssignmentId) ? true : (a.completionPercentage === 100),
+        professorQuestions: a.professorQuestions || [],
+        questionsTarget: a.questionsTarget || "Class",
+        rescheduleMode: "none",
+        remainingMinutes: 60,
+        wasScheduled: data.ok && index < data.assignments.length, // Mark if it was in the overlapping results
+        scheduledDuration: a.scheduledDuration || null, // Duration if scheduled
+      }));
+
+      // Sort: scheduled assignments first, then ad-hoc
+      assignmentsWithScheduleInfo.sort((a, b) => {
+        if (a.wasScheduled && !b.wasScheduled) return -1;
+        if (!a.wasScheduled && b.wasScheduled) return 1;
+        return 0;
+      });
+
+      setAssignments(assignmentsWithScheduleInfo);
     } catch (error) {
       console.error("Error loading assignments:", error);
       toast.error("Failed to load scheduled assignments");
@@ -371,15 +383,53 @@ export function PostSessionSummaryModal({
                 <p className="text-xs text-brand-muted/60 mt-1">Use the search bar above to add what you worked on.</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {assignments.map((assignment) => (
-                  <AssignmentUpdateCard
-                    key={assignment.id}
-                    assignment={assignment}
-                    onUpdate={(field, value) => updateField(assignment.id, field, value)}
-                    onRemove={() => removeAssignment(assignment.id)}
-                  />
-                ))}
+              <div className="space-y-8">
+                {/* Scheduled assignments */}
+                {assignments.some(a => a.wasScheduled) && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 px-2">
+                      <CalendarDays size={16} className="text-brand-primary" />
+                      <span className="text-[11px] font-black uppercase tracking-widest text-brand-primary">
+                        You had these scheduled
+                      </span>
+                    </div>
+                    <div className="space-y-6">
+                      {assignments.filter(a => a.wasScheduled).map((assignment) => (
+                        <AssignmentUpdateCard
+                          key={assignment.id}
+                          assignment={assignment}
+                          onUpdate={(field, value) => updateField(assignment.id, field, value)}
+                          onRemove={() => removeAssignment(assignment.id)}
+                          showScheduledBadge={true}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Ad-hoc assignments */}
+                {assignments.some(a => !a.wasScheduled) && (
+                  <div className="space-y-4">
+                    {assignments.some(a => a.wasScheduled) && (
+                      <div className="flex items-center gap-2 px-2 pt-4 border-t border-brand-border/20">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-brand-muted">
+                          Other work you did
+                        </span>
+                      </div>
+                    )}
+                    <div className="space-y-6">
+                      {assignments.filter(a => !a.wasScheduled).map((assignment) => (
+                        <AssignmentUpdateCard
+                          key={assignment.id}
+                          assignment={assignment}
+                          onUpdate={(field, value) => updateField(assignment.id, field, value)}
+                          onRemove={() => removeAssignment(assignment.id)}
+                          showScheduledBadge={false}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -406,10 +456,12 @@ function AssignmentUpdateCard({
   assignment,
   onUpdate,
   onRemove,
+  showScheduledBadge = false,
 }: {
   assignment: AssignmentUpdate;
   onUpdate: (field: keyof AssignmentUpdate, value: any) => void;
   onRemove: () => void;
+  showScheduledBadge?: boolean;
 }) {
   const [newQuestion, setNewQuestion] = useState("");
   const categoryStr = (assignment.category || "").toLowerCase();
@@ -443,9 +495,22 @@ function AssignmentUpdateCard({
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider", colorClass)}>
-              {assignment.category || "Assignment"}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider", colorClass)}>
+                {assignment.category || "Assignment"}
+              </span>
+              {showScheduledBadge && (
+                <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider bg-brand-primary/10 text-brand-primary">
+                  <CalendarDays size={12} />
+                  Scheduled
+                </span>
+              )}
+              {assignment.scheduledDuration && showScheduledBadge && (
+                <span className="text-[9px] text-brand-muted font-medium">
+                  ({assignment.scheduledDuration}m)
+                </span>
+              )}
+            </div>
             <h4 className="text-xl font-bold text-brand-text leading-tight">{assignment.title}</h4>
             {assignment.courseName && (
               <p className="text-[10px] font-bold text-brand-muted uppercase tracking-widest">{assignment.courseName}</p>

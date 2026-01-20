@@ -50,6 +50,10 @@ export function CourseEditor({
   submitLabel,
   loading = false,
 }: CourseEditorProps) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:46',message:'CourseEditor rendered',data:{initialName:initial.name,initialScheduleCount:initial.schedule.length,loading},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H6'})}).catch(()=>{});
+  // #endregion
+  
   const [form, setForm] = useState<CourseFormData>(initial);
   const [submitting, setSubmitting] = useState(false);
 
@@ -98,7 +102,12 @@ export function CourseEditor({
             <label className="text-sm font-semibold text-gray-900">Name</label>
             <input
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={(e) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:101',message:'name input onChange',data:{oldValue:form.name,newValue:e.target.value,formStateBeforeChange:JSON.stringify(form).substring(0,100)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H7,H8'})}).catch(()=>{});
+                // #endregion
+                setForm({ ...form, name: e.target.value });
+              }}
               className="mt-1 w-full border rounded px-3 py-2"
             />
           </div>
@@ -115,7 +124,12 @@ export function CourseEditor({
             <label className="text-sm font-semibold text-gray-900">Professor</label>
             <input
               value={form.professor ?? ""}
-              onChange={(e) => setForm({ ...form, professor: e.target.value })}
+              onChange={(e) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:118',message:'professor input onChange',data:{oldValue:form.professor,newValue:e.target.value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H7,H8'})}).catch(()=>{});
+                // #endregion
+                setForm({ ...form, professor: e.target.value });
+              }}
               className="mt-1 w-full border rounded px-3 py-2"
             />
           </div>

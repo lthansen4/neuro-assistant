@@ -631,6 +631,10 @@ coursesRoute.put('/:id', async (c) => {
       assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null }[];
     }>();
 
+    // #region agent log
+    const fs = require('fs'); fs.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:614',message:'PUT /courses/:id request received',data:{userId,courseId,courseName:body.course.name,scheduleCount:(body.schedule||[]).length,officeHoursCount:(body.office_hours||[]).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3'})+'\n');
+    // #endregion
+
     if (!body?.course?.name) return c.json({ error: 'course.name is required' }, 400);
 
     const schedule = Array.isArray(body.schedule) ? body.schedule : [];
@@ -638,6 +642,10 @@ coursesRoute.put('/:id', async (c) => {
     const assignments = Array.isArray(body.assignments) ? body.assignments : [];
 
     await db.transaction(async (tx) => {
+      // #region agent log
+      const fs = require('fs'); fs.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:640',message:'Starting transaction',data:{action:'update_course'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H4'})+'\n');
+      // #endregion
+      
       await tx
         .update(schema.courses)
         .set({
@@ -649,6 +657,10 @@ coursesRoute.put('/:id', async (c) => {
           gradeWeightsJson: body.course.grade_weights ? (body.course.grade_weights as any) : null,
         } as any)
         .where(and(eq(schema.courses.id, courseId), eq(schema.courses.userId, userId)));
+
+      // #region agent log
+      const fs2 = require('fs'); fs2.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:651',message:'Course basic info updated',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})+'\n');
+      // #endregion
 
       // Update grading components if the table exists
       if (body.course.grade_weights && Object.keys(body.course.grade_weights).length > 0) {
@@ -673,6 +685,9 @@ coursesRoute.put('/:id', async (c) => {
       }
 
       await tx.delete(schema.courseOfficeHours).where(eq(schema.courseOfficeHours.courseId, courseId));
+      // #region agent log
+      const fs3 = require('fs'); fs3.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:680',message:'Office hours deleted, about to insert',data:{officeHoursToInsert:officeHours.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})+'\n');
+      // #endregion
       if (officeHours.length > 0) {
         await tx.insert(schema.courseOfficeHours).values(
           officeHours.map((oh) => ({
@@ -686,6 +701,9 @@ coursesRoute.put('/:id', async (c) => {
       }
 
       const templatesExist = await templatesTableExists(tx);
+      // #region agent log
+      const fs4 = require('fs'); fs4.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:693',message:'templatesExist check',data:{templatesExist,scheduleLength:schedule.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})+'\n');
+      // #endregion
       if (templatesExist) {
         await tx.execute(sql`
           DELETE FROM calendar_event_templates
@@ -911,8 +929,15 @@ coursesRoute.put('/:id', async (c) => {
       }
     });
 
+    // #region agent log
+    const fs5 = require('fs'); fs5.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:918',message:'Transaction completed successfully',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3,H4'})+'\n');
+    // #endregion
+
     return c.json({ ok: true });
   } catch (error: any) {
+    // #region agent log
+    const fs6 = require('fs'); fs6.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:920',message:'PUT /courses/:id error',data:{errorMessage:error.message,errorName:error.name,stack:(error.stack||'').substring(0,300)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3,H4'})+'\n');
+    // #endregion
     console.error('[Courses API] Error updating course:', error);
     return c.json({ error: error.message || 'Failed to update course' }, 500);
   }
