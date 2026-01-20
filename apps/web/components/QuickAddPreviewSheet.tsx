@@ -43,6 +43,30 @@ export function QuickAddPreviewSheet({
   const [smartQuestions, setSmartQuestions] = useState<any[]>(parseResult?.smart_questions || []);
   const [isRegeneratingQuestions, setIsRegeneratingQuestions] = useState(false);
   const lastDurationRef = useRef<number | null>(editedDraft?.estimated_duration ?? null);
+  const [courseName, setCourseName] = useState<string>('');
+
+  // Fetch course name if defaultCourseId is provided
+  useEffect(() => {
+    if (!defaultCourseId) return;
+    
+    const fetchCourseName = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/courses/${defaultCourseId}`, {
+          headers: {
+            'x-clerk-user-id': userId,
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCourseName(data.course?.name || '');
+        }
+      } catch (error) {
+        console.error('[QuickAddPreviewSheet] Failed to fetch course name:', error);
+      }
+    };
+    
+    fetchCourseName();
+  }, [defaultCourseId, userId]);
 
   useEffect(() => {
     const draft = parseResult?.assignment_draft;
@@ -280,7 +304,7 @@ export function QuickAddPreviewSheet({
               {lockCourseId ? (
                 <Input
                   id="course"
-                  value={editedDraft?.course_id || 'Locked to this course'}
+                  value={courseName || 'Loading...'}
                   disabled
                   className="bg-gray-100 dark:bg-gray-800"
                 />
