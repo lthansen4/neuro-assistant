@@ -6,6 +6,15 @@ import { getUserId } from "../lib/auth-utils";
 
 export const dashboardRoute = new Hono();
 
+async function tableExists(name: string): Promise<boolean> {
+  try {
+    const result = await db.execute(sql`select to_regclass(${name}) as regclass`);
+    return Boolean(result.rows?.[0]?.regclass);
+  } catch {
+    return false;
+  }
+}
+
 // GET /api/dashboard/summary?range=week|day
 dashboardRoute.get("/summary", async (c) => {
   try {
@@ -33,31 +42,35 @@ dashboardRoute.get("/summary", async (c) => {
     const last7Str = last7.toISOString().split('T')[0]; // YYYY-MM-DD
     const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    const daily = await db
-      .select()
-      .from(schema.userDailyProductivity)
-      .where(
-        and(
-          eq(schema.userDailyProductivity.userId, userId),
-          between(schema.userDailyProductivity.day, last7Str, todayStr)
-        )
-      )
-      .orderBy(schema.userDailyProductivity.day);
+    const daily = (await tableExists("user_daily_productivity"))
+      ? await db
+          .select()
+          .from(schema.userDailyProductivity)
+          .where(
+            and(
+              eq(schema.userDailyProductivity.userId, userId),
+              between(schema.userDailyProductivity.day, last7Str, todayStr)
+            )
+          )
+          .orderBy(schema.userDailyProductivity.day)
+      : [];
 
     // Weekly current summary
     const startOfWeekStr = startOfWeek.toISOString().split('T')[0]; // YYYY-MM-DD
     const endOfWeekStr = endOfWeek.toISOString().split('T')[0]; // YYYY-MM-DD
-    const weekly = await db
-      .select()
-      .from(schema.userWeeklyProductivity)
-      .where(
-        and(
-          eq(schema.userWeeklyProductivity.userId, userId),
-          gte(schema.userWeeklyProductivity.startDate, startOfWeekStr),
-          lte(schema.userWeeklyProductivity.endDate, endOfWeekStr)
-        )
-      )
-      .orderBy(desc(schema.userWeeklyProductivity.startDate));
+    const weekly = (await tableExists("user_weekly_productivity"))
+      ? await db
+          .select()
+          .from(schema.userWeeklyProductivity)
+          .where(
+            and(
+              eq(schema.userWeeklyProductivity.userId, userId),
+              gte(schema.userWeeklyProductivity.startDate, startOfWeekStr),
+              lte(schema.userWeeklyProductivity.endDate, endOfWeekStr)
+            )
+          )
+          .orderBy(desc(schema.userWeeklyProductivity.startDate))
+      : [];
 
     // Streak (productivity streak)
     const streak = await db.query.userStreaks.findFirst({
@@ -68,17 +81,19 @@ dashboardRoute.get("/summary", async (c) => {
     });
 
     // Forecasts
-    const forecasts = await db
-      .select({
-        courseId: schema.courseGradeForecasts.courseId,
-        currentScore: schema.courseGradeForecasts.currentScore,
-        projectedScore: schema.courseGradeForecasts.projectedScore,
-        updatedAt: schema.courseGradeForecasts.updatedAt,
-        courseName: schema.courses.name,
-      })
-      .from(schema.courseGradeForecasts)
-      .leftJoin(schema.courses, eq(schema.courses.id, schema.courseGradeForecasts.courseId))
-      .where(eq(schema.courseGradeForecasts.userId, userId));
+    const forecasts = (await tableExists("course_grade_forecasts"))
+      ? await db
+          .select({
+            courseId: schema.courseGradeForecasts.courseId,
+            currentScore: schema.courseGradeForecasts.currentScore,
+            projectedScore: schema.courseGradeForecasts.projectedScore,
+            updatedAt: schema.courseGradeForecasts.updatedAt,
+            courseName: schema.courses.name,
+          })
+          .from(schema.courseGradeForecasts)
+          .leftJoin(schema.courses, eq(schema.courses.id, schema.courseGradeForecasts.courseId))
+          .where(eq(schema.courseGradeForecasts.userId, userId))
+      : [];
 
     // Assignments by status - using optimized index idx_assignments_user_status_due_date
     // Query Inbox items (including those without due dates)
