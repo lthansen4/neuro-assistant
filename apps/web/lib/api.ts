@@ -102,6 +102,71 @@ export async function fetchCourses(userId: string) {
   return res.json();
 }
 
+export async function fetchCourseDetail(userId: string, courseId: string) {
+  const res = await fetch(`${API_BASE}/api/courses/${courseId}`, {
+    headers: { "x-clerk-user-id": userId },
+  });
+  if (!res.ok) throw new Error("Failed to fetch course");
+  return res.json();
+}
+
+export async function updateCourseDetail(
+  userId: string,
+  courseId: string,
+  payload: {
+    course: {
+      name: string;
+      professor?: string | null;
+      credits?: number | null;
+      grade_weights?: Record<string, number> | null;
+      semester_start_date?: string | null;
+      semester_end_date?: string | null;
+    };
+    schedule?: { day: string; start: string; end: string; location?: string | null }[];
+    office_hours?: { day: string; start: string; end: string; location?: string | null }[];
+    assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null }[];
+  }
+) {
+  const res = await fetch(`${API_BASE}/api/courses/${courseId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "x-clerk-user-id": userId,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to update course");
+  return res.json();
+}
+
+export async function createCourse(
+  userId: string,
+  payload: {
+    course: {
+      name: string;
+      professor?: string | null;
+      credits?: number | null;
+      grade_weights?: Record<string, number> | null;
+      semester_start_date?: string | null;
+      semester_end_date?: string | null;
+    };
+    schedule?: { day: string; start: string; end: string; location?: string | null }[];
+    office_hours?: { day: string; start: string; end: string; location?: string | null }[];
+    assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null }[];
+  }
+) {
+  const res = await fetch(`${API_BASE}/api/courses`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-clerk-user-id": userId,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to create course");
+  return res.json();
+}
+
 export async function fetchOverlappingAssignments(userId: string, start: string, end: string) {
   const res = await fetch(`${API_BASE}/api/calendar/overlap-assignments?start=${start}&end=${end}`, {
     headers: { "x-clerk-user-id": userId },

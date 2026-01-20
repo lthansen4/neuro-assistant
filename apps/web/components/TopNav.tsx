@@ -44,6 +44,12 @@ export function TopNav() {
               Planner
             </Link>
             <Link 
+              href="/courses" 
+              className="text-brand-muted hover:text-brand-primary text-[12px] font-bold uppercase tracking-[0.2em] transition-colors"
+            >
+              Courses
+            </Link>
+            <Link 
               href="/upload" 
               className="text-brand-muted hover:text-brand-primary text-[12px] font-bold uppercase tracking-[0.2em] transition-colors"
             >
