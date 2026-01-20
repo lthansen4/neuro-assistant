@@ -33,7 +33,13 @@ type ParseResponse = {
   error?: string;
 };
 
-export function QuickAdd() {
+type QuickAddProps = {
+  defaultCourseId?: string;
+  lockCourseId?: boolean;
+  onCommitted?: (result: { createdAssignmentId?: string; createdEventId?: string; deduped?: boolean }) => void;
+};
+
+export function QuickAdd({ defaultCourseId, lockCourseId = false, onCommitted }: QuickAddProps) {
   const { user, isLoaded } = useUser();
   const [text, setText] = useState("");
   const [timezone, setTimezone] = useState("");
@@ -42,7 +48,7 @@ export function QuickAdd() {
   const [error, setError] = useState<string | null>(null);
 
   // Editable fields after parse
-  const [courseId, setCourseId] = useState<string>("");
+  const [courseId, setCourseId] = useState<string>(defaultCourseId || "");
   const [title, setTitle] = useState<string>("");
   const [category, setCategory] = useState<string>("");
   const [dueDateISO, setDueDateISO] = useState<string>("");
@@ -69,6 +75,12 @@ export function QuickAdd() {
     }
   }, []);
 
+  useEffect(() => {
+    if (defaultCourseId && !courseId) {
+      setCourseId(defaultCourseId);
+    }
+  }, [defaultCourseId, courseId]);
+
   // When parse result arrives, prefill editable fields
   useEffect(() => {
     if (!parseRes) return;
@@ -90,7 +102,7 @@ export function QuickAdd() {
     }
     
     // auto-pick best suggestion if it's confident
-    if (parseRes.suggestions?.length) {
+    if (!lockCourseId && parseRes.suggestions?.length && !defaultCourseId) {
       const best = [...parseRes.suggestions].sort((a, b) => b.confidence - a.confidence)[0];
       if (best && best.confidence >= 0.7) setCourseId(best.courseId);
     }
@@ -173,11 +185,13 @@ export function QuickAdd() {
       if (!res.ok || data.error) {
         throw new Error(data.error || "Commit failed");
       }
-      setCommitResult({
+      const commitPayload = {
         createdAssignmentId: data.createdAssignmentId,
         createdEventId: data.createdEventId,
         deduped: data.deduped,
-      });
+      };
+      setCommitResult(commitPayload);
+      onCommitted?.(commitPayload);
     } catch (err: any) {
       setError(err.message || "Commit failed");
     } finally {
@@ -270,7 +284,11 @@ export function QuickAdd() {
                 onChange={(e) => setCourseId(e.target.value)}
                 placeholder="optional"
                 className="w-full border rounded px-3 py-2"
+                disabled={lockCourseId}
               />
+              {lockCourseId && (
+                <p className="text-xs text-gray-500">Locked to this course.</p>
+              )}
             </div>
 
             <div className="space-y-1">

@@ -44,6 +44,7 @@ interface CourseEditorProps {
   onSubmit: (data: CourseFormData) => Promise<void>;
   submitLabel: string;
   loading?: boolean;
+  onQuickAdd?: () => void;
 }
 
 export function CourseEditor({
@@ -52,6 +53,7 @@ export function CourseEditor({
   onSubmit,
   submitLabel,
   loading = false,
+  onQuickAdd,
 }: CourseEditorProps) {
   // #region agent log
   fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:46',message:'CourseEditor rendered',data:{initialName:initial.name,initialScheduleCount:initial.schedule.length,loading},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H6'})}).catch(()=>{});
@@ -359,95 +361,114 @@ export function CourseEditor({
       <section className="bg-white rounded-lg border p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Add Assignments</h2>
-          <button
-            type="button"
-            onClick={() =>
-              setForm({
-                ...form,
-                newAssignments: [...(form.newAssignments || []), { title: "", dueDate: "", category: "Homework", effortMinutes: "90", scheduleMode: "auto", sessionStart: "", sessionEnd: "" }],
-              })
-            }
-            className="text-sm text-blue-600 font-semibold"
-          >
-            + Add
-          </button>
-        </div>
-        {(form.newAssignments || []).length === 0 && (
-          <div className="text-sm text-gray-500">No new assignments added.</div>
-        )}
-        {(form.newAssignments || []).map((item, idx) => (
-          <div key={`new-assignment-${idx}`} className="grid gap-2 md:grid-cols-5 items-center">
-            <input
-              placeholder="Title"
-              value={item.title}
-              onChange={(e) => updateNewAssignment(idx, { title: e.target.value })}
-              className="border rounded px-2 py-2 md:col-span-2"
-            />
-            <input
-              type="date"
-              value={item.dueDate || ""}
-              onChange={(e) => updateNewAssignment(idx, { dueDate: e.target.value })}
-              className="border rounded px-2 py-2"
-            />
-            <select
-              value={item.category || "Homework"}
-              onChange={(e) => updateNewAssignment(idx, { category: e.target.value })}
-              className="border rounded px-2 py-2"
+          {onQuickAdd && (
+            <button
+              type="button"
+              onClick={onQuickAdd}
+              className="text-sm text-blue-600 font-semibold"
             >
-              <option value="Homework">Homework</option>
-              <option value="Exam">Exam</option>
-              <option value="Quiz">Quiz</option>
-              <option value="Midterm">Midterm</option>
-              <option value="Final">Final</option>
-              <option value="Project">Project</option>
-              <option value="Reading">Reading</option>
-            </select>
-            <input
-              type="number"
-              placeholder="Minutes"
-              value={item.effortMinutes || ""}
-              onChange={(e) => updateNewAssignment(idx, { effortMinutes: e.target.value })}
-              className="border rounded px-2 py-2"
-            />
-            <select
-              value={item.scheduleMode || "auto"}
-              onChange={(e) => updateNewAssignment(idx, { scheduleMode: e.target.value as "auto" | "manual" | "none" })}
-              className="border rounded px-2 py-2 md:col-span-2"
-            >
-              <option value="auto">Auto-schedule time</option>
-              <option value="manual">Schedule time now</option>
-              <option value="none">Don’t schedule</option>
-            </select>
-            {item.scheduleMode === "manual" && (
-              <>
-                <input
-                  type="datetime-local"
-                  value={item.sessionStart || ""}
-                  onChange={(e) => updateNewAssignment(idx, { sessionStart: e.target.value })}
-                  className="border rounded px-2 py-2 md:col-span-2"
-                />
-                <input
-                  type="datetime-local"
-                  value={item.sessionEnd || ""}
-                  onChange={(e) => updateNewAssignment(idx, { sessionEnd: e.target.value })}
-                  className="border rounded px-2 py-2 md:col-span-2"
-                />
-              </>
-            )}
+              + Add (Quick Add)
+            </button>
+          )}
+          {!onQuickAdd && (
             <button
               type="button"
               onClick={() =>
                 setForm({
                   ...form,
-                  newAssignments: (form.newAssignments || []).filter((_, i) => i !== idx),
+                  newAssignments: [...(form.newAssignments || []), { title: "", dueDate: "", category: "Homework", effortMinutes: "90", scheduleMode: "auto", sessionStart: "", sessionEnd: "" }],
                 })
               }
-              className="text-xs text-red-600 md:col-span-5 justify-self-end"
+              className="text-sm text-blue-600 font-semibold"
             >
-              Remove
+              + Add
             </button>
+          )}
+        </div>
+        {onQuickAdd ? (
+          <div className="text-sm text-gray-500">
+            Use Quick Add to create assignments and auto-schedule time for them.
           </div>
-        ))}
+        ) : (
+          <>
+            {(form.newAssignments || []).length === 0 && (
+              <div className="text-sm text-gray-500">No new assignments added.</div>
+            )}
+            {(form.newAssignments || []).map((item, idx) => (
+              <div key={`new-assignment-${idx}`} className="grid gap-2 md:grid-cols-5 items-center">
+                <input
+                  placeholder="Title"
+                  value={item.title}
+                  onChange={(e) => updateNewAssignment(idx, { title: e.target.value })}
+                  className="border rounded px-2 py-2 md:col-span-2"
+                />
+                <input
+                  type="date"
+                  value={item.dueDate || ""}
+                  onChange={(e) => updateNewAssignment(idx, { dueDate: e.target.value })}
+                  className="border rounded px-2 py-2"
+                />
+                <select
+                  value={item.category || "Homework"}
+                  onChange={(e) => updateNewAssignment(idx, { category: e.target.value })}
+                  className="border rounded px-2 py-2"
+                >
+                  <option value="Homework">Homework</option>
+                  <option value="Exam">Exam</option>
+                  <option value="Quiz">Quiz</option>
+                  <option value="Midterm">Midterm</option>
+                  <option value="Final">Final</option>
+                  <option value="Project">Project</option>
+                  <option value="Reading">Reading</option>
+                </select>
+                <input
+                  type="number"
+                  placeholder="Minutes"
+                  value={item.effortMinutes || ""}
+                  onChange={(e) => updateNewAssignment(idx, { effortMinutes: e.target.value })}
+                  className="border rounded px-2 py-2"
+                />
+                <select
+                  value={item.scheduleMode || "auto"}
+                  onChange={(e) => updateNewAssignment(idx, { scheduleMode: e.target.value as "auto" | "manual" | "none" })}
+                  className="border rounded px-2 py-2 md:col-span-2"
+                >
+                  <option value="auto">Auto-schedule time</option>
+                  <option value="manual">Schedule time now</option>
+                  <option value="none">Don’t schedule</option>
+                </select>
+                {item.scheduleMode === "manual" && (
+                  <>
+                    <input
+                      type="datetime-local"
+                      value={item.sessionStart || ""}
+                      onChange={(e) => updateNewAssignment(idx, { sessionStart: e.target.value })}
+                      className="border rounded px-2 py-2 md:col-span-2"
+                    />
+                    <input
+                      type="datetime-local"
+                      value={item.sessionEnd || ""}
+                      onChange={(e) => updateNewAssignment(idx, { sessionEnd: e.target.value })}
+                      className="border rounded px-2 py-2 md:col-span-2"
+                    />
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      newAssignments: (form.newAssignments || []).filter((_, i) => i !== idx),
+                    })
+                  }
+                  className="text-xs text-red-600 md:col-span-5 justify-self-end"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </>
+        )}
       </section>
 
       <div className="flex justify-end">

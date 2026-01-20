@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { CourseEditor, CourseFormData } from "../../../../components/CourseEditor";
+import { QuickAdd } from "../../../../components/QuickAdd";
 import { fetchCourseDetail, updateCourseDetail } from "../../../../lib/api";
 
 export default function CourseDetailPage() {
@@ -18,42 +19,45 @@ export default function CourseDetailPage() {
   const [initialData, setInitialData] = useState<CourseFormData | null>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+
+  const loadCourse = async () => {
+    if (!user || !courseId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await fetchCourseDetail(user.id, courseId);
+      const course = result.course;
+      const gradeWeights = course.gradeWeightsJson
+        ? Object.entries(course.gradeWeightsJson).map(([name, weight]) => ({
+            name,
+            weight: String(weight),
+          }))
+        : [];
+      setInitialData({
+        name: course.name,
+        professor: course.professor ?? "",
+        credits: course.credits ?? 0,
+        gradeWeights,
+        schedule: result.schedule || [],
+        officeHours: result.office_hours || [],
+        newAssignments: [],
+      });
+      setAssignments(result.assignments || []);
+      setEvents(result.events || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load course");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!isLoaded || !user || !courseId) {
       setLoading(false);
       return;
     }
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const result = await fetchCourseDetail(user.id, courseId);
-        const course = result.course;
-        const gradeWeights = course.gradeWeightsJson
-          ? Object.entries(course.gradeWeightsJson).map(([name, weight]) => ({
-              name,
-              weight: String(weight),
-            }))
-          : [];
-        setInitialData({
-          name: course.name,
-          professor: course.professor ?? "",
-          credits: course.credits ?? 0,
-          gradeWeights,
-          schedule: result.schedule || [],
-          officeHours: result.office_hours || [],
-          newAssignments: [],
-        });
-        setAssignments(result.assignments || []);
-        setEvents(result.events || []);
-      } catch (err: any) {
-        setError(err.message || "Failed to load course");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadCourse();
   }, [isLoaded, user, courseId]);
 
   const handleSave = async (data: CourseFormData) => {
@@ -204,7 +208,33 @@ export default function CourseDetailPage() {
         onSubmit={handleSave}
         submitLabel="Save Changes"
         loading={saving}
+        onQuickAdd={() => setShowQuickAdd(true)}
       />
+
+      {showQuickAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-lg border p-4 max-w-2xl w-full space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Quick Add Assignment</h2>
+              <button
+                type="button"
+                onClick={() => setShowQuickAdd(false)}
+                className="text-gray-500 hover:text-gray-800"
+              >
+                ✕
+              </button>
+            </div>
+            <QuickAdd
+              defaultCourseId={courseId}
+              lockCourseId
+              onCommitted={async () => {
+                await loadCourse();
+                setShowQuickAdd(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {events.length > 0 && (
         <section className="bg-white rounded-lg border p-4 space-y-2">
