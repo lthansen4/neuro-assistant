@@ -20,7 +20,7 @@ cronRoute.post('/buffer-reset', async (c) => {
   
   console.log('[Cron] Running midnight buffer reset...');
   const result = await midnightBufferResetHandler();
-  return c.json(result.body ? JSON.parse(result.body) : result, result.statusCode);
+  return c.json(result.body ? JSON.parse(result.body) : result, result.statusCode as any);
 });
 
 /**
@@ -39,7 +39,7 @@ cronRoute.post('/daily-optimization', async (c) => {
   
   console.log('[Cron] Running daily optimization...');
   const result = await dailyOptimizationHandler();
-  return c.json(result.body ? JSON.parse(result.body) : result, result.statusCode);
+  return c.json(result.body ? JSON.parse(result.body) : result, result.statusCode as any);
 });
 
 /**
