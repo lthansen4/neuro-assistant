@@ -17,6 +17,8 @@ type FocusBlockDraft = {
   chunks?: Array<{ title: string; start_at: string; duration_minutes: number }> | null;
 };
 
+type ConfidenceLabel = "high" | "medium" | "low" | string | null | undefined;
+
 type ParseResponse = {
   parsed: {
     courseHint: string;
@@ -37,6 +39,89 @@ type QuickAddProps = {
   defaultCourseId?: string;
   lockCourseId?: boolean;
   onCommitted?: (result: { createdAssignmentId?: string; createdEventId?: string; deduped?: boolean }) => void;
+};
+
+const confidenceLabelToScore = (label: ConfidenceLabel) => {
+  switch (label) {
+    case "high":
+      return 0.9;
+    case "medium":
+      return 0.6;
+    case "low":
+      return 0.3;
+    default:
+      return 0.5;
+  }
+};
+
+const normalizeParseResponse = (data: any): ParseResponse => {
+  if (!data || typeof data !== "object") {
+    throw new Error("Parse failed");
+  }
+
+  if (data.parsed?.title) {
+    const confidence = Number.isFinite(data.confidence) ? data.confidence : Number.isFinite(data.parsed.confidence) ? data.parsed.confidence : 0.5;
+    return {
+      parsed: {
+        courseHint: data.parsed.courseHint || "",
+        title: data.parsed.title || "",
+        category: data.parsed.category || "",
+        dueDateISO: data.parsed.dueDateISO || "",
+        effortMinutes: data.parsed.effortMinutes,
+        confidence,
+      },
+      focus_block_draft: data.focus_block_draft ?? null,
+      suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+      dedupeHash: data.dedupeHash || data.dedupe?.hash || "",
+      confidence,
+      error: data.error,
+    };
+  }
+
+  if (data.assignment_draft?.title) {
+    const confidence = confidenceLabelToScore(data.confidences?.title);
+    const courseConfidence = confidenceLabelToScore(data.confidences?.course_id);
+    const suggestions: Suggestion[] = Array.isArray(data.suggestions?.courses)
+      ? data.suggestions.courses
+          .map((course: any) => ({
+            type: "course" as const,
+            label: course?.name || course?.label || "",
+            courseId: course?.id || course?.courseId || "",
+            confidence: Number.isFinite(course?.confidence) ? course.confidence : courseConfidence,
+          }))
+          .filter((s: Suggestion) => s.courseId)
+      : [];
+
+    return {
+      parsed: {
+        courseHint: "",
+        title: data.assignment_draft.title || "",
+        category: data.assignment_draft.category || "",
+        dueDateISO: data.assignment_draft.due_at || "",
+        effortMinutes: data.assignment_draft.estimated_duration,
+        confidence,
+      },
+      focus_block_draft: data.focus_block_draft ?? null,
+      suggestions,
+      dedupeHash: data.dedupe?.hash || "",
+      confidence,
+      error: data.error,
+    };
+  }
+
+  throw new Error(data.error || "Parse failed");
+};
+
+const sendDebugLog = async (event: string, details: any) => {
+  try {
+    await fetch("/api/debug-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, details, timestamp: new Date().toISOString() }),
+    });
+  } catch {
+    // ignore client logging failures
+  }
 };
 
 export function QuickAdd({ defaultCourseId, lockCourseId = false, onCommitted }: QuickAddProps) {
@@ -132,13 +217,20 @@ export function QuickAdd({ defaultCourseId, lockCourseId = false, onCommitted }:
         headers: { "Content-Type": "application/json", "x-clerk-user-id": user.id },
         body: JSON.stringify({ text, timezone }),
       });
-      const data: ParseResponse = await res.json();
+      const data = await res.json();
+      await sendDebugLog("quick_add_parse_raw", { ok: res.ok, status: res.status, data });
       if (!res.ok || (data as any).error) {
         throw new Error((data as any).error || "Parse failed");
       }
-      setParseRes(data);
+      const normalized = normalizeParseResponse(data);
+      if (!normalized.dedupeHash) {
+        await sendDebugLog("quick_add_parse_missing_dedupe", { data, normalized });
+      }
+      await sendDebugLog("quick_add_parse_normalized", normalized);
+      setParseRes(normalized);
     } catch (err: any) {
       setError(err.message || "Parse failed");
+      await sendDebugLog("quick_add_parse_error", { message: err?.message || "Parse failed" });
     } finally {
       setIsParsing(false);
     }
