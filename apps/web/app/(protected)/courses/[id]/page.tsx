@@ -17,6 +17,7 @@ export default function CourseDetailPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [initialData, setInitialData] = useState<CourseFormData | null>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
 
   useEffect(() => {
     if (!isLoaded || !user || !courseId) {
@@ -45,6 +46,7 @@ export default function CourseDetailPage() {
           newAssignments: [],
         });
         setAssignments(result.assignments || []);
+        setEvents(result.events || []);
       } catch (err: any) {
         setError(err.message || "Failed to load course");
       } finally {
@@ -132,6 +134,7 @@ export default function CourseDetailPage() {
         newAssignments: [],
       });
       setAssignments(result.assignments || []);
+      setEvents(result.events || []);
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -202,6 +205,22 @@ export default function CourseDetailPage() {
         submitLabel="Save Changes"
         loading={saving}
       />
+
+      {events.length > 0 && (
+        <section className="bg-white rounded-lg border p-4 space-y-2">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Course Events</h2>
+          <div className="space-y-2">
+            {events.map((evt: any) => (
+              <div key={evt.id} className="border rounded p-3 text-sm text-gray-700">
+                <div className="font-semibold text-gray-900">{evt.title || "Event"}</div>
+                <div>
+                  {evt.startAt ? new Date(evt.startAt).toLocaleString() : "No time"} · {evt.eventType || "Event"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }

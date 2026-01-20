@@ -322,12 +322,32 @@ coursesRoute.get('/:id', async (c) => {
       .from(schema.assignments)
       .where(and(eq(schema.assignments.userId, userId), eq(schema.assignments.courseId, courseId)));
 
+    const events = await db
+      .select({
+        id: schema.calendarEventsNew.id,
+        title: schema.calendarEventsNew.title,
+        eventType: schema.calendarEventsNew.eventType,
+        startAt: schema.calendarEventsNew.startAt,
+        endAt: schema.calendarEventsNew.endAt,
+        assignmentId: schema.calendarEventsNew.assignmentId,
+      })
+      .from(schema.calendarEventsNew)
+      .where(
+        and(
+          eq(schema.calendarEventsNew.userId, userId),
+          eq(schema.calendarEventsNew.courseId, courseId)
+        )
+      )
+      .orderBy(sql`${schema.calendarEventsNew.startAt} DESC`)
+      .limit(25);
+
     return c.json({
       ok: true,
       course,
       schedule,
       office_hours: officeHours,
       assignments,
+      events,
     });
   } catch (error: any) {
     console.error('[Courses API] Error fetching course detail:', error);
