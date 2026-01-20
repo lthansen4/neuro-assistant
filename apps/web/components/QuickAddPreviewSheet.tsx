@@ -103,6 +103,9 @@ export function QuickAddPreviewSheet({
     setIsSubmitting(true);
 
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'QuickAddPreviewSheet.tsx:handleConfirm',message:'Submitting quick add confirm',data:{hasSmartAnswers:Object.keys(smartAnswers || {}).length > 0,smartAnswers,estimatedDuration:editedDraft?.estimated_duration,focusChunked:!!editedFocusDraft?.chunked,focusChunksCount:editedFocusDraft?.chunks?.length ?? 0},timestamp:Date.now(),sessionId:'debug-session',runId:'assignment-chunking-debug',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       const res = await fetch(`${API_BASE}/api/quick-add/confirm`, {
         method: 'POST',
         headers: {

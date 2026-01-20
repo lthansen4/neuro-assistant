@@ -156,10 +156,6 @@ Be realistic about duration estimates:
 - Whether user wants to schedule study time (detect words like "study", "work on", "prepare")`,
     });
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:parse:aiResult',message:'AI parsed input',data:{inputText:body.text,preferred_work_time:object.preferred_work_time,due_date:object.due_date,has_study_intent:object.has_study_intent},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B1'})}).catch(()=>{});
-    // #endregion
-    
     console.log('[QuickAdd Parse] AI parsed result:', JSON.stringify(object, null, 2));
     console.log('[QuickAdd Parse] Preferred work time:', object.preferred_work_time);
 
@@ -311,10 +307,6 @@ Be realistic about duration estimates:
         
         // Check if user specified a preferred work time
         if (object.preferred_work_time) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:scheduling:userSpecified',message:'User specified work time',data:{preferred_work_time:object.preferred_work_time},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B2'})}).catch(()=>{});
-          // #endregion
-          
           console.log(`[QuickAdd] User specified work time: "${object.preferred_work_time}"`);
           
           // Parse user's preferred time (e.g., "today at 3pm", "tomorrow morning")
@@ -347,10 +339,6 @@ Be realistic about duration estimates:
           
           console.log(`[QuickAdd] Using user-specified time: ${focusStart.toFormat('EEE MMM dd h:mma')}`);
         } else {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:scheduling:smartScheduling',message:'No preferred time - using smart scheduling',data:{preferred_work_time:object.preferred_work_time,has_study_intent:object.has_study_intent},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B3'})}).catch(()=>{});
-          // #endregion
-          
           // No preferred time - use smart scheduling to find first available slot
           console.log(`[QuickAdd] No preferred time specified, finding first available slot...`);
           
@@ -366,10 +354,6 @@ Be realistic about duration estimates:
             dueDateTime,
             userTz
           );
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:scheduling:smartSchedulingResult',message:'Smart scheduling found slot',data:{foundSlot:focusStart.toISO(),searchStarted:searchStart.toISO()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B4'})}).catch(()=>{});
-          // #endregion
         }
         
         focusBlockDraft = {
@@ -644,6 +628,10 @@ quickAddRoute.post("/confirm", async (c) => {
       smart_answers?: Record<string, any>;
     }>();
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:confirm:entry',message:'QuickAdd confirm entry',data:{userId,hasSmartAnswers:Object.keys(body.smart_answers || {}).length > 0,smartAnswers:body.smart_answers,estimatedDuration:body.assignment_draft?.estimated_duration,hasFocusDraft:!!body.focus_block_draft},timestamp:Date.now(),sessionId:'debug-session',runId:'assignment-chunking-debug',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+
 
     if (!body.assignment_draft?.title) {
       return c.json({ error: "assignment_draft.title is required" }, 400);
@@ -840,6 +828,9 @@ Use their specific context to make the BEST scheduling decision.`,
     // Create focus block(s) - either multiple chunks or single block
     let focusEvents = [];
     if (chunks && chunks.length > 0) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:confirm:chunkBranch',message:'Using chunked scheduling branch',data:{chunksCount:chunks.length,estimatedDuration:draft.estimated_duration},timestamp:Date.now(),sessionId:'debug-session',runId:'assignment-chunking-debug',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       // Create multiple Focus blocks for chunked assignments
       console.log(`[QuickAdd Confirm] Creating ${chunks.length} chunked Focus blocks with TRANSITION TAX buffers`);
       
@@ -959,12 +950,18 @@ Use their specific context to make the BEST scheduling decision.`,
         recovery_forced_warning: recoveryForcedWarning,
       });
     } else if (optimizedFocusBlock) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:confirm:focusBranch',message:'Using focus scheduling branch',data:{hasFocusDraft:!!optimizedFocusBlock,estimatedDuration:draft.estimated_duration,hasChunks:!!chunks},timestamp:Date.now(),sessionId:'debug-session',runId:'assignment-chunking-debug',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       // Create focus block(s) based on user answers (today/time-of-day/sessions)
       const focusDraft = optimizedFocusBlock;
       const totalMinutes = Math.max(20, Math.round(
         draft.estimated_duration || focusDraft.duration_minutes || 60
       ));
       const prefs = deriveSchedulingPrefs(body.smart_answers, totalMinutes);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:confirm:prefs',message:'Derived scheduling prefs',data:{totalMinutes,prefs},timestamp:Date.now(),sessionId:'debug-session',runId:'assignment-chunking-debug',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
       const dueDateTime = draft.due_at
         ? DateTime.fromISO(draft.due_at, { zone: "utc" }).setZone(userTz)
         : DateTime.now().setZone(userTz).plus({ days: 7 });
@@ -996,10 +993,24 @@ Use their specific context to make the BEST scheduling decision.`,
         preferredWindow
       );
       
+      const daysAvailable = Math.floor(
+        dueDateTime.startOf('day').diff(searchStart.startOf('day'), 'days').days
+      );
+      const spreadAcrossDays = durations.length > 1 && daysAvailable >= durations.length - 1;
+      
       for (let i = 0; i < durations.length; i++) {
         const duration = durations[i];
         if (i > 0) {
-          const nextSearch = lastStart.plus({ minutes: durations[i - 1] + 120 });
+          let nextSearch = spreadAcrossDays
+            ? lastStart.plus({ days: 1 }).set({
+                hour: preferredWindow.defaultHour,
+                minute: 0,
+                second: 0
+              })
+            : lastStart.plus({ minutes: durations[i - 1] + 120 });
+          if (nextSearch < minStart) {
+            nextSearch = minStart.set({ minute: 0, second: 0 });
+          }
           lastStart = await findFirstAvailableSlot(
             userId,
             nextSearch,
@@ -1470,15 +1481,6 @@ async function findFirstAvailableSlot(
     }
     
     if (!hasConflict) {
-      // #region agent log
-      const nearbyEvents = existingEvents.filter(e => {
-        const eStart = DateTime.fromJSDate(e.startAt, { zone: userTz });
-        const eEnd = DateTime.fromJSDate(e.endAt, { zone: userTz });
-        return Math.abs(eStart.diff(currentSlot, 'hours').hours) < 3;
-      }).map(e => ({title: e.title, start: DateTime.fromJSDate(e.startAt, { zone: userTz }).toISO(), eventType: e.eventType}));
-      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quickAdd.ts:findFirstAvailableSlot:foundSlot',message:'Found free slot',data:{foundSlot:currentSlot.toISO(),slotEnd:slotEnd.toISO(),nearbyEvents,totalEventsChecked:existingEvents.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B4'})}).catch(()=>{});
-      // #endregion
-      
       console.log(`[Scheduling] ✅ Found free slot: ${currentSlot.toFormat('EEE MMM dd h:mma')}`);
       return currentSlot;
     }
