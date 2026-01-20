@@ -12,7 +12,9 @@ export default function CourseDetailPage() {
   const courseId = params?.id as string;
   const { user, isLoaded } = useUser();
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [initialData, setInitialData] = useState<CourseFormData | null>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
 
@@ -54,29 +56,66 @@ export default function CourseDetailPage() {
 
   const handleSave = async (data: CourseFormData) => {
     if (!user) return;
-    const grade_weights = (data.gradeWeights || []).reduce<Record<string, number>>((acc, item) => {
-      if (item.name && item.weight) {
-        acc[item.name] = Number(item.weight);
-      }
-      return acc;
-    }, {});
-    await updateCourseDetail(user.id, courseId, {
-      course: {
-        name: data.name,
-        professor: data.professor || null,
-        credits: data.credits ?? null,
-        grade_weights: Object.keys(grade_weights).length ? grade_weights : null,
-      },
-      schedule: data.schedule,
-      office_hours: data.officeHours,
-      assignments: (data.newAssignments || []).map((item) => ({
-        title: item.title,
-        due_date: item.dueDate || null,
-        category: item.category || null,
-        effort_estimate_minutes: item.effortMinutes ? Number(item.effortMinutes) : null,
-      })),
-    });
-    router.refresh();
+    
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccessMessage(null);
+      
+      const grade_weights = (data.gradeWeights || []).reduce<Record<string, number>>((acc, item) => {
+        if (item.name && item.weight) {
+          acc[item.name] = Number(item.weight);
+        }
+        return acc;
+      }, {});
+      
+      await updateCourseDetail(user.id, courseId, {
+        course: {
+          name: data.name,
+          professor: data.professor || null,
+          credits: data.credits ?? null,
+          grade_weights: Object.keys(grade_weights).length ? grade_weights : null,
+        },
+        schedule: data.schedule,
+        office_hours: data.officeHours,
+        assignments: (data.newAssignments || []).map((item) => ({
+          title: item.title,
+          due_date: item.dueDate || null,
+          category: item.category || null,
+          effort_estimate_minutes: item.effortMinutes ? Number(item.effortMinutes) : null,
+        })),
+      });
+      
+      setSuccessMessage("Course saved successfully!");
+      
+      // Reload the course data to show the updated information
+      const result = await fetchCourseDetail(user.id, courseId);
+      const course = result.course;
+      const gradeWeights = course.gradeWeightsJson
+        ? Object.entries(course.gradeWeightsJson).map(([name, weight]) => ({
+            name,
+            weight: String(weight),
+          }))
+        : [];
+      setInitialData({
+        name: course.name,
+        professor: course.professor ?? "",
+        credits: course.credits ?? 0,
+        gradeWeights,
+        schedule: result.schedule || [],
+        officeHours: result.office_hours || [],
+        newAssignments: [],
+      });
+      setAssignments(result.assignments || []);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err: any) {
+      console.error("Failed to save course:", err);
+      setError(err.message || "Failed to save course. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -105,11 +144,35 @@ export default function CourseDetailPage() {
           Changes here update future class and office hour events (and refresh nudges).
         </p>
       </header>
+      
+      {successMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded flex items-center justify-between">
+          <div>
+            <strong>Success!</strong> {successMessage}
+          </div>
+          <button onClick={() => setSuccessMessage(null)} className="text-green-700 hover:text-green-900">
+            ✕
+          </button>
+        </div>
+      )}
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center justify-between">
+          <div>
+            <strong>Error:</strong> {error}
+          </div>
+          <button onClick={() => setError(null)} className="text-red-700 hover:text-red-900">
+            ✕
+          </button>
+        </div>
+      )}
+      
       <CourseEditor
         initial={initialData}
         assignments={assignments}
         onSubmit={handleSave}
         submitLabel="Save Changes"
+        loading={saving}
       />
     </main>
   );
