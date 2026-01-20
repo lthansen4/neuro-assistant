@@ -22,9 +22,11 @@ dashboardRoute.get("/summary", async (c) => {
     const range = (c.req.query("range") || "week") as "day" | "week";
 
     // Preferences
-    const pref = await db.query.dashboardPreferences.findFirst({
-      where: eq(schema.dashboardPreferences.userId, userId),
-    });
+    const pref = (await tableExists("dashboard_preferences"))
+      ? await db.query.dashboardPreferences.findFirst({
+          where: eq(schema.dashboardPreferences.userId, userId),
+        })
+      : null;
 
     // Today and this week boundaries (UTC)
     const now = new Date();
@@ -73,12 +75,14 @@ dashboardRoute.get("/summary", async (c) => {
       : [];
 
     // Streak (productivity streak)
-    const streak = await db.query.userStreaks.findFirst({
-      where: and(
-        eq(schema.userStreaks.userId, userId),
-        eq(schema.userStreaks.streakType, "productivity")
-      ),
-    });
+    const streak = (await tableExists("user_streaks"))
+      ? await db.query.userStreaks.findFirst({
+          where: and(
+            eq(schema.userStreaks.userId, userId),
+            eq(schema.userStreaks.streakType, "productivity")
+          ),
+        })
+      : null;
 
     // Forecasts
     const forecasts = (await tableExists("course_grade_forecasts"))
@@ -185,7 +189,8 @@ dashboardRoute.get("/summary", async (c) => {
       },
     });
   } catch (e: any) {
-    return c.json({ error: e.message }, 400);
+    console.error("[Dashboard] Summary error:", e);
+    return c.json({ error: e.message, type: e?.name }, 400);
   }
 });
 
