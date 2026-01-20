@@ -158,30 +158,24 @@ function calculateStudySessions(examDate: Date, totalMinutes: number, timezone: 
 }
 
 async function calendarEventsNewExists(executor: typeof db | any): Promise<boolean> {
-  try {
-    await executor.execute(sql`SELECT 1 FROM calendar_events_new LIMIT 1`);
-    return true;
-  } catch {
-    return false;
-  }
+  const result: any = await executor.execute(
+    sql`SELECT to_regclass('public.calendar_events_new') as reg`
+  );
+  return Boolean(result?.rows?.[0]?.reg);
 }
 
 async function templatesTableExists(executor: typeof db | any): Promise<boolean> {
-  try {
-    await executor.execute(sql`SELECT 1 FROM calendar_event_templates LIMIT 1`);
-    return true;
-  } catch {
-    return false;
-  }
+  const result: any = await executor.execute(
+    sql`SELECT to_regclass('public.calendar_event_templates') as reg`
+  );
+  return Boolean(result?.rows?.[0]?.reg);
 }
 
 async function classNudgesTableExists(executor: typeof db | any): Promise<boolean> {
-  try {
-    await executor.execute(sql`SELECT 1 FROM class_nudges LIMIT 1`);
-    return true;
-  } catch {
-    return false;
-  }
+  const result: any = await executor.execute(
+    sql`SELECT to_regclass('public.class_nudges') as reg`
+  );
+  return Boolean(result?.rows?.[0]?.reg);
 }
 
 function buildOccurrencesForSemester(opts: {
