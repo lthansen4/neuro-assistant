@@ -175,6 +175,15 @@ async function templatesTableExists(executor: typeof db | any): Promise<boolean>
   }
 }
 
+async function classNudgesTableExists(executor: typeof db | any): Promise<boolean> {
+  try {
+    await executor.execute(sql`SELECT 1 FROM class_nudges LIMIT 1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function buildOccurrencesForSemester(opts: {
   tz: string;
   items: { day: string; start: string; end: string; location?: string | null }[];
@@ -792,13 +801,19 @@ coursesRoute.put('/:id', async (c) => {
         )
       );
 
-      await tx.delete(schema.classNudges).where(
-        and(
-          eq(schema.classNudges.userId, userId),
-          eq(schema.classNudges.courseId, courseId),
-          sql`${schema.classNudges.scheduledAt} >= NOW()`
-        )
-      );
+      const classNudgesExist = await classNudgesTableExists(tx);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'courses.ts:762',message:'classNudges table exists',data:{classNudgesExist},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
+      if (classNudgesExist) {
+        await tx.delete(schema.classNudges).where(
+          and(
+            eq(schema.classNudges.userId, userId),
+            eq(schema.classNudges.courseId, courseId),
+            sql`${schema.classNudges.scheduledAt} >= NOW()`
+          )
+        );
+      }
 
       if (assignments.length > 0) {
         const useNewTable = await calendarEventsNewExists(tx);

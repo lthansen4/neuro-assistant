@@ -108,6 +108,11 @@ export function CourseEditor({
             <label className="text-sm font-semibold text-gray-900">Name</label>
             <input
               value={form.name}
+              onInput={(e) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:102',message:'name input onInput',data:{inputValue:(e.target as HTMLInputElement).value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H7,H8'})}).catch(()=>{});
+                // #endregion
+              }}
               onChange={(e) => {
                 // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:101',message:'name input onChange',data:{oldValue:form.name,newValue:e.target.value,formStateBeforeChange:JSON.stringify(form).substring(0,100)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H7,H8'})}).catch(()=>{});
@@ -130,6 +135,11 @@ export function CourseEditor({
             <label className="text-sm font-semibold text-gray-900">Professor</label>
             <input
               value={form.professor ?? ""}
+              onInput={(e) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:119',message:'professor input onInput',data:{inputValue:(e.target as HTMLInputElement).value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H7,H8'})}).catch(()=>{});
+                // #endregion
+              }}
               onChange={(e) => {
                 // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:118',message:'professor input onChange',data:{oldValue:form.professor,newValue:e.target.value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H7,H8'})}).catch(()=>{});
