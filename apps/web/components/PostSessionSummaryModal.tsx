@@ -131,7 +131,7 @@ export function PostSessionSummaryModal({
       }));
 
       // Sort: scheduled assignments first, then ad-hoc
-      assignmentsWithScheduleInfo.sort((a, b) => {
+      assignmentsWithScheduleInfo.sort((a: any, b: any) => {
         if (a.wasScheduled && !b.wasScheduled) return -1;
         if (!a.wasScheduled && b.wasScheduled) return 1;
         return 0;
