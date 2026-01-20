@@ -212,8 +212,9 @@ export default function CourseDetailPage() {
       />
 
       {showQuickAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-lg border p-4 max-w-2xl w-full space-y-3">
+        <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto">
+          <div className="flex min-h-full items-start justify-center p-4 sm:p-6">
+            <div className="bg-white rounded-lg border p-4 max-w-2xl w-full space-y-3 max-h-[calc(100vh-3rem)] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Quick Add Assignment</h2>
               <button
@@ -232,6 +233,7 @@ export default function CourseDetailPage() {
                 setShowQuickAdd(false);
               }}
             />
+            </div>
           </div>
         </div>
       )}
