@@ -128,6 +128,48 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
   const currentHour = now.getHours();
   const nowPixelPosition = getNowPixelPosition();
 
+  // Calculate vertical positions to avoid overlaps
+  const calculateEventLevels = (events: FlowItem[]) => {
+    // Sort events by start time
+    const sorted = [...events].sort((a, b) => 
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+    
+    // Track which levels are occupied at what times
+    const levels: Array<{ endTime: number; events: FlowItem[] }> = [];
+    const eventLevels = new Map<string, number>();
+    
+    for (const event of sorted) {
+      const startTime = new Date(event.startTime).getTime();
+      const endTime = new Date(event.endTime).getTime();
+      
+      // Find the first level where this event doesn't overlap
+      let assignedLevel = -1;
+      for (let i = 0; i < levels.length; i++) {
+        if (levels[i].endTime <= startTime) {
+          // This level is free, use it
+          assignedLevel = i;
+          levels[i] = { endTime, events: [...levels[i].events, event] };
+          break;
+        }
+      }
+      
+      // If no free level found, create a new one
+      if (assignedLevel === -1) {
+        assignedLevel = levels.length;
+        levels.push({ endTime, events: [event] });
+      }
+      
+      eventLevels.set(event.id, assignedLevel);
+    }
+    
+    return { eventLevels, maxLevel: levels.length - 1 };
+  };
+
+  const { eventLevels, maxLevel } = calculateEventLevels(displayItems);
+  const LEVEL_HEIGHT = 220; // Height per level in pixels
+  const LEVEL_GAP = 20; // Gap between levels
+
   return (
     <div className="w-full bg-brand-surface-2/50 rounded-[2.5rem] p-8 space-y-4 cozy-border">
       {/* Scrollable Timeline Container */}
@@ -137,7 +179,10 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
       >
         <div 
           className="relative"
-          style={{ width: `${TIMELINE_WIDTH_PX}px`, minHeight: '280px' }}
+          style={{ 
+            width: `${TIMELINE_WIDTH_PX}px`, 
+            minHeight: `${(maxLevel + 1) * LEVEL_HEIGHT + maxLevel * LEVEL_GAP + 80}px` 
+          }}
         >
           {/* Time Markers Row */}
           <div className="flex h-8 mb-4">
@@ -179,6 +224,10 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
               // Position card based on start time
               const startHour = start.getHours() + start.getMinutes() / 60;
               const cardLeft = getHourPixelPosition(startHour);
+              
+              // Get vertical level for this event to avoid overlaps
+              const level = eventLevels.get(item.id) || 0;
+              const cardTop = 40 + level * (LEVEL_HEIGHT + LEVEL_GAP);
 
               return (
                 <div 
@@ -192,7 +241,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
                   )}
                   style={{ 
                     left: `${cardLeft}px`,
-                    top: '40px'
+                    top: `${cardTop}px`
                   }}
                   onClick={() => onSelect?.(item)}
                 >
