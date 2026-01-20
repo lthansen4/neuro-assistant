@@ -161,6 +161,23 @@ const migrations = [
       COMMENT ON COLUMN assignments.professor_questions IS 'Array of questions for the professor';
       COMMENT ON COLUMN assignments.questions_target IS 'Where to ask the questions: Class or OfficeHours';
     `
+  },
+  {
+    name: '0035: Add alert dismissals table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS alert_dismissals (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        alert_id TEXT NOT NULL,
+        dismissed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uniq_alert_dismissals_user_alert
+        ON alert_dismissals(user_id, alert_id);
+
+      CREATE INDEX IF NOT EXISTS idx_alert_dismissals_user
+        ON alert_dismissals(user_id);
+    `
   }
 ];
 
@@ -252,6 +269,13 @@ export async function run() {
         EXISTS (
           SELECT 1 FROM information_schema.columns 
           WHERE table_name = 'assignments' AND column_name = 'professor_questions'
+        )
+      UNION ALL
+      SELECT
+        'alert_dismissals table',
+        EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_name = 'alert_dismissals'
         )
     `);
 
