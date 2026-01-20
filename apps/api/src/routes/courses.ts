@@ -632,7 +632,7 @@ coursesRoute.put('/:id', async (c) => {
     }>();
 
     // #region agent log
-    const fs = require('fs'); fs.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:614',message:'PUT /courses/:id request received',data:{userId,courseId,courseName:body.course.name,scheduleCount:(body.schedule||[]).length,officeHoursCount:(body.office_hours||[]).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3'})+'\n');
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'courses.ts:614',message:'PUT /courses/:id request received',data:{userId,courseId,courseName:body.course.name,scheduleCount:(body.schedule||[]).length,officeHoursCount:(body.office_hours||[]).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3'})}).catch(()=>{});
     // #endregion
 
     if (!body?.course?.name) return c.json({ error: 'course.name is required' }, 400);
@@ -643,7 +643,7 @@ coursesRoute.put('/:id', async (c) => {
 
     await db.transaction(async (tx) => {
       // #region agent log
-      const fs = require('fs'); fs.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:640',message:'Starting transaction',data:{action:'update_course'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H4'})+'\n');
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'courses.ts:640',message:'Starting transaction',data:{action:'update_course'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H4'})}).catch(()=>{});
       // #endregion
       
       await tx
@@ -659,7 +659,7 @@ coursesRoute.put('/:id', async (c) => {
         .where(and(eq(schema.courses.id, courseId), eq(schema.courses.userId, userId)));
 
       // #region agent log
-      const fs2 = require('fs'); fs2.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:651',message:'Course basic info updated',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})+'\n');
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'courses.ts:651',message:'Course basic info updated',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
       // #endregion
 
       // Update grading components if the table exists
@@ -686,7 +686,7 @@ coursesRoute.put('/:id', async (c) => {
 
       await tx.delete(schema.courseOfficeHours).where(eq(schema.courseOfficeHours.courseId, courseId));
       // #region agent log
-      const fs3 = require('fs'); fs3.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:680',message:'Office hours deleted, about to insert',data:{officeHoursToInsert:officeHours.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})+'\n');
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'courses.ts:680',message:'Office hours deleted, about to insert',data:{officeHoursToInsert:officeHours.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
       // #endregion
       if (officeHours.length > 0) {
         await tx.insert(schema.courseOfficeHours).values(
@@ -702,7 +702,7 @@ coursesRoute.put('/:id', async (c) => {
 
       const templatesExist = await templatesTableExists(tx);
       // #region agent log
-      const fs4 = require('fs'); fs4.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:693',message:'templatesExist check',data:{templatesExist,scheduleLength:schedule.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})+'\n');
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'courses.ts:693',message:'templatesExist check',data:{templatesExist,scheduleLength:schedule.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
       // #endregion
       if (templatesExist) {
         await tx.execute(sql`
@@ -930,13 +930,13 @@ coursesRoute.put('/:id', async (c) => {
     });
 
     // #region agent log
-    const fs5 = require('fs'); fs5.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:918',message:'Transaction completed successfully',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3,H4'})+'\n');
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'courses.ts:918',message:'Transaction completed successfully',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3,H4'})}).catch(()=>{});
     // #endregion
 
     return c.json({ ok: true });
   } catch (error: any) {
     // #region agent log
-    const fs6 = require('fs'); fs6.appendFileSync('/Users/lindsayhansen/Desktop/App Builds/.cursor/debug.log', JSON.stringify({location:'courses.ts:920',message:'PUT /courses/:id error',data:{errorMessage:error.message,errorName:error.name,stack:(error.stack||'').substring(0,300)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3,H4'})+'\n');
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'courses.ts:920',message:'PUT /courses/:id error',data:{errorMessage:error.message,errorName:error.name,stack:(error.stack||'').substring(0,300)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3,H4'})}).catch(()=>{});
     // #endregion
     console.error('[Courses API] Error updating course:', error);
     return c.json({ error: error.message || 'Failed to update course' }, 500);

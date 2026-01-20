@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const DAY_OPTIONS = [
   "Monday",
@@ -56,6 +56,12 @@ export function CourseEditor({
   
   const [form, setForm] = useState<CourseFormData>(initial);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CourseEditor.tsx:57',message:'form name changed',data:{formName:form.name,initialName:initial.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5,H7,H8'})}).catch(()=>{});
+    // #endregion
+  }, [form.name, initial.name]);
 
   const updateSchedule = (idx: number, patch: Partial<CourseFormData["schedule"][number]>) => {
     const next = [...form.schedule];
