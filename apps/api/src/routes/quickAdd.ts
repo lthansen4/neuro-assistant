@@ -1439,8 +1439,13 @@ async function findFirstAvailableSlot(
   const expandedTemplateEvents: Array<{ startAt: Date; endAt: Date; title: string; eventType: string; isMovable: boolean }> = [];
   for (const template of templates) {
     // Skip if template has an end date before our search range
-    if (template.endDate && DateTime.fromJSDate(template.endDate, { zone: userTz }) < startSearchFrom) {
-      continue;
+    if (template.endDate) {
+      const templateEndDt = template.endDate instanceof Date 
+        ? DateTime.fromJSDate(template.endDate, { zone: userTz })
+        : DateTime.fromISO(String(template.endDate), { zone: userTz });
+      if (templateEndDt < startSearchFrom) {
+        continue;
+      }
     }
     
     // Generate occurrences for each week day in the search range
@@ -1451,14 +1456,24 @@ async function findFirstAvailableSlot(
       // Check if this day matches the template's day of week (ISO: Mon=1, Sun=7)
       if (currentDate.weekday === Number(template.dayOfWeek)) {
         // Skip if before start date
-        if (template.startDate && currentDate < DateTime.fromJSDate(template.startDate, { zone: userTz })) {
-          currentDate = currentDate.plus({ days: 1 });
-          continue;
+        if (template.startDate) {
+          const templateStartDt = template.startDate instanceof Date
+            ? DateTime.fromJSDate(template.startDate, { zone: userTz })
+            : DateTime.fromISO(String(template.startDate), { zone: userTz });
+          if (currentDate < templateStartDt) {
+            currentDate = currentDate.plus({ days: 1 });
+            continue;
+          }
         }
         
         // Skip if after end date
-        if (template.endDate && currentDate > DateTime.fromJSDate(template.endDate, { zone: userTz })) {
-          break;
+        if (template.endDate) {
+          const templateEndDt = template.endDate instanceof Date
+            ? DateTime.fromJSDate(template.endDate, { zone: userTz })
+            : DateTime.fromISO(String(template.endDate), { zone: userTz });
+          if (currentDate > templateEndDt) {
+            break;
+          }
         }
         
         // Parse time strings (HH:MM format)
