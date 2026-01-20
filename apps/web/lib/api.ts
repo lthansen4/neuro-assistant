@@ -12,7 +12,12 @@ export async function fetchDashboardSummary(userId: string, range: "day" | "week
     }
     return res.json();
   } catch (err: any) {
-    if (err.message.includes("fetch")) {
+    const isNetworkError =
+      err instanceof TypeError ||
+      err?.name === "TypeError" ||
+      err?.message === "Failed to fetch" ||
+      err?.message?.includes("NetworkError");
+    if (isNetworkError) {
       throw new Error(`Cannot connect to API server at ${API_BASE}. Make sure the API server is running and accessible.`);
     }
     throw err;
@@ -264,6 +269,17 @@ export async function createSession(
   if (!res.ok) {
     const errorText = await res.text().catch(() => res.statusText);
     throw new Error(`Failed to create session: ${res.status} ${errorText}`);
+  }
+  return res.json();
+}
+
+export async function fetchTimerContext(userId: string) {
+  const res = await fetch(`${API_BASE}/api/timer/context`, {
+    headers: { "x-clerk-user-id": userId },
+  });
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => res.statusText);
+    throw new Error(`Failed to fetch timer context: ${res.status} ${errorText}`);
   }
   return res.json();
 }

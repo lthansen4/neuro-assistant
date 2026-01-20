@@ -152,14 +152,14 @@ dashboardRoute.get("/summary", async (c) => {
       .orderBy(desc(schema.assignments.submittedAt), desc(schema.assignments.createdAt))
       .limit(10); // Limit to 10 most recent completed
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard.ts:summary:ASSIGNMENTS_FETCHED',message:'Dashboard assignments by status',data:{scheduledCount:scheduledAssignments.length,scheduledTitles:scheduledAssignments.map(a=>a.title),completedCount:completedAssignments.length,completedTitles:completedAssignments.map(a=>a.title)},timestamp:Date.now(),sessionId:'debug-session',runId:'dashboard-check',hypothesisId:'K'})}).catch(()=>{});
-    // #endregion
-
     return c.json({
       preferences: pref,
       range,
-      daily,
+      daily: daily.map(d => ({
+        ...d,
+        bufferMinutesEarned: d.bufferMinutesEarned || 0, // Migration 0033
+        bufferMinutesUsed: d.bufferMinutesUsed || 0, // Migration 0033
+      })),
       weekly: weekly[0] || null,
       streak: streak || null,
       forecasts,
