@@ -220,6 +220,10 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
               const end = new Date(item.endTime);
               const isNow = now >= start && now <= end;
               const isHighlighted = highlightedEventIds.has(String(item.id));
+              
+              // Calculate duration in minutes
+              const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
+              const durationHours = durationMinutes / 60;
 
               // Position card based on start time
               const startHour = start.getHours() + start.getMinutes() / 60;
@@ -228,12 +232,62 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
               // Get vertical level for this event to avoid overlaps
               const level = eventLevels.get(item.id) || 0;
               const cardTop = 40 + level * (LEVEL_HEIGHT + LEVEL_GAP);
+              
+              // Calculate card width based on duration
+              const cardWidth = Math.max(durationHours * HOUR_WIDTH_PX - 12, 280); // Min width 280px
+              
+              // For due dates, show as a pin marker instead of a full block
+              const isDueDate = item.category === "due" || item.eventType === "DueDate";
+              
+              if (isDueDate) {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute flex flex-col items-center cursor-pointer group"
+                    style={{ 
+                      left: `${cardLeft}px`,
+                      top: `${cardTop - 20}px`,
+                      zIndex: 30
+                    }}
+                    onClick={() => onSelect?.(item)}
+                  >
+                    {/* Pin marker */}
+                    <div className={cn(
+                      "w-12 h-12 rounded-full flex items-center justify-center",
+                      "bg-category-due-bg border-4 border-white shadow-lg",
+                      "transition-all duration-300",
+                      "group-hover:scale-110 group-hover:shadow-xl",
+                      isHighlighted && "ring-4 ring-category-deep-fg"
+                    )}>
+                      <span className="text-2xl">{item.emoji || "📌"}</span>
+                    </div>
+                    
+                    {/* Tooltip on hover */}
+                    <div className={cn(
+                      "absolute top-14 left-1/2 -translate-x-1/2",
+                      "bg-white rounded-xl p-3 shadow-xl border-2 border-category-due-bg",
+                      "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+                      "pointer-events-none whitespace-nowrap z-50"
+                    )}>
+                      <div className="text-xs font-bold text-category-due-fg uppercase tracking-wider mb-1">
+                        Due Date
+                      </div>
+                      <div className="text-sm font-semibold text-brand-text">
+                        {item.title}
+                      </div>
+                      <div className="text-xs text-brand-muted mt-1">
+                        {formatTime(start)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div 
                   key={item.id}
                   className={cn(
-                    "absolute min-w-[280px] p-6 rounded-[2rem] transition-all duration-500 cursor-pointer",
+                    "absolute p-6 rounded-[2rem] transition-all duration-500 cursor-pointer",
                     config.bg,
                     "cozy-border shadow-soft",
                     isNow && "ring-2 ring-category-reset-fg animate-pulse-soft",
@@ -241,7 +295,8 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
                   )}
                   style={{ 
                     left: `${cardLeft}px`,
-                    top: `${cardTop}px`
+                    top: `${cardTop}px`,
+                    width: `${cardWidth}px`
                   }}
                   onClick={() => onSelect?.(item)}
                 >
