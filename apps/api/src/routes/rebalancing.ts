@@ -81,7 +81,7 @@ rebalancingRoute.get('/alerts', async (c) => {
 
 /**
  * POST /api/rebalancing/alerts/dismiss
- * Persistently dismiss alerts for this user.
+ * Persistently dismiss alerts for this user (cross-device).
  * body: { alertId?: string, alertIds?: string[] }
  */
 rebalancingRoute.post('/alerts/dismiss', async (c) => {
