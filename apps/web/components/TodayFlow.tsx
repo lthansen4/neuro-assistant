@@ -139,14 +139,29 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
     const levels: Array<{ endTime: number; events: FlowItem[] }> = [];
     const eventLevels = new Map<string, number>();
     
+    // Add 5-minute buffer between events to prevent touching events from stacking
+    const BUFFER_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+    
     for (const event of sorted) {
       const startTime = new Date(event.startTime).getTime();
       const endTime = new Date(event.endTime).getTime();
       
+      // Debug logging
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[TodayFlow] Processing event:', {
+          title: event.title,
+          start: new Date(event.startTime).toLocaleString(),
+          end: new Date(event.endTime).toLocaleString(),
+          startTime,
+          endTime
+        });
+      }
+      
       // Find the first level where this event doesn't overlap
       let assignedLevel = -1;
       for (let i = 0; i < levels.length; i++) {
-        if (levels[i].endTime <= startTime) {
+        // Check if this level is free (with buffer)
+        if (levels[i].endTime + BUFFER_MS <= startTime) {
           // This level is free, use it
           assignedLevel = i;
           levels[i] = { endTime, events: [...levels[i].events, event] };
