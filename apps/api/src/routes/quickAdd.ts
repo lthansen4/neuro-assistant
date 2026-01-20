@@ -1440,9 +1440,10 @@ async function findFirstAvailableSlot(
   for (const template of templates) {
     // Skip if template has an end date before our search range
     if (template.endDate) {
-      const templateEndDt = template.endDate instanceof Date 
-        ? DateTime.fromJSDate(template.endDate, { zone: userTz })
-        : DateTime.fromISO(String(template.endDate), { zone: userTz });
+      const endDateValue = template.endDate;
+      const templateEndDt = (typeof endDateValue === 'string' || typeof endDateValue === 'number')
+        ? DateTime.fromISO(String(endDateValue), { zone: userTz })
+        : DateTime.fromJSDate(endDateValue, { zone: userTz });
       if (templateEndDt < startSearchFrom) {
         continue;
       }
@@ -1457,9 +1458,10 @@ async function findFirstAvailableSlot(
       if (currentDate.weekday === Number(template.dayOfWeek)) {
         // Skip if before start date
         if (template.startDate) {
-          const templateStartDt = template.startDate instanceof Date
-            ? DateTime.fromJSDate(template.startDate, { zone: userTz })
-            : DateTime.fromISO(String(template.startDate), { zone: userTz });
+          const startDateValue = template.startDate;
+          const templateStartDt = (typeof startDateValue === 'string' || typeof startDateValue === 'number')
+            ? DateTime.fromISO(String(startDateValue), { zone: userTz })
+            : DateTime.fromJSDate(startDateValue, { zone: userTz });
           if (currentDate < templateStartDt) {
             currentDate = currentDate.plus({ days: 1 });
             continue;
@@ -1468,9 +1470,10 @@ async function findFirstAvailableSlot(
         
         // Skip if after end date
         if (template.endDate) {
-          const templateEndDt = template.endDate instanceof Date
-            ? DateTime.fromJSDate(template.endDate, { zone: userTz })
-            : DateTime.fromISO(String(template.endDate), { zone: userTz });
+          const endDateValue = template.endDate;
+          const templateEndDt = (typeof endDateValue === 'string' || typeof endDateValue === 'number')
+            ? DateTime.fromISO(String(endDateValue), { zone: userTz })
+            : DateTime.fromJSDate(endDateValue, { zone: userTz });
           if (currentDate > templateEndDt) {
             break;
           }
