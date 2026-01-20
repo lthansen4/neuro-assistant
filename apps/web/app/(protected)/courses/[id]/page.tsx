@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { CourseEditor, CourseFormData } from "../../../components/CourseEditor";
-import { fetchCourseDetail, updateCourseDetail } from "../../../lib/api";
+import { CourseEditor, CourseFormData } from "../../../../components/CourseEditor";
+import { fetchCourseDetail, updateCourseDetail } from "../../../../lib/api";
 
 export default function CourseDetailPage() {
   const params = useParams();
