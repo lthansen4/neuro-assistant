@@ -60,7 +60,7 @@ calendarRoute.get('/events', async (c) => {
       const userResult = await db.execute(sql`
         SELECT timezone FROM users WHERE id = ${userId}::uuid
       `);
-      const userTimezone = (userResult.rows[0] as any)?.timezone || 'America/New_York';
+      const userTimezone = (userResult.rows[0] as any)?.timezone || 'America/Chicago';
       
       // Fetch templates for this user
       // Note: We want templates that are active during ANY part of the requested range
