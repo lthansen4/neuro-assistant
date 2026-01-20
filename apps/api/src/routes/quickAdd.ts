@@ -1430,9 +1430,62 @@ async function findFirstAvailableSlot(
     where: eq(schema.calendarEventsNew.userId, userId)
   });
   
+  // Also fetch recurring templates (classes, office hours) and expand them into the search range
+  const templates = await db.query.calendarEventTemplates.findMany({
+    where: eq(schema.calendarEventTemplates.userId, userId)
+  });
+  
+  // Expand templates into occurrences within the search range
+  const expandedTemplateEvents: Array<{ startAt: Date; endAt: Date; title: string; eventType: string; isMovable: boolean }> = [];
+  for (const template of templates) {
+    // Skip if template has an end date before our search range
+    if (template.endDate && DateTime.fromJSDate(template.endDate, { zone: userTz }) < startSearchFrom) {
+      continue;
+    }
+    
+    // Generate occurrences for each week day in the search range
+    let currentDate = startSearchFrom.startOf('day');
+    const searchEnd = dueDate.plus({ days: 14 }); // Search up to 14 days
+    
+    while (currentDate < searchEnd) {
+      // Check if this day matches the template's day of week (ISO: Mon=1, Sun=7)
+      if (currentDate.weekday === Number(template.dayOfWeek)) {
+        // Skip if before start date
+        if (template.startDate && currentDate < DateTime.fromJSDate(template.startDate, { zone: userTz })) {
+          currentDate = currentDate.plus({ days: 1 });
+          continue;
+        }
+        
+        // Skip if after end date
+        if (template.endDate && currentDate > DateTime.fromJSDate(template.endDate, { zone: userTz })) {
+          break;
+        }
+        
+        // Parse time strings (HH:MM format)
+        const [startHour, startMin] = String(template.startTimeLocal || '09:00').split(':').map(Number);
+        const [endHour, endMin] = String(template.endTimeLocal || '10:00').split(':').map(Number);
+        
+        const eventStart = currentDate.set({ hour: startHour, minute: startMin, second: 0 });
+        const eventEnd = currentDate.set({ hour: endHour, minute: endMin, second: 0 });
+        
+        expandedTemplateEvents.push({
+          startAt: eventStart.toJSDate(),
+          endAt: eventEnd.toJSDate(),
+          title: (template.metadata as any)?.title || `${template.eventType} Event`,
+          eventType: template.eventType || 'Other',
+          isMovable: template.isMovable ?? false,
+        });
+      }
+      
+      currentDate = currentDate.plus({ days: 1 });
+    }
+  }
+  
+  const allEvents = [...existingEvents, ...expandedTemplateEvents];
+  
   console.log(`[Scheduling] Finding slot for ${durationMinutes}min task`);
   console.log(`[Scheduling] Search range: ${startSearchFrom.toFormat('MMM dd h:mma')} to ${dueDate.toFormat('MMM dd h:mma')}`);
-  console.log(`[Scheduling] Checking against ${existingEvents.length} existing events`);
+  console.log(`[Scheduling] Checking against ${allEvents.length} existing events (${existingEvents.length} direct + ${expandedTemplateEvents.length} from templates)`);
   
   const window = preferredWindow || getPreferredWindow(null);
   
@@ -1461,7 +1514,7 @@ async function findFirstAvailableSlot(
     
     // Check if this slot conflicts with any existing events
     let hasConflict = false;
-    for (const event of existingEvents) {
+    for (const event of allEvents) {
       const eventStart = DateTime.fromJSDate(event.startAt, { zone: userTz });
       const eventEnd = DateTime.fromJSDate(event.endAt, { zone: userTz });
       
