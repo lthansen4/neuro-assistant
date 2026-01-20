@@ -4,22 +4,35 @@ import { supabaseServer } from "../../lib/supabaseServer";
 import { db, schema } from "../../lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { eq, desc } from "drizzle-orm";
+import { DateTime } from "luxon";
 
-async function getOrCreateUserId(): Promise<{ dbUserId: string; clerkUserId: string }> {
+function normalizeTimezone(timezone?: string | null): string | null {
+  if (!timezone) return null;
+  return DateTime.local().setZone(timezone).isValid ? timezone : null;
+}
+
+async function getOrCreateUserId(timezone?: string): Promise<{ dbUserId: string; clerkUserId: string }> {
   const { userId: clerkUserId } = await auth();
   if (!clerkUserId) {
     throw new Error("Not authenticated. Please sign in to upload a syllabus.");
   }
+  const normalizedTz = normalizeTimezone(timezone);
   const found = await db.query.users.findFirst({
     where: eq(schema.users.clerkUserId, clerkUserId),
   });
   let dbUserId: string;
   if (found) {
     dbUserId = found.id;
+    if (normalizedTz && found.timezone !== normalizedTz) {
+      await db
+        .update(schema.users)
+        .set({ timezone: normalizedTz })
+        .where(eq(schema.users.id, found.id));
+    }
   } else {
     const [u] = await db.insert(schema.users).values({
       clerkUserId,
-      timezone: "UTC",
+      timezone: normalizedTz || "UTC",
       targetStudyRatio: "3.00",
     }).returning();
     dbUserId = u.id;
@@ -88,7 +101,7 @@ export async function uploadSyllabus(formData: FormData) {
       };
     }
 
-    const { dbUserId, clerkUserId } = await getOrCreateUserId();
+    const { dbUserId, clerkUserId } = await getOrCreateUserId(tz);
     const supabase = supabaseServer();
 
     // 1. Upload to Supabase Storage
