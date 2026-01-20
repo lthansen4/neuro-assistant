@@ -15,6 +15,17 @@ async function tableExists(name: string): Promise<boolean> {
   }
 }
 
+async function columnExists(table: string, column: string): Promise<boolean> {
+  try {
+    const result = await db.execute(
+      sql`select 1 from information_schema.columns where table_name = ${table} and column_name = ${column} limit 1`
+    );
+    return result.rows?.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // GET /api/dashboard/summary?range=week|day
 dashboardRoute.get("/summary", async (c) => {
   try {
@@ -44,7 +55,10 @@ dashboardRoute.get("/summary", async (c) => {
     const last7Str = last7.toISOString().split('T')[0]; // YYYY-MM-DD
     const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    const daily = (await tableExists("user_daily_productivity"))
+    const hasBufferColumns =
+      (await columnExists("user_daily_productivity", "buffer_minutes_earned")) &&
+      (await columnExists("user_daily_productivity", "buffer_minutes_used"));
+    const daily = (await tableExists("user_daily_productivity")) && hasBufferColumns
       ? await db
           .select()
           .from(schema.userDailyProductivity)
