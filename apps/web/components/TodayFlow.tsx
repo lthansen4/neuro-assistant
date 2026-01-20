@@ -128,43 +128,52 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
   const currentHour = now.getHours();
   const nowPixelPosition = getNowPixelPosition();
 
-  // Calculate vertical positions to avoid overlaps
-  const calculateEventLevels = (events: FlowItem[]) => {
-    // Sort events by start time
-    const sorted = [...events].sort((a, b) => 
-      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-    );
+  // First pass: calculate positions and widths for all events
+  const eventGeometry = displayItems.map((item) => {
+    const start = new Date(item.startTime);
+    const end = new Date(item.endTime);
+    const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
+    const durationHours = durationMinutes / 60;
+    const startHour = start.getHours() + start.getMinutes() / 60;
     
-    // Track which levels are occupied at what times
-    const levels: Array<{ endTime: number; events: FlowItem[] }> = [];
+    const left = getHourPixelPosition(startHour);
+    const width = Math.max(durationHours * HOUR_WIDTH_PX - 12, 280);
+    
+    const isDueDate = item.category === "due" || item.eventType === "DueDate";
+    
+    return {
+      id: item.id,
+      left,
+      width,
+      right: left + width,
+      isDueDate,
+      startTime: start.getTime(),
+      endTime: end.getTime(),
+    };
+  });
+
+  // Second pass: calculate vertical levels to avoid visual overlaps
+  const calculateEventLevels = () => {
+    const sorted = [...eventGeometry].sort((a, b) => a.left - b.left); // Sort by visual position
+    const levels: Array<{ rightEdge: number; events: typeof eventGeometry }> = [];
     const eventLevels = new Map<string, number>();
     
-    // Add 5-minute buffer between events to prevent touching events from stacking
-    const BUFFER_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const VISUAL_GAP = 20; // Minimum gap between cards in pixels
     
-    for (const event of sorted) {
-      const startTime = new Date(event.startTime).getTime();
-      const endTime = new Date(event.endTime).getTime();
-      
-      // Debug logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[TodayFlow] Processing event:', {
-          title: event.title,
-          start: new Date(event.startTime).toLocaleString(),
-          end: new Date(event.endTime).toLocaleString(),
-          startTime,
-          endTime
-        });
+    for (const geom of sorted) {
+      // Due dates don't take up space, they float above
+      if (geom.isDueDate) {
+        eventLevels.set(geom.id, -1); // Special level for pins
+        continue;
       }
       
-      // Find the first level where this event doesn't overlap
+      // Find the first level where this card doesn't visually overlap
       let assignedLevel = -1;
       for (let i = 0; i < levels.length; i++) {
-        // Check if this level is free (with buffer)
-        if (levels[i].endTime + BUFFER_MS <= startTime) {
-          // This level is free, use it
+        // Check if this level is free (card's left edge is past the level's right edge + gap)
+        if (levels[i].rightEdge + VISUAL_GAP <= geom.left) {
           assignedLevel = i;
-          levels[i] = { endTime, events: [...levels[i].events, event] };
+          levels[i] = { rightEdge: geom.right, events: [...levels[i].events, geom] };
           break;
         }
       }
@@ -172,16 +181,16 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
       // If no free level found, create a new one
       if (assignedLevel === -1) {
         assignedLevel = levels.length;
-        levels.push({ endTime, events: [event] });
+        levels.push({ rightEdge: geom.right, events: [geom] });
       }
       
-      eventLevels.set(event.id, assignedLevel);
+      eventLevels.set(geom.id, assignedLevel);
     }
     
-    return { eventLevels, maxLevel: levels.length - 1 };
+    return { eventLevels, maxLevel: Math.max(0, levels.length - 1) };
   };
 
-  const { eventLevels, maxLevel } = calculateEventLevels(displayItems);
+  const { eventLevels, maxLevel } = calculateEventLevels();
   const LEVEL_HEIGHT = 220; // Height per level in pixels
   const LEVEL_GAP = 20; // Gap between levels
 
@@ -196,7 +205,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
           className="relative"
           style={{ 
             width: `${TIMELINE_WIDTH_PX}px`, 
-            minHeight: `${(maxLevel + 1) * LEVEL_HEIGHT + maxLevel * LEVEL_GAP + 80}px` 
+            minHeight: `${(maxLevel + 1) * LEVEL_HEIGHT + maxLevel * LEVEL_GAP + 120}px` 
           }}
         >
           {/* Time Markers Row */}
@@ -228,7 +237,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
           </div>
 
           {/* Cards Container */}
-          <div className="flex gap-6 pt-2">
+          <div className="relative">
             {displayItems.map((item) => {
               const config = getCategoryConfig(item.category);
               const start = new Date(item.startTime);
@@ -236,32 +245,23 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
               const isNow = now >= start && now <= end;
               const isHighlighted = highlightedEventIds.has(String(item.id));
               
-              // Calculate duration in minutes
-              const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
-              const durationHours = durationMinutes / 60;
-
-              // Position card based on start time
-              const startHour = start.getHours() + start.getMinutes() / 60;
-              const cardLeft = getHourPixelPosition(startHour);
+              // Get geometry for this event
+              const geom = eventGeometry.find(g => g.id === item.id);
+              if (!geom) return null;
               
-              // Get vertical level for this event to avoid overlaps
+              // Get vertical level for this event
               const level = eventLevels.get(item.id) || 0;
-              const cardTop = 40 + level * (LEVEL_HEIGHT + LEVEL_GAP);
-              
-              // Calculate card width based on duration
-              const cardWidth = Math.max(durationHours * HOUR_WIDTH_PX - 12, 280); // Min width 280px
+              const cardTop = level === -1 ? 10 : 40 + level * (LEVEL_HEIGHT + LEVEL_GAP);
               
               // For due dates, show as a pin marker instead of a full block
-              const isDueDate = item.category === "due" || item.eventType === "DueDate";
-              
-              if (isDueDate) {
+              if (geom.isDueDate) {
                 return (
                   <div
                     key={item.id}
                     className="absolute flex flex-col items-center cursor-pointer group"
                     style={{ 
-                      left: `${cardLeft}px`,
-                      top: `${cardTop - 20}px`,
+                      left: `${geom.left}px`,
+                      top: `10px`,
                       zIndex: 30
                     }}
                     onClick={() => onSelect?.(item)}
@@ -309,9 +309,9 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
                     isHighlighted && "ring-4 ring-category-deep-fg shadow-aura-green"
                   )}
                   style={{ 
-                    left: `${cardLeft}px`,
+                    left: `${geom.left}px`,
                     top: `${cardTop}px`,
-                    width: `${cardWidth}px`
+                    width: `${geom.width}px`
                   }}
                   onClick={() => onSelect?.(item)}
                 >
@@ -353,4 +353,3 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
     </div>
   );
 }
-
