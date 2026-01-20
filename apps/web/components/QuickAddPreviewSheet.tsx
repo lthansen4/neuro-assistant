@@ -23,6 +23,8 @@ interface QuickAddPreviewSheetProps {
   parseResult: any;
   onSuccess: () => void;
   userId: string;
+  defaultCourseId?: string;
+  lockCourseId?: boolean;
 }
 
 export function QuickAddPreviewSheet({
@@ -31,6 +33,8 @@ export function QuickAddPreviewSheet({
   parseResult,
   onSuccess,
   userId,
+  defaultCourseId,
+  lockCourseId = false,
 }: QuickAddPreviewSheetProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editedDraft, setEditedDraft] = useState(parseResult?.assignment_draft);
@@ -41,12 +45,17 @@ export function QuickAddPreviewSheet({
   const lastDurationRef = useRef<number | null>(editedDraft?.estimated_duration ?? null);
 
   useEffect(() => {
-    setEditedDraft(parseResult?.assignment_draft);
+    const draft = parseResult?.assignment_draft;
+    // If defaultCourseId is provided and the draft doesn't have a course_id, set it
+    if (defaultCourseId && draft && !draft.course_id) {
+      draft.course_id = defaultCourseId;
+    }
+    setEditedDraft(draft);
     setEditedFocusDraft(parseResult?.focus_block_draft);
     setSmartQuestions(parseResult?.smart_questions || []);
     setSmartAnswers({});
-    lastDurationRef.current = parseResult?.assignment_draft?.estimated_duration ?? null;
-  }, [parseResult]);
+    lastDurationRef.current = draft?.estimated_duration ?? null;
+  }, [parseResult, defaultCourseId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -268,7 +277,14 @@ export function QuickAddPreviewSheet({
                 <Label htmlFor="course" className="text-sm font-semibold text-gray-900 dark:text-gray-100">Course</Label>
                 {getConfidenceBadge(confidences.course_id)}
               </div>
-              {suggestions.courses && suggestions.courses.length > 0 ? (
+              {lockCourseId ? (
+                <Input
+                  id="course"
+                  value={editedDraft?.course_id || 'Locked to this course'}
+                  disabled
+                  className="bg-gray-100 dark:bg-gray-800"
+                />
+              ) : suggestions.courses && suggestions.courses.length > 0 ? (
                 <select
                   id="course"
                   value={editedDraft?.course_id || ''}

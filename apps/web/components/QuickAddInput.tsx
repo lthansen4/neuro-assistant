@@ -11,13 +11,25 @@ import { cn } from "../lib/utils";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "https://gessoapi-production.up.railway.app";
 
-export function QuickAddInput() {
+type QuickAddInputProps = {
+  defaultCourseId?: string;
+  lockCourseId?: boolean;
+  prefillText?: string;
+};
+
+export function QuickAddInput({ defaultCourseId, lockCourseId = false, prefillText }: QuickAddInputProps = {}) {
   const { user, isLoaded } = useUser();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(prefillText || "");
   const [isOpen, setIsOpen] = useState(false);
   const [parseResult, setParseResult] = useState<any>(null);
   const [isParsing, setIsParsing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (prefillText) {
+      setText(prefillText);
+    }
+  }, [prefillText]);
 
   // Keyboard shortcut: Alt+Q to focus input
   useEffect(() => {
@@ -134,6 +146,8 @@ export function QuickAddInput() {
           parseResult={parseResult}
           onSuccess={handleSuccess}
           userId={user?.id || ''}
+          defaultCourseId={defaultCourseId}
+          lockCourseId={lockCourseId}
         />
       )}
     </>
