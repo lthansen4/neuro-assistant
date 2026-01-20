@@ -129,7 +129,7 @@ export async function updateCourseDetail(
     };
     schedule?: { day: string; start: string; end: string; location?: string | null }[];
     office_hours?: { day: string; start: string; end: string; location?: string | null }[];
-    assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null }[];
+    assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null; schedule_mode?: "auto" | "manual" | "none"; session_start?: string | null; session_end?: string | null }[];
   }
 ) {
   const res = await fetch(`${API_BASE}/api/courses/${courseId}`, {
@@ -157,7 +157,7 @@ export async function createCourse(
     };
     schedule?: { day: string; start: string; end: string; location?: string | null }[];
     office_hours?: { day: string; start: string; end: string; location?: string | null }[];
-    assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null }[];
+    assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null; schedule_mode?: "auto" | "manual" | "none"; session_start?: string | null; session_end?: string | null }[];
   }
 ) {
   const res = await fetch(`${API_BASE}/api/courses`, {

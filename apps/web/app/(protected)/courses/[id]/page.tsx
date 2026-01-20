@@ -77,6 +77,16 @@ export default function CourseDetailPage() {
       fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:72',message:'calling updateCourseDetail',data:{courseId,gradeWeightsCount:Object.keys(grade_weights).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
       // #endregion
       
+      const invalidManual = (data.newAssignments || []).find(
+        (item) =>
+          item.scheduleMode === "manual" &&
+          (!item.sessionStart || !item.sessionEnd)
+      );
+      if (invalidManual) {
+        setError("Please provide a start and end time for manual scheduling.");
+        return;
+      }
+
       await updateCourseDetail(user.id, courseId, {
         course: {
           name: data.name,
@@ -91,6 +101,9 @@ export default function CourseDetailPage() {
           due_date: item.dueDate || null,
           category: item.category || null,
           effort_estimate_minutes: item.effortMinutes ? Number(item.effortMinutes) : null,
+          schedule_mode: item.scheduleMode || "auto",
+          session_start: item.sessionStart ? new Date(item.sessionStart).toISOString() : null,
+          session_end: item.sessionEnd ? new Date(item.sessionEnd).toISOString() : null,
         })),
       });
       

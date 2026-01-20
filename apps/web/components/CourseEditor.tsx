@@ -24,6 +24,9 @@ export interface CourseFormData {
     dueDate?: string;
     category?: string;
     effortMinutes?: string;
+    scheduleMode?: "auto" | "manual" | "none";
+    sessionStart?: string;
+    sessionEnd?: string;
   }>;
 }
 
@@ -361,7 +364,7 @@ export function CourseEditor({
             onClick={() =>
               setForm({
                 ...form,
-                newAssignments: [...(form.newAssignments || []), { title: "", dueDate: "", category: "Homework", effortMinutes: "90" }],
+                newAssignments: [...(form.newAssignments || []), { title: "", dueDate: "", category: "Homework", effortMinutes: "90", scheduleMode: "auto", sessionStart: "", sessionEnd: "" }],
               })
             }
             className="text-sm text-blue-600 font-semibold"
@@ -406,6 +409,31 @@ export function CourseEditor({
               onChange={(e) => updateNewAssignment(idx, { effortMinutes: e.target.value })}
               className="border rounded px-2 py-2"
             />
+            <select
+              value={item.scheduleMode || "auto"}
+              onChange={(e) => updateNewAssignment(idx, { scheduleMode: e.target.value as "auto" | "manual" | "none" })}
+              className="border rounded px-2 py-2 md:col-span-2"
+            >
+              <option value="auto">Auto-schedule time</option>
+              <option value="manual">Schedule time now</option>
+              <option value="none">Don’t schedule</option>
+            </select>
+            {item.scheduleMode === "manual" && (
+              <>
+                <input
+                  type="datetime-local"
+                  value={item.sessionStart || ""}
+                  onChange={(e) => updateNewAssignment(idx, { sessionStart: e.target.value })}
+                  className="border rounded px-2 py-2 md:col-span-2"
+                />
+                <input
+                  type="datetime-local"
+                  value={item.sessionEnd || ""}
+                  onChange={(e) => updateNewAssignment(idx, { sessionEnd: e.target.value })}
+                  className="border rounded px-2 py-2 md:col-span-2"
+                />
+              </>
+            )}
             <button
               type="button"
               onClick={() =>

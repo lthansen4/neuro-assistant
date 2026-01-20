@@ -29,6 +29,17 @@ export default function NewCoursePage() {
       setCreating(true);
       setError(null);
       
+      const invalidManual = (data.newAssignments || []).find(
+        (item) =>
+          item.scheduleMode === "manual" &&
+          (!item.sessionStart || !item.sessionEnd)
+      );
+      if (invalidManual) {
+        setError("Please provide a start and end time for manual scheduling.");
+        setCreating(false);
+        return;
+      }
+
       const grade_weights = (data.gradeWeights || []).reduce<Record<string, number>>((acc, item) => {
         if (item.name && item.weight) {
           acc[item.name] = Number(item.weight);
@@ -50,6 +61,9 @@ export default function NewCoursePage() {
           due_date: item.dueDate || null,
           category: item.category || null,
           effort_estimate_minutes: item.effortMinutes ? Number(item.effortMinutes) : null,
+          schedule_mode: item.scheduleMode || "auto",
+          session_start: item.sessionStart ? new Date(item.sessionStart).toISOString() : null,
+          session_end: item.sessionEnd ? new Date(item.sessionEnd).toISOString() : null,
         })),
       });
       

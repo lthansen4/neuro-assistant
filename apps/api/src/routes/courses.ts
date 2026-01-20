@@ -351,7 +351,7 @@ coursesRoute.post('/', async (c) => {
       };
       schedule?: { day: string; start: string; end: string; location?: string | null }[];
       office_hours?: { day: string; start: string; end: string; location?: string | null }[];
-      assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null }[];
+      assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null; schedule_mode?: "auto" | "manual" | "none"; session_start?: string | null; session_end?: string | null }[];
     }>();
 
     if (!body?.course?.name) return c.json({ error: 'course.name is required' }, 400);
@@ -489,6 +489,9 @@ coursesRoute.post('/', async (c) => {
         const title = (item.title || '').trim();
         if (!title) continue;
         const dueDate = parseDueDate(item.due_date);
+        const scheduleMode = item.schedule_mode ?? "auto";
+        const manualStart = item.session_start ? new Date(item.session_start) : null;
+        const manualEnd = item.session_end ? new Date(item.session_end) : null;
         const existing = await db
           .select()
           .from(schema.assignments)
@@ -504,6 +507,7 @@ coursesRoute.post('/', async (c) => {
         if (existing.length > 0) continue;
 
         const priorityScore = calculatePriorityScore(item.category);
+        const status = scheduleMode === "none" ? "Inbox" : "Scheduled";
         const [assign] = await db.insert(schema.assignments).values({
           userId,
           courseId: createdCourse.id,
@@ -513,7 +517,7 @@ coursesRoute.post('/', async (c) => {
           effortEstimateMinutes: item.effort_estimate_minutes ?? null,
           totalPages: item.total_pages ?? null,
           priorityScore,
-          status: 'Scheduled',
+          status,
         } as any).returning();
 
         const category = (item.category || '').toLowerCase();
@@ -537,7 +541,21 @@ coursesRoute.post('/', async (c) => {
           } as any);
         }
 
-        if (dueDate && useNewTable && isHomework) {
+        if (useNewTable && scheduleMode === "manual" && manualStart && manualEnd) {
+          await db.insert(schema.calendarEventsNew).values({
+            userId,
+            courseId: createdCourse.id,
+            assignmentId: assign.id,
+            title: `Focus: ${title}`,
+            eventType: 'Focus' as any,
+            startAt: manualStart,
+            endAt: manualEnd,
+            isMovable: true,
+            metadata: { source: 'course_manual', assignmentId: assign.id, manual: true } as any,
+          } as any);
+        }
+
+        if (dueDate && useNewTable && isHomework && scheduleMode === "auto") {
           let effortMinutes = item.effort_estimate_minutes;
           if (!effortMinutes || effortMinutes === 0) {
             effortMinutes = 90;
@@ -582,7 +600,7 @@ coursesRoute.post('/', async (c) => {
           }
         }
 
-        if (dueDate && useNewTable && isExam) {
+        if (dueDate && useNewTable && isExam && scheduleMode === "auto") {
           const studyMinutes = calculateStudyTime(category);
           const studySessions = calculateStudySessions(dueDate, studyMinutes, tz);
           for (const session of studySessions) {
@@ -631,7 +649,7 @@ coursesRoute.put('/:id', async (c) => {
       };
       schedule?: { day: string; start: string; end: string; location?: string | null }[];
       office_hours?: { day: string; start: string; end: string; location?: string | null }[];
-      assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null }[];
+      assignments?: { title: string; due_date?: string | null; category?: string | null; effort_estimate_minutes?: number | null; total_pages?: number | null; schedule_mode?: "auto" | "manual" | "none"; session_start?: string | null; session_end?: string | null }[];
     }>();
 
     // #region agent log
@@ -818,6 +836,9 @@ coursesRoute.put('/:id', async (c) => {
           const title = (item.title || '').trim();
           if (!title) continue;
           const dueDate = parseDueDate(item.due_date);
+          const scheduleMode = item.schedule_mode ?? "auto";
+          const manualStart = item.session_start ? new Date(item.session_start) : null;
+          const manualEnd = item.session_end ? new Date(item.session_end) : null;
 
           const existing = await tx
             .select()
@@ -834,6 +855,7 @@ coursesRoute.put('/:id', async (c) => {
           if (existing.length > 0) continue;
 
           const priorityScore = calculatePriorityScore(item.category);
+          const status = scheduleMode === "none" ? "Inbox" : "Scheduled";
           const [assign] = await tx.insert(schema.assignments).values({
             userId,
             courseId,
@@ -843,7 +865,7 @@ coursesRoute.put('/:id', async (c) => {
             effortEstimateMinutes: item.effort_estimate_minutes ?? null,
             totalPages: item.total_pages ?? null,
             priorityScore,
-            status: 'Scheduled',
+            status,
           } as any).returning();
 
           const category = (item.category || '').toLowerCase();
@@ -867,7 +889,21 @@ coursesRoute.put('/:id', async (c) => {
             } as any);
           }
 
-          if (dueDate && useNewTable && isHomework) {
+          if (useNewTable && scheduleMode === "manual" && manualStart && manualEnd) {
+            await tx.insert(schema.calendarEventsNew).values({
+              userId,
+              courseId,
+              assignmentId: assign.id,
+              title: `Focus: ${title}`,
+              eventType: 'Focus' as any,
+              startAt: manualStart,
+              endAt: manualEnd,
+              isMovable: true,
+              metadata: { source: 'course_manual', assignmentId: assign.id, manual: true } as any,
+            } as any);
+          }
+
+          if (dueDate && useNewTable && isHomework && scheduleMode === "auto") {
             let effortMinutes = item.effort_estimate_minutes;
             if (!effortMinutes || effortMinutes === 0) {
               effortMinutes = 90;
@@ -912,7 +948,7 @@ coursesRoute.put('/:id', async (c) => {
             }
           }
 
-          if (dueDate && useNewTable && isExam) {
+          if (dueDate && useNewTable && isExam && scheduleMode === "auto") {
             const studyMinutes = calculateStudyTime(category);
             const studySessions = calculateStudySessions(dueDate, studyMinutes, tz);
             for (const session of studySessions) {
