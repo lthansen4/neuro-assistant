@@ -371,17 +371,24 @@ coursesRoute.post('/', async (c) => {
       .returning();
 
     if (body.course.grade_weights && Object.keys(body.course.grade_weights).length > 0) {
-      await db.delete(schema.gradingComponents).where(eq(schema.gradingComponents.courseId, createdCourse.id));
-      const components = Object.entries(body.course.grade_weights).map(([name, weight]) => ({
-        courseId: createdCourse.id,
-        name: name.trim(),
-        weightPercent: Number(weight),
-        source: 'manual' as const,
-        parseRunId: null,
-        dropLowest: null,
-        sourceItemId: null,
-      }));
-      await db.insert(schema.gradingComponents).values(components as any);
+      try {
+        if (schema.gradingComponents) {
+          await db.delete(schema.gradingComponents).where(eq(schema.gradingComponents.courseId, createdCourse.id));
+          const components = Object.entries(body.course.grade_weights).map(([name, weight]) => ({
+            courseId: createdCourse.id,
+            name: name.trim(),
+            weightPercent: Number(weight),
+            source: 'manual' as const,
+            parseRunId: null,
+            dropLowest: null,
+            sourceItemId: null,
+          }));
+          await db.insert(schema.gradingComponents).values(components as any);
+        }
+      } catch (gradingErr: any) {
+        console.error('[Courses API] Failed to create grading components (skipping):', gradingErr.message);
+        // Continue with course creation even if grading components fail
+      }
     }
 
     if (officeHours.length > 0) {
@@ -643,18 +650,26 @@ coursesRoute.put('/:id', async (c) => {
         } as any)
         .where(and(eq(schema.courses.id, courseId), eq(schema.courses.userId, userId)));
 
+      // Update grading components if the table exists
       if (body.course.grade_weights && Object.keys(body.course.grade_weights).length > 0) {
-        await tx.delete(schema.gradingComponents).where(eq(schema.gradingComponents.courseId, courseId));
-        const components = Object.entries(body.course.grade_weights).map(([name, weight]) => ({
-          courseId,
-          name: name.trim(),
-          weightPercent: Number(weight),
-          source: 'manual' as const,
-          parseRunId: null,
-          dropLowest: null,
-          sourceItemId: null,
-        }));
-        await tx.insert(schema.gradingComponents).values(components as any);
+        try {
+          if (schema.gradingComponents) {
+            await tx.delete(schema.gradingComponents).where(eq(schema.gradingComponents.courseId, courseId));
+            const components = Object.entries(body.course.grade_weights).map(([name, weight]) => ({
+              courseId,
+              name: name.trim(),
+              weightPercent: Number(weight),
+              source: 'manual' as const,
+              parseRunId: null,
+              dropLowest: null,
+              sourceItemId: null,
+            }));
+            await tx.insert(schema.gradingComponents).values(components as any);
+          }
+        } catch (gradingErr: any) {
+          console.error('[Courses API] Failed to update grading components (skipping):', gradingErr.message);
+          // Continue with course update even if grading components fail
+        }
       }
 
       await tx.delete(schema.courseOfficeHours).where(eq(schema.courseOfficeHours.courseId, courseId));
