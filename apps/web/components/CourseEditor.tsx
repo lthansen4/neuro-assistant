@@ -306,7 +306,7 @@ export function CourseEditor({
           <div className="text-sm text-gray-500">No grading breakdown yet.</div>
         )}
         {(form.gradeWeights || []).map((item, idx) => (
-          <div key={`${item.name}-${idx}`} className="grid gap-2 md:grid-cols-5 items-center">
+          <div key={`grade-weight-${idx}`} className="grid gap-2 md:grid-cols-5 items-center">
             <input
               placeholder="Category"
               value={item.name}
@@ -373,7 +373,7 @@ export function CourseEditor({
           <div className="text-sm text-gray-500">No new assignments added.</div>
         )}
         {(form.newAssignments || []).map((item, idx) => (
-          <div key={`${item.title}-${idx}`} className="grid gap-2 md:grid-cols-5 items-center">
+          <div key={`new-assignment-${idx}`} className="grid gap-2 md:grid-cols-5 items-center">
             <input
               placeholder="Title"
               value={item.title}
