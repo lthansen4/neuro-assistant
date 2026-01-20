@@ -358,6 +358,21 @@ uploadRoute.post('/commit', async (c) => {
   }
 });
 
+async function checkTableExists(tx: any, tableName: string): Promise<boolean> {
+  try {
+    const result = await tx.execute(sql`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = ${tableName}
+      )
+    `);
+    return result.rows?.[0]?.exists ?? false;
+  } catch {
+    return false;
+  }
+}
+
 // POST /api/upload/rollback
 uploadRoute.post("/rollback", async (c) => {
   try {
@@ -368,24 +383,65 @@ uploadRoute.post("/rollback", async (c) => {
     const result = await db.transaction(async (tx) => {
       let assignmentsDeleted = 0;
       let eventsDeleted = 0;
+      let templatesDeleted = 0;
 
-      // Attempt "artifacts" path first (precise rollback)
-      let artifactsSupported = true;
-      try {
-        // Delete events via artifacts table if present
-        const delEvents = await tx.execute(sql`
-          with to_delete as (
-            select event_id from syllabus_commit_artifacts
-            where parse_run_id = ${parseRunId}::uuid and event_id is not null
-          )
-          delete from calendar_events ce
-          using to_delete td
-          where ce.id = td.event_id and ce.user_id = ${userId}::uuid
-          returning ce.id;
+      const artifactsTableExists = await checkTableExists(tx, "syllabus_commit_artifacts");
+      const templatesTableExists = await checkTableExists(tx, "calendar_event_templates");
+      const eventsNewTableExists = await checkTableExists(tx, "calendar_events_new");
+      const eventsLegacyTableExists = await checkTableExists(tx, "calendar_events");
+
+      // Delete templates created by this parse run (recurring class/office hours)
+      if (templatesTableExists) {
+        const delTemplates = await tx.execute(sql`
+          delete from calendar_event_templates
+          where user_id = ${userId}::uuid
+            and metadata->>'parseRunId' = ${parseRunId}
+          returning id;
         `);
-        eventsDeleted = Array.isArray(delEvents.rows) ? delEvents.rows.length : 0;
+        templatesDeleted = Array.isArray(delTemplates.rows) ? delTemplates.rows.length : 0;
+      }
 
-        // Delete assignments via artifacts table if present
+      // Delete direct events created by this parse run (due dates, focus/study blocks)
+      if (eventsNewTableExists) {
+        const delNew = await tx.execute(sql`
+          delete from calendar_events_new
+          where user_id = ${userId}::uuid
+            and metadata->>'parseRunId' = ${parseRunId}
+          returning id;
+        `);
+        eventsDeleted += Array.isArray(delNew.rows) ? delNew.rows.length : 0;
+      }
+
+      // Precise cleanup via artifacts if available (covers legacy + any direct events/assignments)
+      if (artifactsTableExists) {
+        if (eventsNewTableExists) {
+          const delEventsNew = await tx.execute(sql`
+            with to_delete as (
+              select event_id from syllabus_commit_artifacts
+              where parse_run_id = ${parseRunId}::uuid and event_id is not null
+            )
+            delete from calendar_events_new ce
+            using to_delete td
+            where ce.id = td.event_id and ce.user_id = ${userId}::uuid
+            returning ce.id;
+          `);
+          eventsDeleted += Array.isArray(delEventsNew.rows) ? delEventsNew.rows.length : 0;
+        }
+
+        if (eventsLegacyTableExists) {
+          const delEventsLegacy = await tx.execute(sql`
+            with to_delete as (
+              select event_id from syllabus_commit_artifacts
+              where parse_run_id = ${parseRunId}::uuid and event_id is not null
+            )
+            delete from calendar_events ce
+            using to_delete td
+            where ce.id = td.event_id and ce.user_id = ${userId}::uuid
+            returning ce.id;
+          `);
+          eventsDeleted += Array.isArray(delEventsLegacy.rows) ? delEventsLegacy.rows.length : 0;
+        }
+
         const delAssignments = await tx.execute(sql`
           with to_delete as (
             select assignment_id from syllabus_commit_artifacts
@@ -400,30 +456,27 @@ uploadRoute.post("/rollback", async (c) => {
 
         // Clean up artifacts rows
         await tx.execute(sql`delete from syllabus_commit_artifacts where parse_run_id = ${parseRunId}::uuid;`);
-      } catch {
-        artifactsSupported = false;
       }
 
-      // Fallback: if artifacts table doesn't exist, delete events by metadata.parseRunId
-      if (!artifactsSupported) {
-        const delEv = await tx.execute(sql`
+      // Fallback for legacy events if no artifacts table (avoid hard failure)
+      if (!artifactsTableExists && eventsLegacyTableExists) {
+        const delLegacy = await tx.execute(sql`
           delete from calendar_events
           where user_id = ${userId}::uuid
             and metadata->>'source' = 'syllabus_commit'
             and metadata->>'parseRunId' = ${parseRunId}
           returning id;
         `);
-        eventsDeleted = Array.isArray(delEv.rows) ? delEv.rows.length : 0;
-        // Assignments removal skipped (no reliable link)
+        eventsDeleted += Array.isArray(delLegacy.rows) ? delLegacy.rows.length : 0;
       }
 
-      return { assignmentsDeleted, eventsDeleted, artifactsSupported };
+      return { assignmentsDeleted, eventsDeleted, templatesDeleted, artifactsTableExists };
     });
 
     return c.json({
       ok: true,
-      deleted: { assignments: result.assignmentsDeleted, events: result.eventsDeleted },
-      mode: result.artifactsSupported ? "artifacts" : "metadata-only",
+      deleted: { assignments: result.assignmentsDeleted, events: result.eventsDeleted, templates: result.templatesDeleted },
+      mode: result.artifactsTableExists ? "artifacts" : "metadata-only",
     });
   } catch (e: any) {
     return c.json({ error: e.message || "Rollback failed" }, 400);
