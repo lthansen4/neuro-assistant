@@ -415,6 +415,7 @@ export function AssignmentEditModal({
   }
 
   return (
+    <>
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-brand-surface border-brand-border rounded-[2.5rem] p-0 gap-0">
         <div className="sticky top-0 z-20 bg-brand-surface/80 backdrop-blur-xl border-b border-brand-border/40 p-8">
