@@ -13,6 +13,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
+import { Tooltip } from "./ui/Tooltip";
 import { cn } from "../lib/utils";
 import { toast } from "./ui/Toast";
 import { GessoIcon } from "./ui/GessoIcon";
@@ -580,26 +581,28 @@ export function AssignmentEditModal({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleToggleBlockComplete(block.id)}
-                            className={cn(
-                              "w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm hover:scale-110",
-                              isBlockCompleted 
-                                ? "bg-brand-mint text-white" 
-                                : "bg-brand-surface text-brand-muted hover:text-brand-mint hover:bg-brand-mint/10"
-                            )}
-                            title={isBlockCompleted ? "Unmark this block as done" : "Mark this block as complete"}
-                          >
-                            <Check size={18} className={cn(isBlockCompleted && "animate-in zoom-in-50")} />
-                          </button>
+                          <Tooltip content={isBlockCompleted ? "Unmark this block as done" : "Mark this block as complete"}>
+                            <button
+                              onClick={() => handleToggleBlockComplete(block.id)}
+                              className={cn(
+                                "w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm hover:scale-110",
+                                isBlockCompleted 
+                                  ? "bg-brand-mint text-white" 
+                                  : "bg-brand-surface text-brand-muted hover:text-brand-mint hover:bg-brand-mint/10"
+                              )}
+                            >
+                              <Check size={18} className={cn(isBlockCompleted && "animate-in zoom-in-50")} />
+                            </button>
+                          </Tooltip>
                           
-                          <button
-                            onClick={() => handleRescheduleBlock(block.id)}
-                            className="w-10 h-10 rounded-xl bg-white dark:bg-brand-surface flex items-center justify-center text-brand-amber hover:text-brand-amber hover:bg-brand-amber/10 transition-all shadow-sm hover:scale-110"
-                            title="Reschedule this block to another time"
-                          >
-                            <GessoIcon type="bolt" size={14} />
-                          </button>
+                          <Tooltip content="Reschedule this block to another time">
+                            <button
+                              onClick={() => handleRescheduleBlock(block.id)}
+                              className="w-10 h-10 rounded-xl bg-white dark:bg-brand-surface flex items-center justify-center text-brand-amber hover:text-brand-amber hover:bg-brand-amber/10 transition-all shadow-sm hover:scale-110"
+                            >
+                              <GessoIcon type="bolt" size={14} />
+                            </button>
+                          </Tooltip>
                         </div>
                       </div>
                     </div>
