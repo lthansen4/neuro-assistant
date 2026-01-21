@@ -234,9 +234,13 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
       return c.json({ error: 'No suitable time slot found in the next 14 days.' }, 404);
     }
 
+    // Trim the slot to the requested duration (SlotMatcher returns the entire free gap)
+    const slotStart = match.slot.startAt;
+    const slotEnd = new Date(slotStart.getTime() + body.additionalMinutes * 60 * 1000);
+
     // Generate reason for this slot selection
     const now = new Date();
-    const dayDiff = Math.floor((match.slot.startAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const dayDiff = Math.floor((slotStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     let reason = '';
     if (dayDiff === 0) {
       reason = `Next available ${body.additionalMinutes}-minute slot today`;
@@ -265,8 +269,8 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
         event: {
           id: tempId,
           title: blockTitle,
-          startAt: match.slot.startAt.toISOString(),
-          endAt: match.slot.endAt.toISOString(),
+          startAt: slotStart.toISOString(),
+          endAt: slotEnd.toISOString(),
           metadata: {
             autoScheduled: true,
             sessionNumber,
@@ -284,8 +288,8 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
       linkedAssignmentId: assignmentId,
       title: blockTitle,
       eventType: 'Focus',
-      startAt: match.slot.startAt,
-      endAt: match.slot.endAt,
+      startAt: slotStart,
+      endAt: slotEnd,
       isMovable: true,
       metadata: {
         autoScheduled: true,
@@ -304,7 +308,8 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
         startAt: event.startAt.toISOString(),
         endAt: event.endAt.toISOString(),
         metadata: event.metadata
-      }
+      },
+      reason 
     });
 
   } catch (error: any) {
