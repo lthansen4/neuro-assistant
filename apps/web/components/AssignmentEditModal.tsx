@@ -243,52 +243,57 @@ export function AssignmentEditModal({
     const end = new Date(block.endAt);
     const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
 
-    const toastId = toast.loading("Finding a new time slot...");
-    try {
-      // Call API to auto-reschedule this block
-      const res = await fetch(`${API_BASE}/api/calendar/events/${blockId}/reschedule`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-clerk-user-id": userId,
-        },
-        body: JSON.stringify({
-          durationMinutes,
-          linkedAssignmentId: assignment.id,
-        }),
-      });
+    // Use toast.promise for automatic loading -> success/error transitions
+    await toast.promise(
+      (async () => {
+        // Call API to auto-reschedule this block
+        const res = await fetch(`${API_BASE}/api/calendar/events/${blockId}/reschedule`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-clerk-user-id": userId,
+          },
+          body: JSON.stringify({
+            durationMinutes,
+            linkedAssignmentId: assignment.id,
+          }),
+        });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Failed to reschedule block.");
-      }
-
-      // Update local state with new time
-      setFocusBlocks(prev => prev.map(b => 
-        b.id === blockId 
-          ? { ...b, startAt: data.event.startAt, endAt: data.event.endAt } 
-          : b
-      ));
-
-      const newStart = new Date(data.event.startAt);
-      toast.success(
-        `Rescheduled to ${newStart.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${newStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-      );
-      
-      // Broadcast update to all views
-      window.dispatchEvent(new CustomEvent('assignmentUpdated', {
-        detail: { 
-          assignmentId: assignment.id,
-          action: 'reschedule',
-          blockId 
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+          throw new Error(data.error || "Failed to reschedule block.");
         }
-      }));
-      
-      onUpdated(); // Refresh parent views
-    } catch (err: any) {
-      toast.error(err.message || "Failed to reschedule");
-      console.error(err);
-    }
+
+        // Update local state with new time
+        setFocusBlocks(prev => prev.map(b => 
+          b.id === blockId 
+            ? { ...b, startAt: data.event.startAt, endAt: data.event.endAt } 
+            : b
+        ));
+
+        // Broadcast update to all views
+        window.dispatchEvent(new CustomEvent('assignmentUpdated', {
+          detail: { 
+            assignmentId: assignment.id,
+            action: 'reschedule',
+            blockId 
+          }
+        }));
+        
+        onUpdated(); // Refresh parent views
+
+        // Return data for success message
+        return data;
+      })(),
+      {
+        loading: "Finding a new time slot...",
+        success: (data) => {
+          const newStart = new Date(data.event.startAt);
+          return `Rescheduled to ${newStart.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${newStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+        },
+        error: (err) => err.message || "Failed to reschedule",
+      }
+    );
   };
 
   const handleScheduleMoreTime = async (autoSchedule: boolean) => {
