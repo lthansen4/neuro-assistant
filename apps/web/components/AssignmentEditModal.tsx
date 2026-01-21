@@ -340,9 +340,7 @@ export function AssignmentEditModal({
 
     if (!autoSchedule) {
       // Manual schedule: Show instructions
-      toast.info("Go to Calendar view and tap an empty time slot to place this block", {
-        duration: 5000,
-      });
+      toast.info("Go to Calendar view and tap an empty time slot to place this block");
       // Don't close the modal - let them see the duration/name they set
       setShowScheduleMore(false);
       return;
@@ -901,7 +899,7 @@ export function AssignmentEditModal({
               <Button
                 onClick={() => {
                   setSchedulePreview(null);
-                  toast.info("Go to Calendar view to place this block manually", { duration: 5000 });
+                  toast.info("Go to Calendar view to place this block manually");
                 }}
                 variant="outline"
                 className="flex-1 h-10 rounded-xl font-medium"
