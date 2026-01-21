@@ -198,7 +198,6 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
     console.log(`[Schedule More] Finding slot for ${body.additionalMinutes}m for assignment ${assignment.title}, preview=${body.preview}`);
     console.log(`[Schedule More] Assignment due date: ${assignment.dueDate?.toISOString() || 'N/A'}`);
     console.log(`[Schedule More] Assignment course: ${assignment.courseId || 'N/A'}`);
-    console.log(`[Schedule More] Existing blocks: ${existingBlocks.length}`);
 
     // Find existing focus blocks for this assignment to determine session number
     const existingBlocks = await db.query.calendarEventsNew.findMany({
@@ -207,6 +206,8 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
         eq(calendarEventsNew.linkedAssignmentId, assignmentId)
       )
     });
+
+    console.log(`[Schedule More] Existing blocks: ${existingBlocks.length}`);
 
     const sessionNumber = existingBlocks.length + 1;
 
@@ -227,9 +228,9 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
     const { ScheduleAnalyzer } = await import('../lib/schedule-analyzer');
     const analyzer = new ScheduleAnalyzer(userId);
     await analyzer.initTimezone();
-    const now = new Date();
-    const testEndDate = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-    const debugSlots = await analyzer.findFreeSlots(userId, body.additionalMinutes, now, testEndDate, {
+    const nowDebug = new Date();
+    const testEndDate = new Date(nowDebug.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const debugSlots = await analyzer.findFreeSlots(userId, body.additionalMinutes, nowDebug, testEndDate, {
       preferredTimeOfDay: 'morning',
       energyLevel: 7
     });
@@ -299,8 +300,8 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
     const slotEnd = new Date(slotStart.getTime() + body.additionalMinutes * 60 * 1000);
 
     // Generate reason for this slot selection
-    const now = new Date();
-    const dayDiff = Math.floor((slotStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const nowForReason = new Date();
+    const dayDiff = Math.floor((slotStart.getTime() - nowForReason.getTime()) / (1000 * 60 * 60 * 24));
     let reason = '';
     if (dayDiff === 0) {
       reason = `Next available ${body.additionalMinutes}-minute slot today`;
