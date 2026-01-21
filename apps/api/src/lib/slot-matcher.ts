@@ -110,15 +110,37 @@ export class SlotMatcher {
         
         // If the deadline is in the future, we must finish before it
         if (assignmentDeadline > now) {
-          // If deadline is more than 24h away, try to finish 4h before (buffer)
-          // otherwise just finish before the deadline itself
           const hoursUntilDue = (assignmentDeadline.getTime() - now.getTime()) / (1000 * 60 * 60);
-          const bufferMs = hoursUntilDue > 24 ? 4 * 60 * 60 * 1000 : 0;
+          let bufferMs = 0;
+          let bufferDescription = 'no buffer';
+          
+          // Graduated buffer system - be more lenient as deadline approaches
+          if (hoursUntilDue > 72) {
+            // More than 3 days: use 4-hour buffer for quality scheduling
+            bufferMs = 4 * 60 * 60 * 1000;
+            bufferDescription = '4h buffer';
+          } else if (hoursUntilDue > 48) {
+            // 2-3 days: use 2-hour buffer
+            bufferMs = 2 * 60 * 60 * 1000;
+            bufferDescription = '2h buffer';
+          } else if (hoursUntilDue > 24) {
+            // 1-2 days: use 30-minute buffer (just enough to wrap up)
+            bufferMs = 30 * 60 * 1000;
+            bufferDescription = '30m buffer';
+          } else if (hoursUntilDue > 6) {
+            // 6-24 hours: no buffer, schedule right up to deadline
+            bufferMs = 0;
+            bufferDescription = 'no buffer (deadline soon)';
+          } else {
+            // Less than 6 hours: allow scheduling up to the deadline
+            bufferMs = 0;
+            bufferDescription = 'no buffer (urgent deadline)';
+          }
           
           const adjustedDeadline = new Date(assignmentDeadline.getTime() - bufferMs);
           if (adjustedDeadline < endDate) {
             endDate = adjustedDeadline;
-            console.log(`[SlotMatcher] Constraining search to ${endDate.toISOString()} (before due date)`);
+            console.log(`[SlotMatcher] Constraining search to ${endDate.toISOString()} (${bufferDescription}, ${hoursUntilDue.toFixed(1)}h until due)`);
           }
         } else {
           // Deadline is in the past or right now, use 14 days lookahead but log it
