@@ -1062,12 +1062,13 @@ calendarRoute.post('/events/:id/reschedule', async (c) => {
     const now = new Date();
     const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     
+    // findFreeSlots signature: (userId, minDuration, startDate, endDate, preferences)
     const freeSlots = await analyzer.findFreeSlots(
       userId,
+      durationMinutes,  // minDuration comes BEFORE dates
       now,
       weekFromNow,
-      durationMinutes,
-      { maxSlots: 1 } // Just need the first available slot
+      { maxSlots: 1 } // This will be ignored, but preferences is optional
     );
     
     if (!freeSlots || freeSlots.length === 0) {
