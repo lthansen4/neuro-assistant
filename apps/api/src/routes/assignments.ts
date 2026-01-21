@@ -173,6 +173,94 @@ assignmentsRoute.post('/:id/schedule-remaining', async (c) => {
 });
 
 /**
+ * POST /api/assignments/:id/schedule-more
+ * Schedule additional work time for an assignment
+ * Used when user needs more time than originally allocated
+ */
+assignmentsRoute.post('/:id/schedule-more', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const assignmentId = c.req.param('id');
+    const body = await c.req.json<{ additionalMinutes: number }>();
+
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const assignment = await db.query.assignments.findFirst({
+      where: and(eq(assignments.id, assignmentId), eq(assignments.userId, userId))
+    });
+
+    if (!assignment) return c.json({ error: 'Assignment not found' }, 404);
+
+    if (!body.additionalMinutes || body.additionalMinutes <= 0) {
+      return c.json({ error: 'Invalid additionalMinutes value' }, 400);
+    }
+
+    console.log(`[Schedule More] Finding slot for ${body.additionalMinutes}m for assignment ${assignment.title}`);
+
+    // Find existing focus blocks for this assignment to determine session number
+    const existingBlocks = await db.query.calendarEventsNew.findMany({
+      where: and(
+        eq(calendarEventsNew.userId, userId),
+        eq(calendarEventsNew.linkedAssignmentId, assignmentId)
+      )
+    });
+
+    const sessionNumber = existingBlocks.length + 1;
+
+    // Use SlotMatcher to find optimal time
+    const matcher = new SlotMatcher(userId);
+    const match = await matcher.findOptimalSlot(
+      {
+        title: `Work on: ${assignment.title} (Session ${sessionNumber})`,
+        duration: body.additionalMinutes,
+        linkedAssignmentId: assignmentId,
+        category: 'focus'
+      },
+      userId,
+      7 // Assume decent energy for additional work
+    );
+
+    if (!match) {
+      return c.json({ error: 'No suitable time slot found in the next 14 days.' }, 404);
+    }
+
+    // Create the new focus block
+    const [event] = await db.insert(calendarEventsNew).values({
+      userId,
+      courseId: assignment.courseId,
+      linkedAssignmentId: assignmentId,
+      title: match.focusBlock.title,
+      eventType: 'Focus',
+      startAt: match.slot.startAt,
+      endAt: match.slot.endAt,
+      isMovable: true,
+      metadata: {
+        autoScheduled: true,
+        reason: 'Additional time requested by user',
+        sessionNumber
+      }
+    }).returning();
+
+    console.log(`[Schedule More] Created focus block ${event.id} at ${event.startAt.toISOString()}`);
+
+    return c.json({ 
+      ok: true, 
+      event: {
+        id: event.id,
+        title: event.title,
+        startAt: event.startAt.toISOString(),
+        endAt: event.endAt.toISOString(),
+        metadata: event.metadata
+      }
+    });
+
+  } catch (error: any) {
+    console.error('[Assignments API] Error scheduling additional time:', error);
+    return c.json({ error: error.message || 'Failed to schedule additional time' }, 500);
+  }
+});
+
+/**
  * POST /api/assignments/quick-add
  * 
  * Quick add an assignment with AI auto-categorization and scoring

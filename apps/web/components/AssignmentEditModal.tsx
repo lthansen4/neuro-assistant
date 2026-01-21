@@ -16,7 +16,7 @@ import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
 import { toast } from "./ui/Toast";
 import { GessoIcon } from "./ui/GessoIcon";
-import { Trash2, CheckCircle2, Save, X, Check, GraduationCap } from "lucide-react";
+import { Trash2, CheckCircle2, Save, X, Check, GraduationCap, Plus, Clock, Calendar } from "lucide-react";
 import { toggleCalendarEventCompletion, fetchCourses } from "../lib/api";
 import { PostSessionSummaryModal } from "./PostSessionSummaryModal";
 
@@ -78,6 +78,9 @@ export function AssignmentEditModal({
   const [focusBlocks, setFocusBlocks] = useState<FocusBlock[]>([]);
   const [loadingFocusBlocks, setLoadingFocusBlocks] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showScheduleMore, setShowScheduleMore] = useState(false);
+  const [additionalMinutes, setAdditionalMinutes] = useState<string>("90");
+  const [schedulingMore, setSchedulingMore] = useState(false);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -160,6 +163,15 @@ export function AssignmentEditModal({
         throw new Error(data.error || "Failed to update assignment.");
       }
       toast.success("Assignment updated ✓");
+      
+      // Broadcast update to all views
+      window.dispatchEvent(new CustomEvent('assignmentUpdated', {
+        detail: { 
+          assignmentId: assignment.id,
+          updatedFields: payload 
+        }
+      }));
+      
       onUpdated();
     } catch (err: any) {
       toast.error(err.message || "Failed to update");
@@ -223,6 +235,131 @@ export function AssignmentEditModal({
     }
   };
 
+  const handleRescheduleBlock = async (blockId: string) => {
+    const block = focusBlocks.find(b => b.id === blockId);
+    if (!block) return;
+
+    const start = new Date(block.startAt);
+    const end = new Date(block.endAt);
+    const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
+
+    const toastId = toast.loading("Finding a new time slot...");
+    try {
+      // Call API to auto-reschedule this block
+      const res = await fetch(`${API_BASE}/api/calendar/events/${blockId}/reschedule`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-clerk-user-id": userId,
+        },
+        body: JSON.stringify({
+          durationMinutes,
+          linkedAssignmentId: assignment.id,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to reschedule block.");
+      }
+
+      // Update local state with new time
+      setFocusBlocks(prev => prev.map(b => 
+        b.id === blockId 
+          ? { ...b, startAt: data.event.startAt, endAt: data.event.endAt } 
+          : b
+      ));
+
+      const newStart = new Date(data.event.startAt);
+      toast.success(
+        `Rescheduled to ${newStart.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${newStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+      );
+      
+      // Broadcast update to all views
+      window.dispatchEvent(new CustomEvent('assignmentUpdated', {
+        detail: { 
+          assignmentId: assignment.id,
+          action: 'reschedule',
+          blockId 
+        }
+      }));
+      
+      onUpdated(); // Refresh parent views
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reschedule");
+      console.error(err);
+    }
+  };
+
+  const handleScheduleMoreTime = async (autoSchedule: boolean) => {
+    if (!additionalMinutes || Number(additionalMinutes) <= 0) {
+      toast.error("Please enter a valid duration");
+      return;
+    }
+
+    if (!autoSchedule) {
+      // Manual schedule: close modal and navigate to calendar
+      // For now, just show a message
+      toast.info("Manual scheduling - navigate to calendar to place the block");
+      setShowScheduleMore(false);
+      onClose();
+      return;
+    }
+
+    setSchedulingMore(true);
+    const toastId = toast.loading("Finding available time...");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}/schedule-more`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-clerk-user-id": userId,
+        },
+        body: JSON.stringify({
+          additionalMinutes: Number(additionalMinutes),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to schedule additional time.");
+      }
+
+      // Add the new block to local state
+      setFocusBlocks(prev => [...prev, {
+        id: data.event.id,
+        title: data.event.title,
+        startAt: data.event.startAt,
+        endAt: data.event.endAt,
+        metadata: data.event.metadata || {},
+      }]);
+
+      const scheduledStart = new Date(data.event.startAt);
+      toast.success(
+        `Scheduled ${additionalMinutes}m on ${scheduledStart.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${scheduledStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+      );
+
+      // Broadcast update to all views
+      window.dispatchEvent(new CustomEvent('assignmentUpdated', {
+        detail: { 
+          assignmentId: assignment.id,
+          action: 'schedule-more',
+          newEventId: data.event.id 
+        }
+      }));
+
+      setShowScheduleMore(false);
+      setAdditionalMinutes("90");
+      onUpdated(); // Refresh parent views
+    } catch (err: any) {
+      toast.error(err.message || "Failed to schedule time");
+      console.error(err);
+    } finally {
+      setSchedulingMore(false);
+    }
+  };
+
   if (showSummary) {
     return (
       <PostSessionSummaryModal
@@ -282,7 +419,7 @@ export function AssignmentEditModal({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Assignment Title"
-                className="h-14 bg-brand-surface-2/50 border-brand-border/40 rounded-2xl text-lg font-bold focus:ring-brand-primary"
+                className="h-14 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-2xl text-lg font-bold focus:ring-2 focus:ring-brand-primary/20 transition-colors"
               />
             </div>
             
@@ -292,7 +429,7 @@ export function AssignmentEditModal({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Your original input or notes about this assignment..."
-                className="bg-brand-surface-2/50 border-brand-border/40 rounded-2xl text-sm min-h-[100px] resize-none focus:ring-brand-primary"
+                className="bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-2xl text-sm min-h-[100px] resize-none focus:ring-2 focus:ring-brand-primary/20 transition-colors"
               />
             </div>
             
@@ -303,7 +440,7 @@ export function AssignmentEditModal({
                   <select
                     value={editCourseId}
                     onChange={(e) => setEditCourseId(e.target.value)}
-                    className="w-full h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold px-10 appearance-none focus:ring-2 focus:ring-brand-primary/20 outline-none"
+                    className="w-full h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-bold px-10 appearance-none focus:ring-2 focus:ring-brand-primary/20 outline-none transition-colors"
                   >
                     <option value="">No Course</option>
                     {courses.map((course) => (
@@ -312,7 +449,7 @@ export function AssignmentEditModal({
                       </option>
                     ))}
                   </select>
-                  <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted" size={18} />
+                  <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted pointer-events-none" size={18} />
                 </div>
               </div>
               <div className="space-y-3">
@@ -321,7 +458,7 @@ export function AssignmentEditModal({
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="e.g. Reading, Homework"
-                  className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
+                  className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-bold focus:ring-2 focus:ring-brand-primary/20 transition-colors"
                 />
               </div>
             </div>
@@ -333,7 +470,7 @@ export function AssignmentEditModal({
                   type="datetime-local"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
+                  className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-bold focus:ring-2 focus:ring-brand-primary/20 transition-colors"
                 />
               </div>
               <div className="space-y-3">
@@ -343,7 +480,7 @@ export function AssignmentEditModal({
                   min={0}
                   value={effortMinutes}
                   onChange={(e) => setEffortMinutes(e.target.value)}
-                  className="h-12 bg-brand-surface-2/50 border-brand-border/40 rounded-xl font-bold"
+                  className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-bold focus:ring-2 focus:ring-brand-primary/20 transition-colors"
                 />
               </div>
             </div>
@@ -378,10 +515,10 @@ export function AssignmentEditModal({
                     <div
                       key={block.id}
                       className={cn(
-                        "group relative p-5 rounded-3xl border border-brand-border/40 transition-all duration-300",
+                        "group relative p-5 rounded-3xl border transition-all duration-300",
                         isBlockCompleted 
                           ? "bg-brand-mint/5 border-brand-mint/20 opacity-80" 
-                          : "bg-brand-surface-2/50 hover:border-brand-primary/40 hover:bg-brand-surface"
+                          : "bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 hover:shadow-md"
                       )}
                       onMouseEnter={() => {
                         window.dispatchEvent(new CustomEvent("highlightFocusBlocks", {
@@ -416,19 +553,92 @@ export function AssignmentEditModal({
                                 ? "bg-brand-mint text-white" 
                                 : "bg-brand-surface text-brand-muted hover:text-brand-mint hover:bg-brand-mint/10"
                             )}
-                            title={isBlockCompleted ? "Unmark as done" : "Mark as done"}
+                            title={isBlockCompleted ? "Unmark this block as done" : "Mark this block as complete"}
                           >
                             <Check size={18} className={cn(isBlockCompleted && "animate-in zoom-in-50")} />
                           </button>
                           
-                          <div className="w-8 h-8 rounded-xl bg-brand-surface/50 flex items-center justify-center text-brand-muted opacity-40">
+                          <button
+                            onClick={() => handleRescheduleBlock(block.id)}
+                            className="w-10 h-10 rounded-xl bg-white dark:bg-brand-surface flex items-center justify-center text-brand-amber hover:text-brand-amber hover:bg-brand-amber/10 transition-all shadow-sm hover:scale-110"
+                            title="Reschedule this block to another time"
+                          >
                             <GessoIcon type="bolt" size={14} />
-                          </div>
+                          </button>
                         </div>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Schedule More Time Button */}
+            {!showScheduleMore && (
+              <Button
+                onClick={() => setShowScheduleMore(true)}
+                variant="outline"
+                className="w-full h-12 rounded-2xl border-2 border-dashed border-brand-primary/30 text-brand-primary hover:bg-brand-primary/5 hover:border-brand-primary/50 font-bold transition-all"
+              >
+                <Plus size={18} className="mr-2" />
+                Add More Time
+              </Button>
+            )}
+
+            {/* Schedule More Time Form */}
+            {showScheduleMore && (
+              <div className="space-y-4 p-6 rounded-3xl bg-brand-primary/5 border-2 border-brand-primary/20">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-brand-text flex items-center gap-2">
+                    <Clock size={18} className="text-brand-primary" />
+                    How much more time do you need?
+                  </h4>
+                  <button
+                    onClick={() => {
+                      setShowScheduleMore(false);
+                      setAdditionalMinutes("90");
+                    }}
+                    className="text-brand-muted hover:text-brand-text transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <Input
+                    type="number"
+                    min={15}
+                    step={15}
+                    value={additionalMinutes}
+                    onChange={(e) => setAdditionalMinutes(e.target.value)}
+                    className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 rounded-xl font-bold text-center text-lg"
+                    placeholder="90"
+                  />
+                  <span className="text-sm font-medium text-brand-muted">minutes</span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={() => handleScheduleMoreTime(true)}
+                    disabled={schedulingMore}
+                    className="flex-1 h-12 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl font-bold"
+                  >
+                    <Calendar size={16} className="mr-2" />
+                    {schedulingMore ? "Scheduling..." : "Auto-Schedule"}
+                  </Button>
+                  <Button
+                    onClick={() => handleScheduleMoreTime(false)}
+                    disabled={schedulingMore}
+                    variant="outline"
+                    className="flex-1 h-12 rounded-xl font-bold"
+                  >
+                    Manual Schedule
+                  </Button>
+                </div>
+
+                <p className="text-xs text-brand-muted italic">
+                  New work blocks will be linked to this assignment
+                </p>
               </div>
             )}
           </div>

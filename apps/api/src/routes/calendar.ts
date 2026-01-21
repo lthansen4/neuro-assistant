@@ -1023,3 +1023,82 @@ calendarRoute.patch('/events/:id/toggle-complete', async (c) => {
     return c.json({ error: error.message || 'Failed to toggle completion' }, 500);
   }
 });
+
+// POST /api/calendar/events/:id/reschedule
+// Auto-reschedules a focus block to the next available time slot
+calendarRoute.post('/events/:id/reschedule', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    const eventId = c.req.param('id');
+    const body = await c.req.json();
+    
+    const { durationMinutes, linkedAssignmentId } = body;
+    
+    console.log(`[Calendar Reschedule] Request for event ${eventId} by user ${userId}, duration ${durationMinutes}m`);
+    
+    // Fetch event to verify ownership
+    const event = await db.query.calendarEventsNew.findFirst({
+      where: and(
+        eq(schema.calendarEventsNew.id, eventId),
+        eq(schema.calendarEventsNew.userId, userId)
+      )
+    });
+    
+    if (!event) {
+      return c.json({ error: 'Event not found' }, 404);
+    }
+    
+    if (!event.isMovable) {
+      return c.json({ error: 'This event cannot be moved' }, 400);
+    }
+    
+    // Import ScheduleAnalyzer to find next available slot
+    const { ScheduleAnalyzer } = await import('../lib/schedule-analyzer');
+    
+    // Find next available slot starting from now
+    const analyzer = new ScheduleAnalyzer(userId);
+    await analyzer.initTimezone();
+    
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    
+    const freeSlots = await analyzer.findFreeSlots(
+      userId,
+      now,
+      weekFromNow,
+      durationMinutes,
+      { maxSlots: 1 } // Just need the first available slot
+    );
+    
+    if (!freeSlots || freeSlots.length === 0) {
+      return c.json({ error: 'No available time slot found in the next 7 days' }, 404);
+    }
+    
+    const nextSlot = freeSlots[0];
+    
+    // Update the event
+    const [updatedEvent] = await db.update(schema.calendarEventsNew)
+      .set({
+        startAt: nextSlot.start,
+        endAt: nextSlot.end,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.calendarEventsNew.id, eventId))
+      .returning();
+    
+    console.log(`[Calendar Reschedule] Event ${eventId} rescheduled to ${nextSlot.start.toISOString()}`);
+    
+    return c.json({
+      ok: true,
+      event: {
+        id: updatedEvent.id,
+        title: updatedEvent.title,
+        startAt: updatedEvent.startAt.toISOString(),
+        endAt: updatedEvent.endAt.toISOString()
+      }
+    });
+  } catch (error: any) {
+    console.error('[Calendar Reschedule] Error:', error);
+    return c.json({ error: error.message || 'Failed to reschedule event' }, 500);
+  }
+});
