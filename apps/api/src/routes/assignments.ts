@@ -196,6 +196,9 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
     }
 
     console.log(`[Schedule More] Finding slot for ${body.additionalMinutes}m for assignment ${assignment.title}, preview=${body.preview}`);
+    console.log(`[Schedule More] Assignment due date: ${assignment.dueDate?.toISOString() || 'N/A'}`);
+    console.log(`[Schedule More] Assignment course: ${assignment.courseId || 'N/A'}`);
+    console.log(`[Schedule More] Existing blocks: ${existingBlocks.length}`);
 
     // Find existing focus blocks for this assignment to determine session number
     const existingBlocks = await db.query.calendarEventsNew.findMany({
@@ -219,6 +222,26 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
 
     // Use SlotMatcher to find optimal time
     const matcher = new SlotMatcher(userId);
+    
+    // Debug: Check what ScheduleAnalyzer sees
+    const { ScheduleAnalyzer } = await import('../lib/schedule-analyzer');
+    const analyzer = new ScheduleAnalyzer(userId);
+    await analyzer.initTimezone();
+    const now = new Date();
+    const testEndDate = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const debugSlots = await analyzer.findFreeSlots(userId, body.additionalMinutes, now, testEndDate, {
+      preferredTimeOfDay: 'morning',
+      energyLevel: 7
+    });
+    console.log(`[Schedule More DEBUG] ScheduleAnalyzer found ${debugSlots.length} free slots for ${body.additionalMinutes}m`);
+    if (debugSlots.length > 0) {
+      console.log(`[Schedule More DEBUG] First 3 slots:`, debugSlots.slice(0, 3).map(s => ({
+        start: s.startAt.toISOString(),
+        duration: s.durationMinutes,
+        quality: s.quality,
+        timeOfDay: s.timeOfDay
+      })));
+    }
     
     // Try with standard lookahead first (14 days)
     let match = await matcher.findOptimalSlot(
