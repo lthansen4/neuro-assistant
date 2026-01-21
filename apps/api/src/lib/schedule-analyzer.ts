@@ -160,6 +160,16 @@ export class ScheduleAnalyzer {
     }
 
     console.log(`[ScheduleAnalyzer] Found ${freeSlots.length} free slots (before filtering)`);
+    
+    // Log first few slots for debugging
+    if (freeSlots.length > 0) {
+      console.log(`[ScheduleAnalyzer] Sample free slots:`, freeSlots.slice(0, 3).map(s => ({
+        start: s.startAt.toISOString(),
+        duration: s.durationMinutes,
+        timeOfDay: s.timeOfDay,
+        quality: s.quality
+      })));
+    }
 
     // Filter by preferences
     let filteredSlots = freeSlots;

@@ -95,6 +95,7 @@ export class SlotMatcher {
     let endDate = new Date(now.getTime() + lookaheadDays * 24 * 60 * 60 * 1000);
 
     console.log(`[SlotMatcher] Finding optimal slot for "${focusBlock.title}" (${focusBlock.duration} min)`);
+    console.log(`[SlotMatcher] Search window: ${now.toISOString()} to ${endDate.toISOString()} (${lookaheadDays} days)`);
 
     // If linked to assignment, constrain end date to assignment due date
     let assignment = null;
@@ -140,7 +141,10 @@ export class SlotMatcher {
     );
 
     if (freeSlots.length === 0) {
-      console.log(`[SlotMatcher] No free slots found for "${focusBlock.title}"`);
+      console.log(`[SlotMatcher] No free slots found for "${focusBlock.title}" (${focusBlock.duration}min) between ${now.toISOString()} and ${endDate.toISOString()}`);
+      if (assignment?.dueDate) {
+        console.log(`[SlotMatcher] Assignment due: ${assignment.dueDate.toISOString()}, constraining search`);
+      }
       return null;
     }
 

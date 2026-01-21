@@ -219,7 +219,9 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
 
     // Use SlotMatcher to find optimal time
     const matcher = new SlotMatcher(userId);
-    const match = await matcher.findOptimalSlot(
+    
+    // Try with standard lookahead first (14 days)
+    let match = await matcher.findOptimalSlot(
       {
         title: blockTitle,
         duration: body.additionalMinutes,
@@ -227,11 +229,46 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
         category: 'focus'
       },
       userId,
-      7 // Assume decent energy for additional work
+      7, // Assume decent energy for additional work
+      {
+        lookaheadDays: 14,
+        considerWorkload: true
+      }
     );
 
+    // If no match found, try again with extended lookahead (30 days)
     if (!match) {
-      return c.json({ error: 'No suitable time slot found in the next 14 days.' }, 404);
+      console.log(`[Schedule More] No slot found in 14 days, trying 30 days for ${body.additionalMinutes}m`);
+      match = await matcher.findOptimalSlot(
+        {
+          title: blockTitle,
+          duration: body.additionalMinutes,
+          linkedAssignmentId: assignmentId,
+          category: 'focus'
+        },
+        userId,
+        7,
+        {
+          lookaheadDays: 30,
+          considerWorkload: false // Be more lenient
+        }
+      );
+    }
+
+    if (!match) {
+      // Provide more helpful error message
+      let errorMsg = `No ${body.additionalMinutes}-minute slot found in the next 30 days.`;
+      
+      // Check if assignment has a very close due date
+      if (assignment.dueDate) {
+        const hoursUntilDue = (assignment.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60);
+        if (hoursUntilDue < 48) {
+          errorMsg += ' This assignment is due very soon - consider a shorter duration or manually scheduling.';
+        }
+      }
+      
+      console.error(`[Schedule More] No slot found for ${body.additionalMinutes}m block. Assignment: ${assignment.title}, Due: ${assignment.dueDate?.toISOString() || 'N/A'}`);
+      return c.json({ error: errorMsg }, 404);
     }
 
     // Trim the slot to the requested duration (SlotMatcher returns the entire free gap)
