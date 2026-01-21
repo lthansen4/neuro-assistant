@@ -1079,14 +1079,14 @@ calendarRoute.post('/events/:id/reschedule', async (c) => {
     // Update the event
     const [updatedEvent] = await db.update(schema.calendarEventsNew)
       .set({
-        startAt: nextSlot.start,
-        endAt: nextSlot.end,
+        startAt: nextSlot.startAt,
+        endAt: nextSlot.endAt,
         updatedAt: new Date()
       })
       .where(eq(schema.calendarEventsNew.id, eventId))
       .returning();
     
-    console.log(`[Calendar Reschedule] Event ${eventId} rescheduled to ${nextSlot.start.toISOString()}`);
+    console.log(`[Calendar Reschedule] Event ${eventId} rescheduled to ${nextSlot.startAt.toISOString()}`);
     
     return c.json({
       ok: true,
