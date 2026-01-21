@@ -852,47 +852,47 @@ export function AssignmentEditModal({
     {/* Schedule More Time Confirmation Dialog */}
     {schedulePreview && (
       <Dialog open={true} onOpenChange={() => setSchedulePreview(null)}>
-        <DialogContent className="max-w-lg bg-brand-surface border-brand-border rounded-3xl">
+        <DialogContent className="max-w-lg bg-white dark:bg-brand-surface border-brand-border rounded-3xl p-8">
           <DialogHeader>
-            <DialogTitle className="text-xl font-serif font-black text-brand-text italic">
+            <DialogTitle className="text-2xl font-serif font-black text-brand-text italic">
               Confirm New Time Block
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-6 py-6">
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">Block Name</Label>
-              <p className="font-bold text-brand-text">{schedulePreview.blockName}</p>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Block Name</Label>
+              <p className="font-bold text-brand-text text-lg">{schedulePreview.blockName}</p>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">Duration</Label>
-              <p className="text-brand-text">{schedulePreview.duration} minutes</p>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Duration</Label>
+              <p className="text-brand-text font-bold text-lg">{schedulePreview.duration} minutes</p>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">Scheduled Time</Label>
-              <p className="font-bold text-brand-primary text-lg">{schedulePreview.proposedTime}</p>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Scheduled Time</Label>
+              <p className="font-bold text-brand-primary text-xl">{schedulePreview.proposedTime}</p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-brand-primary/10 border border-brand-primary/20">
-              <Label className="text-xs font-bold uppercase tracking-wider text-brand-primary mb-2 block">Why this time?</Label>
-              <p className="text-sm text-brand-text">{schedulePreview.reason}</p>
+            <div className="p-6 rounded-2xl bg-brand-primary/10 border-2 border-brand-primary/30">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-primary mb-3 block">Why this time?</Label>
+              <p className="text-sm text-brand-text font-medium leading-relaxed">{schedulePreview.reason}</p>
             </div>
           </div>
 
-          <DialogFooter className="flex-col gap-3">
+          <DialogFooter className="flex-col gap-3 pt-4">
             <Button
               onClick={confirmScheduleMore}
-              className="w-full h-12 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl font-bold"
+              className="w-full h-14 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-2xl font-bold text-base"
             >
               Confirm & Add Block
             </Button>
-            <div className="flex gap-3">
+            <div className="flex gap-3 w-full">
               <Button
                 onClick={() => setSchedulePreview(null)}
                 variant="outline"
-                className="flex-1 h-10 rounded-xl font-medium"
+                className="flex-1 h-12 rounded-xl font-bold border-2"
               >
                 Cancel
               </Button>
@@ -901,8 +901,72 @@ export function AssignmentEditModal({
                   setSchedulePreview(null);
                   toast.info("Go to Calendar view to place this block manually");
                 }}
+                variant="ghost"
+                className="flex-1 h-12 rounded-xl font-bold text-brand-primary hover:text-brand-primary/90 hover:bg-brand-primary/10"
+              >
+                Pick Manually
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )}
+
+    {/* Reschedule Confirmation Dialog */}
+    {reschedulePreview && (
+      <Dialog open={true} onOpenChange={() => setReschedulePreview(null)}>
+        <DialogContent className="max-w-lg bg-white dark:bg-brand-surface border-brand-border rounded-3xl p-8">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-serif font-black text-brand-text italic">
+              Confirm Reschedule
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6 py-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Block</Label>
+              <p className="font-bold text-brand-text text-lg">{reschedulePreview.blockTitle}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Current Time</Label>
+              <p className="text-brand-text/60 line-through text-base font-medium">{reschedulePreview.currentTime}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted">New Time</Label>
+              <p className="font-bold text-brand-primary text-xl">{reschedulePreview.newTime}</p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-brand-primary/10 border-2 border-brand-primary/30">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-primary mb-3 block">Why this time?</Label>
+              <p className="text-sm text-brand-text font-medium leading-relaxed">{reschedulePreview.reason}</p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col gap-3 pt-4">
+            <Button
+              onClick={confirmReschedule}
+              className="w-full h-14 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-2xl font-bold text-base"
+            >
+              Confirm Reschedule
+            </Button>
+            <div className="flex gap-3 w-full">
+              <Button
+                onClick={() => setReschedulePreview(null)}
                 variant="outline"
-                className="flex-1 h-10 rounded-xl font-medium"
+                className="flex-1 h-12 rounded-xl font-bold border-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setReschedulePreview(null);
+                  toast.info("Manual scheduling - navigate to calendar");
+                  onClose();
+                }}
+                variant="ghost"
+                className="flex-1 h-12 rounded-xl font-bold text-brand-primary hover:text-brand-primary/90 hover:bg-brand-primary/10"
               >
                 Pick Manually
               </Button>
