@@ -1063,18 +1063,19 @@ calendarRoute.post('/events/:id/reschedule', async (c) => {
     const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     
     // findFreeSlots signature: (userId, minDuration, startDate, endDate, preferences)
+    // preferences only supports: preferredTimeOfDay, avoidWeekends, energyLevel
     const freeSlots = await analyzer.findFreeSlots(
       userId,
-      durationMinutes,  // minDuration comes BEFORE dates
+      durationMinutes,
       now,
-      weekFromNow,
-      { maxSlots: 1 } // This will be ignored, but preferences is optional
+      weekFromNow
     );
     
     if (!freeSlots || freeSlots.length === 0) {
       return c.json({ error: 'No available time slot found in the next 7 days' }, 404);
     }
     
+    // Take the first available slot
     const nextSlot = freeSlots[0];
     
     // Update the event
