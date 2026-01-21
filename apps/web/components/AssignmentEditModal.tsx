@@ -91,6 +91,13 @@ export function AssignmentEditModal({
     reason: string;
     slotData: any;
   } | null>(null);
+  const [schedulePreview, setSchedulePreview] = useState<{
+    duration: number;
+    blockName: string;
+    proposedTime: string;
+    reason: string;
+    slotData: any;
+  } | null>(null);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -332,16 +339,18 @@ export function AssignmentEditModal({
     }
 
     if (!autoSchedule) {
-      // Manual schedule: close modal and navigate to calendar
-      // For now, just show a message
-      toast.info("Manual scheduling - navigate to calendar to place the block");
+      // Manual schedule: Show instructions
+      toast.info("Go to Calendar view and tap an empty time slot to place this block", {
+        duration: 5000,
+      });
+      // Don't close the modal - let them see the duration/name they set
       setShowScheduleMore(false);
-      onClose();
       return;
     }
 
+    // Auto-schedule: Find slot and show preview
     setSchedulingMore(true);
-    const toastId = toast.loading("Finding available time...");
+    const loadingToast = toast.loading("Finding available time...");
 
     try {
       const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}/schedule-more`, {
@@ -352,13 +361,59 @@ export function AssignmentEditModal({
         },
         body: JSON.stringify({
           additionalMinutes: Number(additionalMinutes),
-          blockName: blockName.trim() || null, // Send custom block name if provided
+          blockName: blockName.trim() || null,
+          preview: true, // Request preview mode
         }),
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) {
-        throw new Error(data.error || "Failed to schedule additional time.");
+        throw new Error(data.error || "Failed to find available time.");
+      }
+
+      toast.success("Found available slot!");
+
+      // Show confirmation dialog
+      const proposedStart = new Date(data.event.startAt);
+      const proposedTimeStr = `${proposedStart.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${proposedStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      
+      setSchedulePreview({
+        duration: Number(additionalMinutes),
+        blockName: blockName.trim() || `Work on: ${assignment.title}`,
+        proposedTime: proposedTimeStr,
+        reason: data.reason || "Next available time in your schedule",
+        slotData: data.event,
+      });
+
+    } catch (err: any) {
+      toast.error(err.message || "Failed to find available time");
+      console.error(err);
+    } finally {
+      setSchedulingMore(false);
+    }
+  };
+
+  const confirmScheduleMore = async () => {
+    if (!schedulePreview) return;
+
+    try {
+      // Now actually create the event (without preview mode)
+      const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}/schedule-more`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-clerk-user-id": userId,
+        },
+        body: JSON.stringify({
+          additionalMinutes: schedulePreview.duration,
+          blockName: schedulePreview.blockName.startsWith("Work on:") ? null : schedulePreview.blockName,
+          preview: false, // Actually create the event
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to create time block.");
       }
 
       // Add the new block to local state
@@ -370,10 +425,7 @@ export function AssignmentEditModal({
         metadata: data.event.metadata || {},
       }]);
 
-      const scheduledStart = new Date(data.event.startAt);
-      toast.success(
-        `Scheduled ${additionalMinutes}m on ${scheduledStart.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${scheduledStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-      );
+      toast.success(`Scheduled for ${schedulePreview.proposedTime}`);
 
       // Broadcast update to all views
       window.dispatchEvent(new CustomEvent('assignmentUpdated', {
@@ -384,15 +436,14 @@ export function AssignmentEditModal({
         }
       }));
 
+      setSchedulePreview(null);
       setShowScheduleMore(false);
       setAdditionalMinutes("90");
-      setBlockName(""); // Reset block name
-      onUpdated(); // Refresh parent views
+      setBlockName("");
+      onUpdated();
     } catch (err: any) {
-      toast.error(err.message || "Failed to schedule time");
+      toast.error(err.message || "Failed to schedule block");
       console.error(err);
-    } finally {
-      setSchedulingMore(false);
     }
   };
 
@@ -788,6 +839,69 @@ export function AssignmentEditModal({
                   setReschedulePreview(null);
                   toast.info("Manual scheduling - navigate to calendar");
                   onClose();
+                }}
+                variant="outline"
+                className="flex-1 h-10 rounded-xl font-medium"
+              >
+                Pick Manually
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )}
+
+    {/* Schedule More Time Confirmation Dialog */}
+    {schedulePreview && (
+      <Dialog open={true} onOpenChange={() => setSchedulePreview(null)}>
+        <DialogContent className="max-w-lg bg-brand-surface border-brand-border rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-serif font-black text-brand-text italic">
+              Confirm New Time Block
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">Block Name</Label>
+              <p className="font-bold text-brand-text">{schedulePreview.blockName}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">Duration</Label>
+              <p className="text-brand-text">{schedulePreview.duration} minutes</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">Scheduled Time</Label>
+              <p className="font-bold text-brand-primary text-lg">{schedulePreview.proposedTime}</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-brand-primary/10 border border-brand-primary/20">
+              <Label className="text-xs font-bold uppercase tracking-wider text-brand-primary mb-2 block">Why this time?</Label>
+              <p className="text-sm text-brand-text">{schedulePreview.reason}</p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col gap-3">
+            <Button
+              onClick={confirmScheduleMore}
+              className="w-full h-12 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl font-bold"
+            >
+              Confirm & Add Block
+            </Button>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setSchedulePreview(null)}
+                variant="outline"
+                className="flex-1 h-10 rounded-xl font-medium"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setSchedulePreview(null);
+                  toast.info("Go to Calendar view to place this block manually", { duration: 5000 });
                 }}
                 variant="outline"
                 className="flex-1 h-10 rounded-xl font-medium"

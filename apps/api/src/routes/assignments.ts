@@ -181,7 +181,7 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
   try {
     const userId = await getUserId(c);
     const assignmentId = c.req.param('id');
-    const body = await c.req.json<{ additionalMinutes: number; blockName?: string | null }>();
+    const body = await c.req.json<{ additionalMinutes: number; blockName?: string | null; preview?: boolean }>();
 
     if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
@@ -195,7 +195,7 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
       return c.json({ error: 'Invalid additionalMinutes value' }, 400);
     }
 
-    console.log(`[Schedule More] Finding slot for ${body.additionalMinutes}m for assignment ${assignment.title}`);
+    console.log(`[Schedule More] Finding slot for ${body.additionalMinutes}m for assignment ${assignment.title}, preview=${body.preview}`);
 
     // Find existing focus blocks for this assignment to determine session number
     const existingBlocks = await db.query.calendarEventsNew.findMany({
@@ -234,12 +234,55 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
       return c.json({ error: 'No suitable time slot found in the next 14 days.' }, 404);
     }
 
+    // Generate reason for this slot selection
+    const now = new Date();
+    const dayDiff = Math.floor((match.slot.startAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    let reason = '';
+    if (dayDiff === 0) {
+      reason = `Next available ${body.additionalMinutes}-minute slot today`;
+    } else if (dayDiff === 1) {
+      reason = `Next available ${body.additionalMinutes}-minute slot tomorrow`;
+    } else if (dayDiff <= 3) {
+      reason = `Available slot in the next ${dayDiff} days`;
+    } else {
+      reason = `Next available ${body.additionalMinutes}-minute slot in your schedule`;
+    }
+
+    // Add quality info if available
+    if (match.score >= 8) {
+      reason += ' (optimal time for focused work)';
+    } else if (match.score >= 6) {
+      reason += ' (good time for this task)';
+    }
+
+    // If preview mode, return the slot data without creating the event
+    if (body.preview) {
+      // Generate a temporary ID for the preview
+      const tempId = `preview-${Date.now()}`;
+      
+      return c.json({
+        ok: true,
+        event: {
+          id: tempId,
+          title: blockTitle,
+          startAt: match.slot.startAt.toISOString(),
+          endAt: match.slot.endAt.toISOString(),
+          metadata: {
+            autoScheduled: true,
+            sessionNumber,
+            preview: true
+          }
+        },
+        reason
+      });
+    }
+
     // Create the new focus block
     const [event] = await db.insert(calendarEventsNew).values({
       userId,
       courseId: assignment.courseId,
       linkedAssignmentId: assignmentId,
-      title: match.focusBlock.title,
+      title: blockTitle,
       eventType: 'Focus',
       startAt: match.slot.startAt,
       endAt: match.slot.endAt,
