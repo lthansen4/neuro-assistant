@@ -128,7 +128,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
   const currentHour = now.getHours();
   const nowPixelPosition = getNowPixelPosition();
 
-  // First pass: calculate positions and widths for all events
+  // Calculate positions and widths for all events (single row, sized by duration)
   const eventGeometry = displayItems.map((item) => {
     const start = new Date(item.startTime);
     const end = new Date(item.endTime);
@@ -137,7 +137,11 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
     const startHour = start.getHours() + start.getMinutes() / 60;
     
     const left = getHourPixelPosition(startHour);
-    const width = Math.max(durationHours * HOUR_WIDTH_PX - 12, 280);
+    
+    // Size cards proportionally to duration with small minimum for readability
+    // Short events (< 30 min) get a minimum width, longer events are sized accurately
+    const minWidth = durationMinutes < 30 ? 80 : 120;
+    const width = Math.max(durationHours * HOUR_WIDTH_PX - 12, minWidth);
     
     const isDueDate = item.category === "due" || item.eventType === "DueDate";
     
@@ -152,47 +156,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
     };
   });
 
-  // Second pass: calculate vertical levels to avoid visual overlaps
-  const calculateEventLevels = () => {
-    const sorted = [...eventGeometry].sort((a, b) => a.left - b.left); // Sort by visual position
-    const levels: Array<{ rightEdge: number; events: typeof eventGeometry }> = [];
-    const eventLevels = new Map<string, number>();
-    
-    const VISUAL_GAP = 20; // Minimum gap between cards in pixels
-    
-    for (const geom of sorted) {
-      // Due dates don't take up space, they float above
-      if (geom.isDueDate) {
-        eventLevels.set(geom.id, -1); // Special level for pins
-        continue;
-      }
-      
-      // Find the first level where this card doesn't visually overlap
-      let assignedLevel = -1;
-      for (let i = 0; i < levels.length; i++) {
-        // Check if this level is free (card's left edge is past the level's right edge + gap)
-        if (levels[i].rightEdge + VISUAL_GAP <= geom.left) {
-          assignedLevel = i;
-          levels[i] = { rightEdge: geom.right, events: [...levels[i].events, geom] };
-          break;
-        }
-      }
-      
-      // If no free level found, create a new one
-      if (assignedLevel === -1) {
-        assignedLevel = levels.length;
-        levels.push({ rightEdge: geom.right, events: [geom] });
-      }
-      
-      eventLevels.set(geom.id, assignedLevel);
-    }
-    
-    return { eventLevels, maxLevel: Math.max(0, levels.length - 1) };
-  };
-
-  const { eventLevels, maxLevel } = calculateEventLevels();
-  const LEVEL_HEIGHT = 220; // Height per level in pixels
-  const LEVEL_GAP = 20; // Gap between levels
+  const CARD_HEIGHT = 180; // Single row height
 
   return (
     <div className="w-full bg-brand-surface-2/50 rounded-[2.5rem] p-8 space-y-4 cozy-border">
@@ -205,7 +169,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
           className="relative"
           style={{ 
             width: `${TIMELINE_WIDTH_PX}px`, 
-            minHeight: `${(maxLevel + 1) * LEVEL_HEIGHT + maxLevel * LEVEL_GAP + 120}px` 
+            minHeight: `${CARD_HEIGHT + 100}px` 
           }}
         >
           {/* Time Markers Row */}
@@ -249,9 +213,8 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
               const geom = eventGeometry.find(g => g.id === item.id);
               if (!geom) return null;
               
-              // Get vertical level for this event
-              const level = eventLevels.get(item.id) || 0;
-              const cardTop = level === -1 ? 10 : 40 + level * (LEVEL_HEIGHT + LEVEL_GAP);
+              // All cards on the same row
+              const cardTop = 40;
               
               // For due dates, show as a pin marker instead of a full block
               if (geom.isDueDate) {
@@ -302,7 +265,7 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
                 <div 
                   key={item.id}
                   className={cn(
-                    "absolute p-6 rounded-[2rem] transition-all duration-500 cursor-pointer",
+                    "absolute p-4 rounded-[1.5rem] transition-all duration-500 cursor-pointer",
                     config.bg,
                     "cozy-border shadow-soft",
                     isNow && "ring-2 ring-category-reset-fg animate-pulse-soft",
@@ -311,31 +274,32 @@ export function TodayFlow({ items, onSelect }: TodayFlowProps) {
                   style={{ 
                     left: `${geom.left}px`,
                     top: `${cardTop}px`,
-                    width: `${geom.width}px`
+                    width: `${geom.width}px`,
+                    height: `${CARD_HEIGHT}px`
                   }}
                   onClick={() => onSelect?.(item)}
                 >
-                  <div className="space-y-4">
+                  <div className="space-y-2 h-full flex flex-col">
                     <div className="flex justify-between items-start">
-                      <div className="space-y-2">
-                        <span className="text-[20px]">{item.emoji || config.emoji}</span>
-                        <div className={cn("meta-label text-xs", config.fg)}>
+                      <div className="space-y-1">
+                        <span className="text-[18px]">{item.emoji || config.emoji}</span>
+                        <div className={cn("meta-label text-[10px]", config.fg)}>
                           {config.label}
                         </div>
                       </div>
                       {isNow && (
-                        <span className="bg-category-reset-fg/20 text-category-reset-fg text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                        <span className="bg-category-reset-fg/20 text-category-reset-fg text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest">
                           NOW
                         </span>
                       )}
                     </div>
 
-                    <h4 className="text-[18px] font-serif font-black text-brand-text leading-tight">
+                    <h4 className="text-[15px] font-serif font-black text-brand-text leading-tight flex-1">
                       {item.title}
                     </h4>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-brand-muted font-medium text-sm">
+                      <span className="text-brand-muted font-medium text-xs">
                         {formatTime(start)} → {formatTime(end)}
                       </span>
                     </div>
