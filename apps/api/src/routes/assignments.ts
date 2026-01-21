@@ -181,7 +181,7 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
   try {
     const userId = await getUserId(c);
     const assignmentId = c.req.param('id');
-    const body = await c.req.json<{ additionalMinutes: number }>();
+    const body = await c.req.json<{ additionalMinutes: number; blockName?: string | null }>();
 
     if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
@@ -207,11 +207,21 @@ assignmentsRoute.post('/:id/schedule-more', async (c) => {
 
     const sessionNumber = existingBlocks.length + 1;
 
+    // Determine the title for the new block
+    let blockTitle: string;
+    if (body.blockName && body.blockName.trim()) {
+      // Use custom block name if provided
+      blockTitle = body.blockName.trim();
+    } else {
+      // Default to "Work on: {assignment} (Session N)"
+      blockTitle = `Work on: ${assignment.title} (Session ${sessionNumber})`;
+    }
+
     // Use SlotMatcher to find optimal time
     const matcher = new SlotMatcher(userId);
     const match = await matcher.findOptimalSlot(
       {
-        title: `Work on: ${assignment.title} (Session ${sessionNumber})`,
+        title: blockTitle,
         duration: body.additionalMinutes,
         linkedAssignmentId: assignmentId,
         category: 'focus'

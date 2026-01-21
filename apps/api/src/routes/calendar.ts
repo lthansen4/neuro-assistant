@@ -1026,15 +1026,16 @@ calendarRoute.patch('/events/:id/toggle-complete', async (c) => {
 
 // POST /api/calendar/events/:id/reschedule
 // Auto-reschedules a focus block to the next available time slot
+// Supports preview mode to show user the proposed time before committing
 calendarRoute.post('/events/:id/reschedule', async (c) => {
   try {
     const userId = await getUserId(c);
     const eventId = c.req.param('id');
     const body = await c.req.json();
     
-    const { durationMinutes, linkedAssignmentId } = body;
+    const { durationMinutes, linkedAssignmentId, preview } = body;
     
-    console.log(`[Calendar Reschedule] Request for event ${eventId} by user ${userId}, duration ${durationMinutes}m`);
+    console.log(`[Calendar Reschedule] Request for event ${eventId} by user ${userId}, duration ${durationMinutes}m, preview=${preview}`);
     
     // Fetch event to verify ownership
     const event = await db.query.calendarEventsNew.findFirst({
@@ -1078,7 +1079,38 @@ calendarRoute.post('/events/:id/reschedule', async (c) => {
     // Take the first available slot
     const nextSlot = freeSlots[0];
     
-    // Update the event
+    // Generate reason for this slot selection
+    const dayDiff = Math.floor((nextSlot.startAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    let reason = '';
+    if (dayDiff === 0) {
+      reason = `Next available slot today during ${nextSlot.timeOfDay}`;
+    } else if (dayDiff === 1) {
+      reason = `Next available slot tomorrow during ${nextSlot.timeOfDay}`;
+    } else {
+      reason = `Next available ${nextSlot.durationMinutes}-minute slot in your schedule`;
+    }
+    
+    if (nextSlot.quality === 'optimal') {
+      reason += ' (optimal energy level)';
+    } else if (nextSlot.quality === 'good') {
+      reason += ' (good time for focused work)';
+    }
+    
+    // If preview mode, just return the slot data without updating
+    if (preview) {
+      return c.json({
+        ok: true,
+        event: {
+          id: eventId,
+          title: event.title,
+          startAt: nextSlot.startAt.toISOString(),
+          endAt: nextSlot.endAt.toISOString()
+        },
+        reason
+      });
+    }
+    
+    // Otherwise, update the event
     const [updatedEvent] = await db.update(schema.calendarEventsNew)
       .set({
         startAt: nextSlot.startAt,
@@ -1097,7 +1129,8 @@ calendarRoute.post('/events/:id/reschedule', async (c) => {
         title: updatedEvent.title,
         startAt: updatedEvent.startAt.toISOString(),
         endAt: updatedEvent.endAt.toISOString()
-      }
+      },
+      reason
     });
   } catch (error: any) {
     console.error('[Calendar Reschedule] Error:', error);

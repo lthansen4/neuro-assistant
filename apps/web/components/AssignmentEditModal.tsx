@@ -80,7 +80,16 @@ export function AssignmentEditModal({
   const [showSummary, setShowSummary] = useState(false);
   const [showScheduleMore, setShowScheduleMore] = useState(false);
   const [additionalMinutes, setAdditionalMinutes] = useState<string>("90");
+  const [blockName, setBlockName] = useState<string>("");
   const [schedulingMore, setSchedulingMore] = useState(false);
+  const [reschedulePreview, setReschedulePreview] = useState<{
+    blockId: string;
+    blockTitle: string;
+    currentTime: string;
+    newTime: string;
+    reason: string;
+    slotData: any;
+  } | null>(null);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -243,57 +252,76 @@ export function AssignmentEditModal({
     const end = new Date(block.endAt);
     const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
 
-    // Use toast.promise for automatic loading -> success/error transitions
-    await toast.promise(
-      (async () => {
-        // Call API to auto-reschedule this block
-        const res = await fetch(`${API_BASE}/api/calendar/events/${blockId}/reschedule`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-clerk-user-id": userId,
-          },
-          body: JSON.stringify({
-            durationMinutes,
-            linkedAssignmentId: assignment.id,
-          }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.error) {
-          throw new Error(data.error || "Failed to reschedule block.");
-        }
-
-        // Update local state with new time
-        setFocusBlocks(prev => prev.map(b => 
-          b.id === blockId 
-            ? { ...b, startAt: data.event.startAt, endAt: data.event.endAt } 
-            : b
-        ));
-
-        // Broadcast update to all views
-        window.dispatchEvent(new CustomEvent('assignmentUpdated', {
-          detail: { 
-            assignmentId: assignment.id,
-            action: 'reschedule',
-            blockId 
-          }
-        }));
-        
-        onUpdated(); // Refresh parent views
-
-        // Return data for success message
-        return data;
-      })(),
-      {
-        loading: "Finding a new time slot...",
-        success: (data) => {
-          const newStart = new Date(data.event.startAt);
-          return `Rescheduled to ${newStart.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${newStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    // First, find a new slot and show preview
+    const loadingToast = toast.loading("Finding available time slots...");
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/calendar/events/${blockId}/reschedule`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-clerk-user-id": userId,
         },
-        error: (err) => err.message || "Failed to reschedule",
+        body: JSON.stringify({
+          durationMinutes,
+          linkedAssignmentId: assignment.id,
+          preview: true, // Request preview mode
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to find new time slot.");
       }
-    );
+
+      // Dismiss loading toast
+      toast.success("Found available slot!");
+
+      // Show confirmation dialog with preview
+      const newStart = new Date(data.event.startAt);
+      const currentTimeStr = `${start.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      const newTimeStr = `${newStart.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${newStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      
+      setReschedulePreview({
+        blockId,
+        blockTitle: block.title,
+        currentTime: currentTimeStr,
+        newTime: newTimeStr,
+        reason: data.reason || "Next available slot in your schedule",
+        slotData: data.event,
+      });
+
+    } catch (err: any) {
+      toast.error(err.message || "Failed to find new time slot");
+      console.error(err);
+    }
+  };
+
+  const confirmReschedule = async () => {
+    if (!reschedulePreview) return;
+
+    const { blockId, slotData } = reschedulePreview;
+
+    // Update local state with new time
+    setFocusBlocks(prev => prev.map(b => 
+      b.id === blockId 
+        ? { ...b, startAt: slotData.startAt, endAt: slotData.endAt } 
+        : b
+    ));
+
+    toast.success(`Rescheduled to ${reschedulePreview.newTime}`);
+
+    // Broadcast update to all views
+    window.dispatchEvent(new CustomEvent('assignmentUpdated', {
+      detail: { 
+        assignmentId: assignment.id,
+        action: 'reschedule',
+        blockId 
+      }
+    }));
+    
+    setReschedulePreview(null);
+    onUpdated();
   };
 
   const handleScheduleMoreTime = async (autoSchedule: boolean) => {
@@ -323,6 +351,7 @@ export function AssignmentEditModal({
         },
         body: JSON.stringify({
           additionalMinutes: Number(additionalMinutes),
+          blockName: blockName.trim() || null, // Send custom block name if provided
         }),
       });
 
@@ -356,6 +385,7 @@ export function AssignmentEditModal({
 
       setShowScheduleMore(false);
       setAdditionalMinutes("90");
+      setBlockName(""); // Reset block name
       onUpdated(); // Refresh parent views
     } catch (err: any) {
       toast.error(err.message || "Failed to schedule time");
@@ -592,16 +622,17 @@ export function AssignmentEditModal({
 
             {/* Schedule More Time Form */}
             {showScheduleMore && (
-              <div className="space-y-4 p-6 rounded-3xl bg-brand-primary/5 border-2 border-brand-primary/20">
+              <div className="space-y-4 p-6 rounded-3xl bg-white dark:bg-brand-surface border-2 border-brand-primary/40">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-brand-text flex items-center gap-2">
                     <Clock size={18} className="text-brand-primary" />
-                    How much more time do you need?
+                    Schedule More Time
                   </h4>
                   <button
                     onClick={() => {
                       setShowScheduleMore(false);
                       setAdditionalMinutes("90");
+                      setBlockName("");
                     }}
                     className="text-brand-muted hover:text-brand-text transition-colors"
                   >
@@ -609,17 +640,30 @@ export function AssignmentEditModal({
                   </button>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="space-y-3">
+                  <Label className="text-xs font-bold text-brand-text">Block Name (Optional)</Label>
                   <Input
-                    type="number"
-                    min={15}
-                    step={15}
-                    value={additionalMinutes}
-                    onChange={(e) => setAdditionalMinutes(e.target.value)}
-                    className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 rounded-xl font-bold text-center text-lg"
-                    placeholder="90"
+                    value={blockName}
+                    onChange={(e) => setBlockName(e.target.value)}
+                    placeholder={`e.g., "Draft outline", "Research sources"`}
+                    className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-medium text-base"
                   />
-                  <span className="text-sm font-medium text-brand-muted">minutes</span>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-brand-text">Duration</Label>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      type="number"
+                      min={15}
+                      step={15}
+                      value={additionalMinutes}
+                      onChange={(e) => setAdditionalMinutes(e.target.value)}
+                      className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-bold text-center text-lg"
+                      placeholder="90"
+                    />
+                    <span className="text-sm font-bold text-brand-text">minutes</span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -635,13 +679,13 @@ export function AssignmentEditModal({
                     onClick={() => handleScheduleMoreTime(false)}
                     disabled={schedulingMore}
                     variant="outline"
-                    className="flex-1 h-12 rounded-xl font-bold"
+                    className="flex-1 h-12 rounded-xl font-bold border-brand-border/60"
                   >
                     Manual Schedule
                   </Button>
                 </div>
 
-                <p className="text-xs text-brand-muted italic">
+                <p className="text-xs text-brand-text/60 italic">
                   New work blocks will be linked to this assignment
                 </p>
               </div>
@@ -687,6 +731,71 @@ export function AssignmentEditModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Reschedule Confirmation Dialog */}
+    {reschedulePreview && (
+      <Dialog open={true} onOpenChange={() => setReschedulePreview(null)}>
+        <DialogContent className="max-w-lg bg-brand-surface border-brand-border rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-serif font-black text-brand-text italic">
+              Confirm Reschedule
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">Block</Label>
+              <p className="font-bold text-brand-text">{reschedulePreview.blockTitle}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">Current Time</Label>
+              <p className="text-brand-text/70 line-through">{reschedulePreview.currentTime}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-brand-muted">New Time</Label>
+              <p className="font-bold text-brand-primary text-lg">{reschedulePreview.newTime}</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-brand-primary/10 border border-brand-primary/20">
+              <Label className="text-xs font-bold uppercase tracking-wider text-brand-primary mb-2 block">Why this time?</Label>
+              <p className="text-sm text-brand-text">{reschedulePreview.reason}</p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col gap-3">
+            <Button
+              onClick={confirmReschedule}
+              className="w-full h-12 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl font-bold"
+            >
+              Confirm Reschedule
+            </Button>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setReschedulePreview(null)}
+                variant="outline"
+                className="flex-1 h-10 rounded-xl font-medium"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setReschedulePreview(null);
+                  toast.info("Manual scheduling - navigate to calendar");
+                  onClose();
+                }}
+                variant="outline"
+                className="flex-1 h-10 rounded-xl font-medium"
+              >
+                Pick Manually
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )}
+  </>
   );
 }
 
