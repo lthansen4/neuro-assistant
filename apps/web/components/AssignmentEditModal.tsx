@@ -33,6 +33,9 @@ export interface AssignmentEditData {
   status: "Inbox" | "Scheduled" | "Locked_In" | "Completed";
   courseId: string | null;
   courseName: string | null;
+  pointsEarned?: number | null;
+  pointsPossible?: number | null;
+  graded?: boolean;
 }
 
 interface FocusBlock {
@@ -72,6 +75,13 @@ export function AssignmentEditModal({
   const [effortMinutes, setEffortMinutes] = useState<string>(
     assignment.effortEstimateMinutes ? String(assignment.effortEstimateMinutes) : ""
   );
+  const [pointsEarned, setPointsEarned] = useState<string>(
+    assignment.pointsEarned ? String(assignment.pointsEarned) : ""
+  );
+  const [pointsPossible, setPointsPossible] = useState<string>(
+    assignment.pointsPossible ? String(assignment.pointsPossible) : ""
+  );
+  const [graded, setGraded] = useState(assignment.graded || false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -179,7 +189,35 @@ export function AssignmentEditModal({
       if (!res.ok || data.error) {
         throw new Error(data.error || "Failed to update assignment.");
       }
-      toast.success("Assignment updated ✓");
+
+      // Save grade separately if grade fields are filled
+      if (pointsEarned && pointsPossible) {
+        const gradeRes = await fetch(`${API_BASE}/api/assignments/${assignment.id}/grade`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "x-clerk-user-id": userId,
+          },
+          body: JSON.stringify({
+            pointsEarned: parseFloat(pointsEarned),
+            pointsPossible: parseFloat(pointsPossible),
+            graded: true,
+          }),
+        });
+        const gradeData = await gradeRes.json().catch(() => ({}));
+        if (!gradeRes.ok || gradeData.error) {
+          throw new Error(gradeData.error || "Failed to save grade.");
+        }
+        
+        // Show course grade update if available
+        if (gradeData.courseGrade) {
+          toast.success(`Assignment saved! Course grade: ${gradeData.courseGrade.percentage}% (${gradeData.courseGrade.letterGrade})`);
+        } else {
+          toast.success("Assignment updated ✓");
+        }
+      } else {
+        toast.success("Assignment updated ✓");
+      }
       
       // Broadcast update to all views
       window.dispatchEvent(new CustomEvent('assignmentUpdated', {
@@ -187,6 +225,17 @@ export function AssignmentEditModal({
           assignmentId: assignment.id,
           updatedFields: payload 
         }
+      }));
+      
+      onUpdated();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Failed to save changes.");
+      toast.error(err.message || "Failed to save assignment");
+    } finally {
+      setSaving(false);
+    }
+  };
       }));
       
       onUpdated();
@@ -569,6 +618,44 @@ export function AssignmentEditModal({
                   className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-bold focus:ring-2 focus:ring-brand-primary/20 transition-colors"
                 />
               </div>
+            </div>
+
+            {/* Grade Entry Section */}
+            <div className="space-y-4 pt-4 border-t border-brand-border/40">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-brand-muted px-2">Grade (Optional)</Label>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="Points earned"
+                    value={pointsEarned}
+                    onChange={(e) => setPointsEarned(e.target.value)}
+                    className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-bold text-center focus:ring-2 focus:ring-brand-primary/20 transition-colors"
+                  />
+                </div>
+                <span className="text-brand-muted font-bold text-xl">/</span>
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="Points possible"
+                    value={pointsPossible}
+                    onChange={(e) => setPointsPossible(e.target.value)}
+                    className="h-12 bg-white dark:bg-brand-surface border-brand-border/60 hover:border-brand-primary/40 focus:border-brand-primary rounded-xl font-bold text-center focus:ring-2 focus:ring-brand-primary/20 transition-colors"
+                  />
+                </div>
+              </div>
+              {pointsEarned && pointsPossible && parseFloat(pointsPossible) > 0 && (
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <span className="text-sm font-bold text-brand-muted">Grade:</span>
+                  <span className="text-2xl font-black text-brand-primary">
+                    {((parseFloat(pointsEarned) / parseFloat(pointsPossible)) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

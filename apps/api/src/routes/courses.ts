@@ -3,6 +3,7 @@ import { db, schema } from '../lib/db';
 import { DateTime } from 'luxon';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getUserId } from '../lib/auth-utils';
+import { percentageToLetterGrade } from '../lib/grade-calculator';
 
 export const coursesRoute = new Hono();
 
@@ -248,7 +249,19 @@ coursesRoute.get('/', async (c) => {
       orderBy: (courses, { asc }) => [asc(courses.name)],
     });
 
-    return c.json({ ok: true, items: courses });
+    // Add calculated letter grades
+    const coursesWithGrades = courses.map(course => {
+      const currentGrade = course.currentGrade ? parseFloat(course.currentGrade) : null;
+      const letterGrade = currentGrade !== null ? percentageToLetterGrade(currentGrade) : null;
+      
+      return {
+        ...course,
+        currentGrade,
+        letterGrade,
+      };
+    });
+
+    return c.json({ ok: true, items: coursesWithGrades });
   } catch (error: any) {
     console.error('[Courses API] Error fetching courses:', error);
     return c.json({ error: error.message || 'Failed to fetch courses' }, 500);

@@ -6,6 +6,7 @@ import { getUserId } from '../lib/auth-utils';
 import { DateTime } from 'luxon';
 import { OneSignalService } from '../lib/onesignal-service';
 import { SlotMatcher } from '../lib/slot-matcher';
+import { calculateCourseGrade, updateCourseGrade, percentageToLetterGrade } from '../lib/grade-calculator';
 
 export const assignmentsRoute = new Hono();
 
@@ -808,5 +809,89 @@ assignmentsRoute.get('/:id/details', async (c) => {
   } catch (error: any) {
     console.error('[Assignments API] Error fetching details:', error);
     return c.json({ error: error.message || 'Failed to fetch assignment details' }, 500);
+  }
+});
+
+/**
+ * PATCH /api/assignments/:id/grade
+ * Update grade fields for an assignment and recalculate course grade
+ */
+assignmentsRoute.patch('/:id/grade', async (c) => {
+  try {
+    const userId = await getUserId(c);
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const assignmentId = c.req.param('id');
+    const body = await c.req.json<{
+      pointsEarned: number | null;
+      pointsPossible: number | null;
+      graded: boolean;
+    }>();
+
+    // Validate assignment exists and belongs to user
+    const existing = await db.query.assignments.findFirst({
+      where: and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)),
+    });
+
+    if (!existing) {
+      return c.json({ error: 'Assignment not found' }, 404);
+    }
+
+    // Validate grade data
+    if (body.graded && (body.pointsEarned === null || body.pointsPossible === null)) {
+      return c.json({ error: 'pointsEarned and pointsPossible are required when graded is true' }, 400);
+    }
+
+    if (body.pointsPossible !== null && body.pointsPossible <= 0) {
+      return c.json({ error: 'pointsPossible must be greater than 0' }, 400);
+    }
+
+    // Update assignment grade fields
+    const [updated] = await db
+      .update(assignments)
+      .set({
+        pointsEarned: body.pointsEarned?.toString() || null,
+        pointsPossible: body.pointsPossible?.toString() || null,
+        graded: body.graded,
+        submittedAt: body.graded ? new Date() : existing.submittedAt,
+      })
+      .where(and(eq(assignments.id, assignmentId), eq(assignments.userId, userId)))
+      .returning();
+
+    console.log(`[Assignments API] Updated grade for assignment ${assignmentId}: ${body.pointsEarned}/${body.pointsPossible}, graded=${body.graded}`);
+
+    // Recalculate course grade if assignment is linked to a course
+    let courseGrade = null;
+    if (updated.courseId) {
+      await updateCourseGrade(updated.courseId);
+      
+      // Fetch updated course grade
+      const gradeResult = await calculateCourseGrade(updated.courseId);
+      if (gradeResult) {
+        courseGrade = {
+          percentage: gradeResult.percentage,
+          letterGrade: gradeResult.letterGrade,
+        };
+      }
+      
+      console.log(`[Assignments API] Recalculated course grade: ${courseGrade?.percentage}% (${courseGrade?.letterGrade})`);
+    }
+
+    return c.json({
+      ok: true,
+      assignment: {
+        id: updated.id,
+        pointsEarned: updated.pointsEarned,
+        pointsPossible: updated.pointsPossible,
+        graded: updated.graded,
+        submittedAt: updated.submittedAt?.toISOString(),
+      },
+      courseGrade,
+    });
+  } catch (error: any) {
+    console.error('[Assignments API] Error updating grade:', error);
+    return c.json({ error: error.message || 'Failed to update grade' }, 500);
   }
 });

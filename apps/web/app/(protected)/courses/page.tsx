@@ -10,6 +10,9 @@ interface Course {
   name: string;
   professor?: string | null;
   credits?: number | null;
+  currentGrade?: number | null;
+  letterGrade?: string | null;
+  gradeUpdatedAt?: string | null;
 }
 
 export default function CoursesPage() {
@@ -92,7 +95,21 @@ export default function CoursesPage() {
                     {course.professor || "Professor not set"} · {course.credits ?? 0} credits
                   </div>
                 </div>
-                <span className="text-sm text-blue-600 font-semibold">Edit</span>
+                <div className="flex items-center gap-4">
+                  {course.currentGrade !== null && course.currentGrade !== undefined ? (
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {course.letterGrade || "N/A"}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {course.currentGrade.toFixed(1)}%
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-400">No grades yet</span>
+                  )}
+                  <span className="text-sm text-blue-600 font-semibold">Edit</span>
+                </div>
               </div>
             </Link>
           ))}
