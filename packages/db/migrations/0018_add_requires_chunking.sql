@@ -19,3 +19,5 @@ COMMENT ON COLUMN assignments.requires_chunking IS
 
 
 
+
+

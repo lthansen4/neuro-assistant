@@ -14,3 +14,5 @@ ALTER TABLE user_daily_productivity
 COMMENT ON COLUMN user_daily_productivity.buffer_minutes_earned IS 'Total buffer minutes earned today (15 min per focus session, refreshes not stacks)';
 COMMENT ON COLUMN user_daily_productivity.buffer_minutes_used IS 'Buffer minutes redeemed today (expires at midnight)';
 
+
+

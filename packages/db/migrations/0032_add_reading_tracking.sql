@@ -11,3 +11,5 @@ COMMENT ON COLUMN assignments.total_pages IS 'Total number of pages in the readi
 COMMENT ON COLUMN assignments.pages_completed IS 'Number of pages student has finished';
 COMMENT ON COLUMN assignments.reading_questions IS 'Array of [{text: string, createdAt: string}] questions for the professor';
 
+
+

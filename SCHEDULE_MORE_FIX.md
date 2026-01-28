@@ -119,3 +119,5 @@ If users still see "no free slot" errors after this fix:
 4. Consider adjusting the minimum slot duration requirements
 5. Review assignment due date constraints
 
+
+

@@ -11,3 +11,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS "uniq_alert_dismissals_user_alert"
 CREATE INDEX IF NOT EXISTS "idx_alert_dismissals_user"
   ON "alert_dismissals" ("user_id");
 
+
+

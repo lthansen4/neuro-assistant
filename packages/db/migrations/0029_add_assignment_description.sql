@@ -9,3 +9,5 @@ CREATE INDEX idx_assignments_description ON assignments USING gin(to_tsvector('e
 WHERE description IS NOT NULL;
 
 
+
+
