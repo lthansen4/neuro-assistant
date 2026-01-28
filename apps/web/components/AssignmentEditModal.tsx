@@ -236,16 +236,6 @@ export function AssignmentEditModal({
       setSaving(false);
     }
   };
-      }));
-      
-      onUpdated();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to update");
-      setError(err.message || "Failed to update assignment.");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleDelete = async () => {
     if (!confirm(`Delete "${assignment.title}"? This will remove related calendar events too.`)) {
