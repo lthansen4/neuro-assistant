@@ -121,6 +121,13 @@ export function AssignmentEditModal({
           throw new Error(data.error || "Failed to load assignment details.");
         }
         setFocusBlocks(Array.isArray(data.focusBlocks) ? data.focusBlocks : []);
+        
+        // Update grade fields from backend data
+        if (data.assignment) {
+          if (data.assignment.pointsEarned) setPointsEarned(String(data.assignment.pointsEarned));
+          if (data.assignment.pointsPossible) setPointsPossible(String(data.assignment.pointsPossible));
+          if (data.assignment.graded !== undefined) setGraded(!!data.assignment.graded);
+        }
       } catch (err) {
         console.error("[AssignmentEditModal] Failed to load focus blocks:", err);
       } finally {

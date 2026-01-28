@@ -126,6 +126,9 @@ dashboardRoute.get("/summary", async (c) => {
         courseId: schema.assignments.courseId,
         courseName: schema.courses.name,
         createdAt: schema.assignments.createdAt,
+        pointsEarned: schema.assignments.pointsEarned,
+        pointsPossible: schema.assignments.pointsPossible,
+        graded: schema.assignments.graded,
       })
       .from(schema.assignments)
       .leftJoin(schema.courses, eq(schema.courses.id, schema.assignments.courseId))
@@ -149,6 +152,9 @@ dashboardRoute.get("/summary", async (c) => {
         courseId: schema.assignments.courseId,
         courseName: schema.courses.name,
         createdAt: schema.assignments.createdAt,
+        pointsEarned: schema.assignments.pointsEarned,
+        pointsPossible: schema.assignments.pointsPossible,
+        graded: schema.assignments.graded,
       })
       .from(schema.assignments)
       .leftJoin(schema.courses, eq(schema.courses.id, schema.assignments.courseId))
@@ -173,6 +179,9 @@ dashboardRoute.get("/summary", async (c) => {
         courseName: schema.courses.name,
         submittedAt: schema.assignments.submittedAt,
         createdAt: schema.assignments.createdAt,
+        pointsEarned: schema.assignments.pointsEarned,
+        pointsPossible: schema.assignments.pointsPossible,
+        graded: schema.assignments.graded,
       })
       .from(schema.assignments)
       .leftJoin(schema.courses, eq(schema.courses.id, schema.assignments.courseId))
@@ -287,6 +296,9 @@ dashboardRoute.get("/assignments", async (c) => {
         courseName: schema.courses.name,
         createdAt: schema.assignments.createdAt,
         submittedAt: schema.assignments.submittedAt,
+        pointsEarned: schema.assignments.pointsEarned,
+        pointsPossible: schema.assignments.pointsPossible,
+        graded: schema.assignments.graded,
       })
       .from(schema.assignments)
       .leftJoin(schema.courses, eq(schema.courses.id, schema.assignments.courseId))

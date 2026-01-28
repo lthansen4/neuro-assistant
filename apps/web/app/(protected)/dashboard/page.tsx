@@ -35,6 +35,9 @@ interface Assignment {
   isStuck?: boolean;
   totalPages?: number | null;
   pagesCompleted?: number | null;
+  pointsEarned?: number | null;
+  pointsPossible?: number | null;
+  graded?: boolean;
 }
 
 interface DashboardData {

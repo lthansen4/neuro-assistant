@@ -18,6 +18,9 @@ interface Assignment {
   submittedAt?: string | null;
   deferralCount?: number;
   isStuck?: boolean;
+  pointsEarned?: number | null;
+  pointsPossible?: number | null;
+  graded?: boolean;
 }
 
 interface AssignmentsListProps {

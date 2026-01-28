@@ -280,6 +280,14 @@ coursesRoute.get('/:id', async (c) => {
 
     if (!course) return c.json({ error: 'Course not found' }, 404);
 
+    // Add calculated letter grade to course
+    const currentGradeVal = course.currentGrade ? parseFloat(course.currentGrade) : null;
+    const courseWithGrade = {
+      ...course,
+      currentGrade: currentGradeVal,
+      letterGrade: currentGradeVal !== null ? percentageToLetterGrade(currentGradeVal) : null,
+    };
+
     const templatesExist = await templatesTableExists(db);
     let schedule: Array<{ day: string; start: string; end: string; location?: string | null }> = [];
     let officeHours: Array<{ day: string; start: string; end: string; location?: string | null }> = [];
@@ -331,6 +339,9 @@ coursesRoute.get('/:id', async (c) => {
         dueDate: schema.assignments.dueDate,
         category: schema.assignments.category,
         effortEstimateMinutes: schema.assignments.effortEstimateMinutes,
+        pointsEarned: schema.assignments.pointsEarned,
+        pointsPossible: schema.assignments.pointsPossible,
+        graded: schema.assignments.graded,
       })
       .from(schema.assignments)
       .where(and(eq(schema.assignments.userId, userId), eq(schema.assignments.courseId, courseId)));
@@ -356,7 +367,7 @@ coursesRoute.get('/:id', async (c) => {
 
     return c.json({
       ok: true,
-      course,
+      course: courseWithGrade,
       schedule,
       office_hours: officeHours,
       assignments,

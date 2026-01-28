@@ -771,6 +771,9 @@ assignmentsRoute.get('/:id/details', async (c) => {
         pagesCompleted: assignments.pagesCompleted,
         readingQuestions: assignments.readingQuestions,
         courseName: courses.name,
+        pointsEarned: assignments.pointsEarned,
+        pointsPossible: assignments.pointsPossible,
+        graded: assignments.graded,
       })
       .from(assignments)
       .leftJoin(courses, eq(assignments.courseId, courses.id))
