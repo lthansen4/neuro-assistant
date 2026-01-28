@@ -124,8 +124,12 @@ export function AssignmentEditModal({
         
         // Update grade fields from backend data
         if (data.assignment) {
-          if (data.assignment.pointsEarned) setPointsEarned(String(data.assignment.pointsEarned));
-          if (data.assignment.pointsPossible) setPointsPossible(String(data.assignment.pointsPossible));
+          if (data.assignment.pointsEarned !== null && data.assignment.pointsEarned !== undefined) {
+            setPointsEarned(String(data.assignment.pointsEarned));
+          }
+          if (data.assignment.pointsPossible !== null && data.assignment.pointsPossible !== undefined) {
+            setPointsPossible(String(data.assignment.pointsPossible));
+          }
           if (data.assignment.graded !== undefined) setGraded(!!data.assignment.graded);
         }
       } catch (err) {
@@ -197,19 +201,40 @@ export function AssignmentEditModal({
         throw new Error(data.error || "Failed to update assignment.");
       }
 
-      // Save grade separately if grade fields are filled
-      if (pointsEarned && pointsPossible) {
+      const hasGradeInput = pointsEarned.trim() !== "" || pointsPossible.trim() !== "";
+      const wantsClearGrade = graded && pointsEarned.trim() === "" && pointsPossible.trim() === "";
+
+      // Save grade separately if grade fields are filled (or cleared)
+      if (hasGradeInput || wantsClearGrade) {
+        let gradePayload: { pointsEarned: number | null; pointsPossible: number | null; graded: boolean };
+
+        if (wantsClearGrade) {
+          gradePayload = { pointsEarned: null, pointsPossible: null, graded: false };
+        } else {
+          if (pointsEarned.trim() === "" || pointsPossible.trim() === "") {
+            throw new Error("Please enter both points earned and points possible.");
+          }
+
+          const earnedValue = Number(pointsEarned);
+          const possibleValue = Number(pointsPossible);
+
+          if (!Number.isFinite(earnedValue) || !Number.isFinite(possibleValue)) {
+            throw new Error("Grades must be valid numbers.");
+          }
+          if (possibleValue <= 0) {
+            throw new Error("Points possible must be greater than 0.");
+          }
+
+          gradePayload = { pointsEarned: earnedValue, pointsPossible: possibleValue, graded: true };
+        }
+
         const gradeRes = await fetch(`${API_BASE}/api/assignments/${assignment.id}/grade`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             "x-clerk-user-id": userId,
           },
-          body: JSON.stringify({
-            pointsEarned: parseFloat(pointsEarned),
-            pointsPossible: parseFloat(pointsPossible),
-            graded: true,
-          }),
+          body: JSON.stringify(gradePayload),
         });
         const gradeData = await gradeRes.json().catch(() => ({}));
         if (!gradeRes.ok || gradeData.error) {
