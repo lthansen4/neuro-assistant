@@ -80,7 +80,7 @@ app.use('*', cors({
     return ''; // block everything else
   },
   allowHeaders: ['Content-Type', 'Authorization', 'x-clerk-user-id'],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true,
 }));
 
