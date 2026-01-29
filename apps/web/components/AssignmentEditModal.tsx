@@ -169,6 +169,9 @@ export function AssignmentEditModal({
   }, [focusBlocks]);
 
   const handleSave = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssignmentEditModal.tsx:handleSave:entry',message:'handleSave called',data:{assignmentId:assignment.id,title,pointsEarned,pointsPossible,graded,API_BASE},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,C'})}).catch(()=>{});
+    // #endregion
     setError(null);
     if (!title.trim()) {
       toast.error("Title is required");
@@ -188,6 +191,9 @@ export function AssignmentEditModal({
         courseId: editCourseId || null,
         effortEstimateMinutes: effortMinutes ? Number(effortMinutes) : null,
       };
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssignmentEditModal.tsx:handleSave:beforePUT',message:'About to send PUT request',data:{url:`${API_BASE}/api/assignments/${assignment.id}`,payload},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}`, {
         method: "PUT",
         headers: {
@@ -197,12 +203,18 @@ export function AssignmentEditModal({
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssignmentEditModal.tsx:handleSave:afterPUT',message:'PUT response received',data:{status:res.status,ok:res.ok,data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       if (!res.ok || data.error) {
         throw new Error(data.error || "Failed to update assignment.");
       }
 
       const hasGradeInput = pointsEarned.trim() !== "" || pointsPossible.trim() !== "";
       const wantsClearGrade = graded && pointsEarned.trim() === "" && pointsPossible.trim() === "";
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssignmentEditModal.tsx:handleSave:gradeCheck',message:'Checking grade conditions',data:{hasGradeInput,wantsClearGrade,pointsEarned,pointsPossible,graded},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       // Save grade separately if grade fields are filled (or cleared)
       if (hasGradeInput || wantsClearGrade) {
@@ -228,6 +240,9 @@ export function AssignmentEditModal({
           gradePayload = { pointsEarned: earnedValue, pointsPossible: possibleValue, graded: true };
         }
 
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssignmentEditModal.tsx:handleSave:beforeGradePATCH',message:'About to send PATCH grade request',data:{url:`${API_BASE}/api/assignments/${assignment.id}/grade`,gradePayload},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,D'})}).catch(()=>{});
+        // #endregion
         const gradeRes = await fetch(`${API_BASE}/api/assignments/${assignment.id}/grade`, {
           method: "PATCH",
           headers: {
@@ -237,19 +252,29 @@ export function AssignmentEditModal({
           body: JSON.stringify(gradePayload),
         });
         const gradeData = await gradeRes.json().catch(() => ({}));
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssignmentEditModal.tsx:handleSave:afterGradePATCH',message:'PATCH grade response received',data:{status:gradeRes.status,ok:gradeRes.ok,gradeData},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,D'})}).catch(()=>{});
+        // #endregion
         if (!gradeRes.ok || gradeData.error) {
           throw new Error(gradeData.error || "Failed to save grade.");
         }
         
-        // Show course grade update if available
+        // Show course grade update if available - DISMISS LOADING TOAST FIRST
+        toast.dismiss(toastId);
         if (gradeData.courseGrade) {
           toast.success(`Assignment saved! Course grade: ${gradeData.courseGrade.percentage}% (${gradeData.courseGrade.letterGrade})`);
         } else {
           toast.success("Assignment updated ✓");
         }
       } else {
+        // DISMISS LOADING TOAST FIRST
+        toast.dismiss(toastId);
         toast.success("Assignment updated ✓");
       }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssignmentEditModal.tsx:handleSave:success',message:'Save completed successfully',data:{assignmentId:assignment.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       
       // Broadcast update to all views
       window.dispatchEvent(new CustomEvent('assignmentUpdated', {
@@ -262,6 +287,10 @@ export function AssignmentEditModal({
       onUpdated();
       onClose();
     } catch (err: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssignmentEditModal.tsx:handleSave:error',message:'Save failed with error',data:{error:err.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,C,D'})}).catch(()=>{});
+      // #endregion
+      toast.dismiss(toastId);
       setError(err.message || "Failed to save changes.");
       toast.error(err.message || "Failed to save assignment");
     } finally {

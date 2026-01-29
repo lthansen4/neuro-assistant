@@ -223,14 +223,20 @@ export function PostSessionSummaryModal({
 
   const handleSave = async () => {
     if (!user?.id) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PostSessionSummaryModal.tsx:handleSave:entry',message:'handleSave called',data:{userId:user.id,assignmentsCount:assignments.length,assignments:assignments.map(a=>({id:a.id,title:a.title,completionPercentage:a.completionPercentage}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     setSaving(true);
     let manualRescheduleUrl: string | null = null;
     const autoScheduledBlocks: Array<{ title: string, startAt: string }> = [];
 
     try {
       const promises = assignments.map(async (a) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PostSessionSummaryModal.tsx:handleSave:beforeUpdate',message:'About to call updateAssignment',data:{assignmentId:a.id,title:a.title,completionPercentage:a.completionPercentage,statusToSend:a.completionPercentage===100?"Completed":"undefined"},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         // ... basic progress update ...
-        await updateAssignment(user.id, a.id, {
+        const result = await updateAssignment(user.id, a.id, {
           pagesCompleted: a.pagesCompleted,
           totalPages: a.totalPages,
           problemsCompleted: a.problemsCompleted,
@@ -241,6 +247,9 @@ export function PostSessionSummaryModal({
           professorQuestions: a.professorQuestions,
           questionsTarget: a.questionsTarget
         });
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/70ed254e-2018-4d82-aafb-fe6aca7caaca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PostSessionSummaryModal.tsx:handleSave:afterUpdate',message:'updateAssignment returned',data:{assignmentId:a.id,result},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
 
         // ... professor reminder ...
         if (a.professorQuestions.length > 0) {
