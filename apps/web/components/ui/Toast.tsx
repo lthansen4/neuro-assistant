@@ -85,5 +85,8 @@ export const toast = {
       error,
     });
   },
+  dismiss: (toastId?: string | number) => {
+    sonnerToast.dismiss(toastId);
+  },
 };
 
